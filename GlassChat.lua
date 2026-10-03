@@ -171,12 +171,14 @@ local function tuneCmd(arg)
     say("/gchat tune reset - back to the shipped look")
 end
 
-local function slash(msg)
+local function slash(msg, editBox)
     local cmd, arg = (msg or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
     if cmd == "tune" then
         tuneCmd(arg)
     elseif cmd == "copy" then
-        GC.Copy.Open()
+        -- The window the command was typed in (an undocked one included).
+        local f = editBox and editBox.GetParent and editBox:GetParent()
+        GC.Copy.Open(f and f.GetMessageInfo and f or nil)
     elseif cmd == "failures" then
         failures()
     elseif cmd == "version" then

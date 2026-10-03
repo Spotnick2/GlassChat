@@ -390,7 +390,18 @@ function FCFDock_GetChatFrames(dock) return dock._docked end
 function FCFDock_GetSelectedWindow(dock) return dock._selected or ChatFrame1 end
 -- Window names by index (GetChatWindowInfo's first return).
 WoW.windowNames = { "General", "Combat Log", "Whispers" }
-function GetChatWindowInfo(i) return WoW.windowNames[i] or "", 14, 1, 1, 1, 1, true, false, true end
+function GetChatWindowInfo(i) return WoW.windowNames[i] or "", 14, 1, 1, 1, 1, true, false, true, false end
+-- FrameXML's per-window wrapper; temporary windows (id > 10) answer from their tab.
+function FCF_GetChatWindowInfo(i)
+    if i > 10 then
+        local tab = rawget(_G, "ChatFrame" .. i .. "Tab")
+        return tab and tab._tabText or "", 14, 1, 1, 1, 1, true, false, false, false
+    end
+    return GetChatWindowInfo(i)
+end
+function ScrollingEdit_OnCursorChanged() end
+function ScrollingEdit_OnUpdate() end
+function Methods.SetVerticalScroll(w, v) w._vscroll = v end
 -- FrameXML's list of frames Escape closes.
 UISpecialFrames = {}
 -- The name-suggestion list under the edit box (Blizzard_AutoComplete).

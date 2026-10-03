@@ -62,7 +62,9 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   - `ClassColor`;
   - `Fail(key, err)`, the **one** failure recorder (`GlassChat.failures`, read by
     `/gchat failures`);
-  - `MEASURED_ON_BUILD`.
+  - `MEASURED_ON_BUILD`;
+  - the dialog helpers lifted from GlassPanel's Compat (`Window`, `Button`, `AutoHideScrollBar`).
+    They use `GlassChat.Glass` at call time, never at load.
 
   It is a subset of GlassRaidFrames' `Compat.lua`; lift more from there when needed rather than
   rewriting.
@@ -74,7 +76,9 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
 - **`Chat.lua`**: the stock windows. `Chat.Frames()` is every `ChatFrameN` that exists (read
   with `rawget`). `Chat.OnEachFrame(key, fn)` registers an idempotent per-window setup.
   `Chat.Scan()` runs every setup on every window, each one under `pcall` (failures go to
-  `API.Fail`). Scans run at `ADDON_LOADED` (so login lines get the longer scrollback), at
+  `API.Fail`), then the `Chat.AfterScan` steps (the dock, the side buttons). **Every setting
+  change re-runs the scan** (`Skin.Refresh` is `Chat.Scan`), so a module never needs its own
+  refresh wiring. Scans run at `ADDON_LOADED` (so login lines get the longer scrollback), at
   `PLAYER_LOGIN`, on `UPDATE_CHAT_WINDOWS` / `UPDATE_FLOATING_CHAT_WINDOWS`, and after
   `FCF_OpenNewWindow` / `FCF_OpenTemporaryWindow` (hooksecurefunc). It also holds:
   - **scrollback**: `SetMaxLines(db.lines)`, which keeps the existing lines (CircularBuffer.lua:29);
@@ -132,8 +136,12 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   - `Copy.Plain` strips colours, links (keeping their text), textures, atlases and `|K` names:
     the client's `StripHyperlinks` first, then our patterns.
   - A grey **Copy** button sits at the right end of each window's tab strip, on its glass panel
-    (`Skin.Panel(f)`), in `MEDIUM` strata. `/gchat copy` copies the selected window
-    (`FCFDock_GetSelectedWindow`).
+    (`Skin.Panel(f)`), in `MEDIUM` strata. The dock stops `Skin.DOCK_RESERVE` px short of it, so
+    no tab or overflow arrow sits under it. With glass off there's no button (the stock look);
+    `/gchat copy` copies the window the command was typed in, else the dock's selected one.
+  - At most the newest `Copy.MAX` (1000) lines: 5000 in one EditBox froze the client
+    (review of #6). `||` is set aside before stripping, so `a||rb` stays `a|rb`.
+    `StripHyperlinks` keeps brackets, and `|K` names are replaced before it runs.
   - Focus mode (M4) builds on this window.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.

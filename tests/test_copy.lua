@@ -62,5 +62,58 @@ ChatFrame3._messages = { "a whisper" }
 SlashCmdList.GLASSCHAT("copy")
 eq(win.edit:GetText(), "a whisper", "/gchat copy opens the selected window")
 
+-- An escaped pipe is literal text, never half of a code.
+eq(Copy.Plain("a||rb"), "a|rb", "a||rb keeps its r (the pipe was escaped)")
+eq(Copy.Plain("x||cffff0000y"), "x|cffff0000y", "an escaped colour code stays text")
+
+-- The client's stripper keeps brackets (maintainBrackets), and protected
+-- names are replaced before it runs.
+local stripCalls = {}
+rawset(_G, "C_StringUtil", { StripHyperlinks = function(t, keepColor, keepBrackets)
+    stripCalls[#stripCalls + 1] = { t = t, brackets = keepBrackets }
+    if keepBrackets then return (t:gsub("|H.-|h(.-)|h", "%1")) end
+    return (t:gsub("|H.-|h%[?(.-)%]?|h", "%1"))
+end })
+eq(Copy.Plain("|Hitem:1|h[Thunderfury]|h from |Kq9|k"), "[Thunderfury] from ?", "brackets kept, protected name replaced")
+check(stripCalls[1].brackets == true, "StripHyperlinks is asked to keep brackets")
+check(not stripCalls[1].t:find("|K", 1, true), "the |K name was replaced before the client's stripper ran")
+rawset(_G, "C_StringUtil", nil)
+
+-- Only the newest Copy.MAX lines go in the box, and the status says so.
+local many = {}
+for i = 1, Copy.MAX + 5 do many[i] = "line " .. i end
+ChatFrame1._messages = many
+Copy.Open(ChatFrame1)
+check(win.edit:GetText():find("^line 6\n"), "the oldest lines past the cap are left out")
+check(win.status:GetText():find("of " .. (Copy.MAX + 5), 1, true), "the status says how many there were")
+eq(win.scroll._vscroll, 0, "the view opens at the top")
+
+-- A line that fails to read is a failure, not a 'hidden' secret.
+ChatFrame1._messages = { "ok" }
+rawset(ChatFrame1, "GetMessageInfo", function() error("boom") end)
+local _, h = Copy.Lines(ChatFrame1)
+eq(h, 0, "a read error isn't counted as hidden")
+check(GC.failures["copy read"] ~= nil, "it's recorded as a failure")
+GC.failures["copy read"] = nil
+rawset(ChatFrame1, "GetMessageInfo", nil)
+
+-- A temporary whisper window is titled with its tab's text.
+local temp = WoW.makeTemporaryWindow(11)
+ChatFrame11Tab._tabText = "Bob"
+temp._messages = { "hi" }
+Copy.Open(temp)
+eq(win.title:GetText(), "Copy: Bob", "a whisper window is named after its tab")
+
+-- /gchat copy copies the window it was typed in.
+ChatFrame2._messages = { "typed here" }   -- ChatFrame3 is the selected window
+SlashCmdList.GLASSCHAT("copy", ChatFrame2EditBox)
+eq(win.edit:GetText(), "typed here", "/gchat copy uses the window it was typed in")
+
+-- The dock stops short of the Copy button; glass off gives it back.
+eq(select(4, GeneralDockManager:GetPoint(2)), -GC.Skin.DOCK_RESERVE, "the tab dock leaves room for the Copy button")
+GC.Settings.SetGlass(false)
+eq(select(4, GeneralDockManager:GetPoint(2)), 0, "glass off: the dock spans the window again")
+GC.Settings.SetGlass(true)
+
 eq(next(GC.failures), nil, "nothing failed")
 done("test_copy")
