@@ -12,10 +12,12 @@
 -- The chat-menu bubble (ChatFrameMenuButton: one texture, frame baked in)
 -- and the friends button (QuickJoinToastButton: animated atlases) are left
 -- as they are until an in-game atlas check says what can replace them.
+-- Known: the channel button's tutorial Flash (chatframe-button-highlightalert)
+-- still pulses a frame-shaped glow; UIFrameFlash drives its alpha, so it
+-- isn't fought.
 
 GlassChat = GlassChat or {}
 local GC = GlassChat
-local Glass = GC.Glass
 local Buttons = {}
 GC.Buttons = Buttons
 
@@ -25,37 +27,53 @@ Buttons.SIZE = 24
 Buttons.HIGHLIGHT = 0.4
 
 local pills = setmetatable({}, { __mode = "k" })   -- button -> { pill, g }
+local hooked = setmetatable({}, { __mode = "k" })
 
-local function art(b, alpha)
-    for _, t in ipairs({ b:GetNormalTexture(), b:GetPushedTexture() }) do
-        if t then t:SetAlpha(alpha) end
-    end
-    local h = b:GetHighlightTexture()
-    if h then h:SetAlpha(alpha == 0 and Buttons.HIGHLIGHT or 1) end
+-- The metal frame (normal and pushed art, read one by one: a nil normal
+-- texture must not hide a pushed one), TTS's own black Background square
+-- (TextToSpeech.xml:17-24, a parentKey), and the highlight, softened.
+local function art(b, on)
+    local frameAlpha = on and 0 or 1
+    local n, pushed, h = b:GetNormalTexture(), b:GetPushedTexture(), b:GetHighlightTexture()
+    if n then n:SetAlpha(frameAlpha) end
+    if pushed then pushed:SetAlpha(frameAlpha) end
+    -- rawget: a parentKey child is a plain field on the frame table.
+    local bg = rawget(b, "Background")
+    if bg then bg:SetAlpha(frameAlpha) end
+    if h then h:SetAlpha(on and Buttons.HIGHLIGHT or 1) end
 end
 
 function Buttons.Style(b)
     local on = GC.db.glass
     local p = pills[b]
+    if not (on or p) then return end   -- never styled: the stock button is left alone
     if on and not p then
-        local pill = CreateFrame("Frame", nil, b)
+        -- The panel recipe and tuning from Skin, then only what a 24 px
+        -- pill needs differently.
+        local pill, g = GC.Skin.NewPanel(b, "small")
         pill:SetSize(Buttons.SIZE, Buttons.SIZE)
         pill:SetPoint("CENTER", b, "CENTER", 0, 0)
-        pill:SetFrameLevel(math.max(0, b:GetFrameLevel() - 1))
-        local g = Glass.Apply(pill, "small")
-        g.tint:SetColorTexture(GC.Skin.TINT[1], GC.Skin.TINT[2], GC.Skin.TINT[3], GC.db.alpha)
-        g.grain:SetAlpha(0)
-        g.wash:SetAlpha(0)
-        g.shadow:SetAlpha(0)
-        g.rim:SetAlpha(GC.Skin.RIM_IDLE)
         p = { pill = pill, g = g }
         pills[b] = p
     end
-    if p then
-        p.pill:SetShown(on)
-        p.g.tint:SetColorTexture(GC.Skin.TINT[1], GC.Skin.TINT[2], GC.Skin.TINT[3], GC.db.alpha)
+    -- Re-synced every time: the button's level may have moved. Glass.Apply
+    -- puts its rims on g.top at +10 (Glass.lua:117), which would draw them
+    -- over the gold Icon; down with the pill instead.
+    p.pill:SetFrameLevel(math.max(0, b:GetFrameLevel() - 1))
+    p.g.top:SetFrameLevel(p.pill:GetFrameLevel())
+    GC.Skin.Tune(p.g)
+    p.g.grain:SetAlpha(0)
+    p.g.shadow:SetAlpha(0)
+    p.pill:SetShown(on)
+    art(b, on)
+    -- Blizzard re-sets the highlight on every state change (PropertyButton
+    -- UpdateHighlight, PropertyButton.lua:60-67): soften it again after.
+    if not hooked[b] and rawget(b, "UpdateHighlight") then   -- a mixin method: a plain field too
+        hooked[b] = true
+        hooksecurefunc(b, "UpdateHighlight", function(self)
+            if pills[self] then art(self, GC.db.glass) end
+        end)
     end
-    art(b, on and 0 or 1)
 end
 
 function Buttons.Refresh()

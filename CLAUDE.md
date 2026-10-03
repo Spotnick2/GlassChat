@@ -145,8 +145,14 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   - Focus mode (M4) builds on this window.
 - **`Buttons.lua`** (#7): the buttons beside the chat as compact glass buttons.
   - **Voice-style buttons** (`VoiceToggleButtonTemplate`: channel, TTS, deafen, mute): the metal
-    frame is the button's normal and pushed art, set to alpha 0, over a small glass pill, our own
-    child one level under. The gold `Icon` stays, and the highlight is softened.
+    frame is the button's normal and pushed art, set to alpha 0. TTS's own black `Background`
+    square goes too.
+  - Behind them, a small glass pill from `Skin.NewPanel` / `Skin.Tune`, our own child one level
+    under. Its `g.top` (the rims) is lowered with it, since `Glass.Apply` puts it at +10, over the
+    gold `Icon`. The level re-syncs every scan.
+  - The highlight is softened, and softened again after Blizzard's `UpdateHighlight`.
+  - A button never styled (glass off from login) is never touched.
+  - Parent keys and mixin methods are read with `rawget`: they are plain fields on the frame.
   - The chat-menu bubble (frame baked into one texture) and the friends button (animated
     atlases) wait for an in-game atlas check.
   - Run after every scan through `Chat.AfterScan`.
