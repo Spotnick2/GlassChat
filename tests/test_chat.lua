@@ -68,6 +68,34 @@ eq(ChatFrame1EditBoxMid._alpha, 1, "and the edit box border")
 GC.Settings.SetGlass(true)
 check(p.panel:IsShown() and not ChatFrame1Background:IsShown(), "glass on again")
 
+-- Tabs: a bigger shadowed name (set at load, before Blizzard names and
+-- sizes the tabs), a glass pill instead of the stock art, and higher
+-- resting opacity through Blizzard's own setter after its update.
+local tab, text = ChatFrame1Tab, ChatFrame1Tab:GetFontString()
+eq(select(2, text:GetFont()), 14, "the tab name is 14 pt")
+eq(text:GetHeight(), 18, "and its 8 px box is grown so it isn't clipped")
+eq(tab.Middle._alpha, 0, "the stock tab art is invisible")
+local tp = P[tab]
+check(tp and tp.panel:IsShown(), "the tab has a glass pill")
+eq(select(2, tp.panel:GetPoint(1)), text, "around the name")
+FCFTab_UpdateAlpha(ChatFrame1)
+FCFTab_UpdateAlpha(ChatFrame2)
+eq(ChatFrame1Tab._alpha, 0.9, "the selected tab rests at 0.9 (stock 0.4)")
+eq(ChatFrame2Tab._alpha, 0.6, "the others at 0.6 (stock 0.2)")
+eq(WoW.tabAlphas[ChatFrame2Tab][1], 1, "mouse-over brings any tab to full")
+FCFTab_UpdateColors(tab, true)
+eq(tp.g.rim._alpha, GC.Skin.RIM_FOCUS, "the selected tab's rim is brighter")
+FCFTab_UpdateColors(tab, false)
+eq(tp.g.rim._alpha, GC.Skin.RIM_IDLE, "an unselected one's isn't")
+GC.Settings.SetTabSize(30)
+eq(select(2, text:GetFont()), 20, "tab size is capped at 20")
+GC.Settings.SetGlass(false)
+eq(select(2, text:GetFont()), 10, "glass off gives the tab its stock font back")
+eq(text:GetHeight(), 8, "and its stock height")
+eq(tab.Middle._alpha, 1, "and its stock art")
+GC.Settings.SetGlass(true)
+GC.Settings.SetTabSize(14)
+
 -- Sent history: plain arrows, a longer list, replayed from the character's
 -- saved lines, and every new send recorded (once, never a secret).
 local edit = ChatFrame1EditBox
@@ -88,8 +116,41 @@ GC.Settings.SetHistory(10)
 for i = 1, 15 do edit:AddHistoryLine("line " .. i) end
 eq(#GlassChatCharDB.sent, 10, "the saved list is capped at the history size")
 eq(GlassChatCharDB.sent[10], "line 15", "keeping the newest")
+-- Up/Down walk OUR list (the native history ignores plain arrows on this
+-- client, measured): Up older, Down newer, past the newest back to the draft.
+local function arrow(key) edit._scripts.OnArrowPressed(edit, key) end
+GlassChatCharDB.sent = { "first", "second", "third" }
+edit:SetText("half-typed")
+arrow("UP")
+eq(edit:GetText(), "third", "Up recalls the newest sent line")
+arrow("UP"); arrow("UP"); arrow("UP")
+eq(edit:GetText(), "first", "Up stops at the oldest")
+arrow("DOWN")
+eq(edit:GetText(), "second", "Down goes one newer")
+arrow("DOWN"); arrow("DOWN")
+eq(edit:GetText(), "half-typed", "Down past the newest gives back what was being typed")
+arrow("DOWN")
+eq(edit:GetText(), "half-typed", "Down when not browsing changes nothing")
+arrow("UP")
+edit:AddHistoryLine("fourth")   -- a send
+edit:SetText("")
+arrow("UP")
+eq(edit:GetText(), "fourth", "after a send, Up starts again from the newest")
+edit._scripts.OnEditFocusLost(edit)
+arrow("UP")
+eq(edit:GetText(), "fourth", "losing focus resets browsing too")
+WoW.chatLockdown = true
+edit:SetText("x")
+arrow("UP")
+eq(edit:GetText(), "x", "no SetText during chat messaging lockdown")
+WoW.chatLockdown = false
+arrow("LEFT")
+eq(edit:GetText(), "x", "other arrows are left to the edit box")
 GC.Settings.SetPlainArrows(false)
 eq(edit:GetAltArrowKeyMode(), true, "arrows off gives back Alt+Up/Down")
+edit:SetText("y")
+arrow("UP")
+eq(edit:GetText(), "y", "and our Up/Down stand down")
 
 -- /gchat drives the same settings.
 newChat()

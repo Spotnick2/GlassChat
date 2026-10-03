@@ -17,6 +17,7 @@ local DEFAULTS = {
     classColors = true,    -- keep chatClassColorOverride at "0"
     plainArrows = true,    -- Up/Down cycle what you sent (stock: Alt+Up/Down)
     history = 100,         -- sent lines kept (stock: 32)
+    tabSize = 14,          -- tab name font size (stock GameFontNormalSmall, ~10)
 }
 
 -- Read settings, fill missing keys. Nothing may REQUIRE a value to have
@@ -65,6 +66,11 @@ function Settings.SetPlainArrows(on)
     GC.Chat.Scan()
 end
 
+function Settings.SetTabSize(n)
+    GC.db.tabSize = clamp(math.floor(n), 10, 20)
+    GC.Skin.Refresh()
+end
+
 function Settings.SetHistory(n)
     GC.db.history = clamp(math.floor(n), GC.History.MIN, GC.History.MAX)
     GC.Chat.Scan()
@@ -93,6 +99,7 @@ local function help()
     say("/gchat colors on|off - class-coloured names (" .. onOff(db.classColors) .. ")")
     say("/gchat arrows on|off - Up/Down recall what you sent (" .. onOff(db.plainArrows) .. ")")
     say("/gchat history N - sent lines kept (" .. db.history .. ")")
+    say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
     say("/gchat failures - what failed to build or register")
     say("/gchat version - client build vs the measured one")
 end
@@ -103,7 +110,8 @@ local function flag(arg)
 end
 
 local TOGGLES = { glass = Settings.SetGlass, colors = Settings.SetClassColors, arrows = Settings.SetPlainArrows }
-local NUMBERS = { alpha = Settings.SetAlpha, lines = Settings.SetLines, history = Settings.SetHistory }
+local NUMBERS = { alpha = Settings.SetAlpha, lines = Settings.SetLines, history = Settings.SetHistory,
+    tabsize = Settings.SetTabSize }
 
 local function slash(msg)
     local cmd, arg = (msg or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
@@ -120,7 +128,7 @@ local function slash(msg)
         local v = tonumber(arg)
         if not v then say("/gchat " .. cmd .. " <number>"); return end
         NUMBERS[cmd](v)
-        say(cmd .. " " .. tostring(GC.db[cmd]))
+        say(cmd .. " " .. tostring(GC.db[cmd == "tabsize" and "tabSize" or cmd]))
     else
         help()
     end

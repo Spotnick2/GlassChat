@@ -210,6 +210,11 @@ function Methods.SetFormattedText(fs, fmt, ...)
     fs._text = string.format(fmt, ...)
 end
 function Methods.SetFont(fs, file, size, flags) fs._font = { file, size, flags }; return true end
+function Methods.GetFont(fs)
+    local f = fs._font or { "Fonts\FRIZQT__.TTF", 10, "" }
+    return f[1], f[2], f[3]
+end
+function Methods.GetFontString(b) return b._fontString end
 
 -- ScrollingMessageFrame: the line limit (stock 128, ChatFrameOverrides.lua:3).
 function Methods.SetMaxLines(f, n) f._maxLines = n end
@@ -277,6 +282,14 @@ function WoW.makeChatFrames(n)
             local f = CreateFrame("ScrollingMessageFrame", name, UIParent)
             f._level = 5
             for _, t in ipairs(CHAT_FRAME_TEXTURES) do rawset(_G, name .. t, Methods.CreateTexture(f)) end
+            -- The tab: ChatTabTemplate, its name in a ButtonText 8 px tall
+            -- (FloatingChatFrame.xml:432), its art as parentKeys.
+            local tab = CreateFrame("Button", name .. "Tab", UIParent)
+            tab._fontString = Methods.CreateFontString(tab)
+            tab._fontString._height = 8
+            for _, k in ipairs({ "Left", "Middle", "Right", "ActiveLeft", "ActiveMiddle", "ActiveRight" }) do
+                tab[k] = Methods.CreateTexture(tab)
+            end
             local e = CreateFrame("EditBox", name .. "EditBox", f)
             for _, t in ipairs({ "Left", "Right", "Mid", "FocusLeft", "FocusRight", "FocusMid" }) do
                 rawset(_G, name .. "EditBox" .. t, Methods.CreateTexture(e))
@@ -284,9 +297,29 @@ function WoW.makeChatFrames(n)
         end
     end
 end
+-- Tab opacities, as ChatFrameUtil keeps them (ChatFrameUtil.lua:78-92), and
+-- Blizzard's own per-tab updates the addon hooks.
+WoW.tabAlphas = {}
+ChatFrameUtil = {
+    SetTabAlphas = function(tab, over, rest) WoW.tabAlphas[tab] = { over, rest } end,
+    GetTabAlphas = function(tab)
+        local a = WoW.tabAlphas[tab]
+        if a then return a[1], a[2] end
+    end,
+}
+function FCFTab_UpdateAlpha(chatFrame)
+    local tab = _G[chatFrame:GetName() .. "Tab"]
+    local selected = chatFrame == ChatFrame1
+    ChatFrameUtil.SetTabAlphas(tab, selected and 1 or 0.6, selected and 0.4 or 0.2)
+    tab:SetAlpha(selected and 0.4 or 0.2)
+end
+function FCFTab_UpdateColors(tab, selected) end
 -- Blizzard's chat window functions the addon hooks (both in the dump).
 function FCF_OpenNewWindow(name) WoW.newWindows = (WoW.newWindows or 0) + 1 end
 function FCF_OpenTemporaryWindow() end
+
+-- Chat messaging lockdown (Retail 12.x; never seen on Forever so far).
+C_ChatInfo = { InChatMessagingLockdown = function() return WoW.chatLockdown == true end }
 
 -- CVars: the value and every set, recorded.
 C_CVar = {

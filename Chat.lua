@@ -67,6 +67,7 @@ function Chat.Start()
     if started then return end
     started = true
     Chat.Scan()
+    GC.Skin.HookTabs()
     -- New tabs, and the temporary whisper windows, get the same setup.
     for _, name in ipairs({ "FCF_OpenNewWindow", "FCF_OpenTemporaryWindow" }) do
         if rawget(_G, name) then hooksecurefunc(name, function() Chat.Scan() end) end
