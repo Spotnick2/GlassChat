@@ -21,14 +21,20 @@ local DEFAULTS = {
     shortChannels = true,  -- "[1. General - The Barrens]" -> "[1. General]"
 }
 
--- Read settings, fill missing keys. Nothing may REQUIRE a value to have
--- survived: SavedVariables were broken on builds before 70009.
+-- Read settings. Only what the player SET is saved: everything else falls
+-- through to DEFAULTS, so a changed default reaches everyone (the first
+-- version copied every default into the saved table, which froze them:
+-- measured, a new default opacity never showed). Saved keys still equal to
+-- the default are dropped once, so they follow future defaults too.
+-- Nothing may REQUIRE a value to have survived: SavedVariables were broken
+-- on builds before 70009.
 local function ensureDefaults()
     if type(GlassChatDB) ~= "table" then GlassChatDB = {} end
     local db = GlassChatDB
     for k, v in pairs(DEFAULTS) do
-        if db[k] == nil then db[k] = v end
+        if db[k] == v then db[k] = nil end
     end
+    setmetatable(db, { __index = DEFAULTS })
     if type(GlassChatCharDB) ~= "table" then GlassChatCharDB = {} end
     return db, GlassChatCharDB
 end
