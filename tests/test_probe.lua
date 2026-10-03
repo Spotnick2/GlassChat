@@ -95,6 +95,10 @@ check(logHas("link=addon:chatprobe:hello button=RightButton"), "4 logs a click o
 -- 5: payloads are described by shape only, secrets included, and the
 -- filters are installed and counted.
 check(filters.CHAT_MSG_SAY ~= nil and #nameFilters == 1, "5 installs a message filter and a sender-name filter")
+-- The client's argument order (ChatFrameFilters.lua:36): the decorated name
+-- must come back unchanged, never the event token.
+eq(nameFilters[1]("CHAT_MSG_SAY", "|cff3fc7ebKaruzo|r", "hello"), "|cff3fc7ebKaruzo|r",
+    "5 the sender-name filter returns the decorated name it was given")
 local secretSender = WoW.Secret("sender")
 WoW.fire("CHAT_MSG_SAY", "my secret plans", "Karuzo Surname", "", "", "", "", 0, 0, "", 0, 7, "Player-1-ABC")
 WoW.fire("CHAT_MSG_SAY", WoW.Secret("text"), secretSender, "", "", "", "", 0, 0, "", 0, WoW.Secret("id"), WoW.Secret("guid"))

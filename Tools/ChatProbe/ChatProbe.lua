@@ -225,7 +225,9 @@ local function messageFilter()
     if P.watching then P.filterCalls = P.filterCalls + 1 end
     return false
 end
-local function nameFilter(name)
+-- Called as (event, decoratedPlayerName, ...) (ChatFrameFilters.lua:36):
+-- the NAME is the second argument, and must come back unchanged.
+local function nameFilter(_, name)
     if P.watching then P.nameFilterCalls = P.nameFilterCalls + 1 end
     return name
 end
