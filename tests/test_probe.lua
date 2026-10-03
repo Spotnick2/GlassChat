@@ -80,6 +80,53 @@ filters.CHAT_MSG_SAY(nil, "CHAT_MSG_SAY", "x")
 SlashCmdList.CHATPROBE("report")
 check(logHas("events=2 messageFilter calls=1"), "5 reports events against filter calls")
 
+-- 7: the print handler names the calling addon from the stack, skipping
+-- itself and the print plumbing, and passes the line on untouched.
+local handler, passedOn = nil, {}
+local stack = ""
+rawset(_G, "getprinthandler", function() return handler or function(...) passedOn[#passedOn + 1] = strjoin(" ", ...) end end)
+rawset(_G, "setprinthandler", function(fn) handler = fn end)
+rawset(_G, "debugstack", function() return stack end)
+rawset(_G, "strjoin", function(sep, ...) return table.concat({ ... }, sep) end)
+rawset(_G, "tostringall", function(...) return ... end)
+local function via(path) return '[string "@Interface/AddOns/ChatProbe/ChatProbe.lua"]:300: in function <handler>\n'
+    .. '[string "@Interface/AddOns/Blizzard_PrintHandler/Blizzard_PrintHandler.lua"]:90: in function <print>\n'
+    .. '[string "@Interface/AddOns/' .. path .. '"]:12: in main chunk\n' end
+SlashCmdList.CHATPROBE("sources")
+check(handler == ChatProbe_test.printHandler, "7 installs its print handler")
+stack = via("ASProbe/ASProbe.lua")
+handler("ASProbe", "line one")
+handler("ASProbe", "line two")
+eq(passedOn[#passedOn], "ASProbe line two", "7 passes print lines on to the original handler")
+-- A direct AddMessage with no chat event counts as direct; one carrying an
+-- event (Blizzard's chat handler) or inside print does not.
+stack = via("OtherAddon/Other.lua")
+ChatFrame1:AddMessage("direct", 1, 1, 1, nil, nil, nil, nil)
+ChatFrame1:AddMessage("said", 1, 1, 1, 1, nil, 1, "CHAT_MSG_SAY")
+SlashCmdList.CHATPROBE("sources")
+check(logHas("7 print from ASProbe = 2"), "7 counts print lines per source addon")
+check(logHas("7 AddMessage (no chat event) from OtherAddon = 1"), "7 counts direct AddMessage lines per addon")
+
+-- 8: a new empty tab gets ChatProbe's own lines; other addons' don't move.
+local routed = {}
+local tab = CreateFrame("ScrollingMessageFrame", "ChatFrame3", UIParent)
+rawset(tab, "AddMessage", function(_, msg) routed[#routed + 1] = msg end)
+tab.messageTypeList = {}
+rawset(_G, "FCF_OpenNewWindow", function(name, noDefault) tab._tabName, tab._noDefault = name, noDefault; return tab end)
+SlashCmdList.CHATPROBE("route")
+check(tab._tabName == "Probe" and tab._noDefault == true, "8 opens an empty 'Probe' tab")
+local before = #passedOn
+stack = via("ChatProbe/ChatProbe.lua")
+handler("ChatProbe", "mine")
+eq(routed[#routed], "ChatProbe mine", "8 routes ChatProbe's lines to the tab")
+stack = via("ASProbe/ASProbe.lua")
+handler("ASProbe", "theirs")
+eq(#passedOn, before + 1, "8 leaves other addons' lines in the main chat")
+SlashCmdList.CHATPROBE("route")
+stack = via("ChatProbe/ChatProbe.lua")
+handler("ChatProbe", "back")
+eq(passedOn[#passedOn], "ChatProbe back", "8 routing off returns lines to the main chat")
+
 SlashCmdList.CHATPROBE("watch")
 check(not ChatProbe_test.watcher:IsEventRegistered("CHAT_MSG_SAY"), "5 watch toggles off")
 SlashCmdList.CHATPROBE("clear")

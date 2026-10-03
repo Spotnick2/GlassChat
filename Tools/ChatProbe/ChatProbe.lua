@@ -13,6 +13,8 @@
 --   5. secrecy of chat event payloads, in and out of combat and
 --      instances, and whether addon filters still run               /cprobe watch
 --   6. reading the scrollback (GetMessageInfo), secret lines         /cprobe history
+--   7. which addons write to chat, through print or AddMessage       /cprobe sources
+--   8. routing one addon's print output to its own tab              /cprobe route
 --
 -- Every client call that may be missing or throw goes through try(), so one
 -- refusal cannot stop the rest of the probe.
@@ -272,6 +274,106 @@ local function history()
 end
 
 --------------------------------------------------------------------------------
+-- 7. Where addon output comes from (smart tabs)
+--------------------------------------------------------------------------------
+
+-- The addon folder that called print (or AddMessage): the first AddOns path
+-- in the stack that is neither the print plumbing nor, as the handler, us.
+local PLUMBING = { Blizzard_PrintHandler = true, Blizzard_SharedXML = true, Blizzard_ChatFrameBase = true }
+local function sourceOf()
+    if not debugstack then return "no debugstack" end
+    local ok, stack = pcall(debugstack, 2, 20, 0)
+    if not ok or type(stack) ~= "string" then return "unknown" end
+    local skipped = false
+    for name in stack:gmatch("AddOns[/\\]([^/\\]+)[/\\]") do
+        if name == ADDON and not skipped then skipped = true
+        elseif not PLUMBING[name] then return name end
+    end
+    return "unknown"
+end
+
+local function bump(t, k) t[k] = (t[k] or 0) + 1 end
+
+local origPrint, inPrint
+P.printSources, P.directSources = {}, {}
+P.tracing, P.routeFrame = false, nil
+
+-- One wrapper for items 7 and 8. It never prints (that would recurse); it
+-- only counts, and routes our own lines when item 8 is on.
+local function printHandler(...)
+    local src = sourceOf()
+    if P.tracing then bump(P.printSources, src) end
+    if P.routeFrame and src == ADDON then
+        local ok, err = pcall(function(...) P.routeFrame:AddMessage(strjoin(" ", tostringall(...))) end, ...)
+        if not ok then P.routeError = tostring(err) end
+        return
+    end
+    inPrint = true
+    local ok, err = pcall(origPrint, ...)
+    inPrint = false
+    if not ok then error(err, 0) end
+end
+
+local function installPrint()
+    if origPrint then return true end
+    if not (getprinthandler and setprinthandler) then say("7 print handler API absent"); return false end
+    origPrint = getprinthandler()
+    local ok = try("setprinthandler", setprinthandler, printHandler)
+    if not ok then origPrint = nil end
+    return ok
+end
+
+local hookedFrames = {}
+local function hookDirect()
+    for i = 1, maxWindows() do
+        local f = _G["ChatFrame" .. i]
+        if f and not hookedFrames[f] then
+            hookedFrames[f] = true
+            try("hook AddMessage " .. i, hooksecurefunc, f, "AddMessage", function(_, _, _, _, _, _, _, _, event)
+                if not P.tracing or inPrint then return end
+                if issecretvalue and issecretvalue(event) then bump(P.directSources, "<secret event>"); return end
+                if event == nil then bump(P.directSources, sourceOf()) end
+            end)
+        end
+    end
+end
+
+local function sources()
+    if not P.tracing then
+        if not installPrint() then return end
+        hookDirect()
+        P.tracing = true
+        say("7 tracing addon output: use your addons (run ASProbe etc.), then /cprobe sources again for the counts")
+        return
+    end
+    P.tracing = false
+    for src, n in pairs(P.printSources) do say("7 print from " .. src .. " = " .. n) end
+    for src, n in pairs(P.directSources) do say("7 AddMessage (no chat event) from " .. src .. " = " .. n) end
+    say("7 tracing off. 'print' lines can be routed by a print handler; 'AddMessage' ones can't.")
+end
+
+--------------------------------------------------------------------------------
+-- 8. Route one addon's output to its own tab
+--------------------------------------------------------------------------------
+
+local function route()
+    if P.routeFrame then
+        P.routeFrame = nil
+        say("8 routing off: ChatProbe lines are back in the main chat. Close the 'Probe' tab by hand."
+            .. (P.routeError and (" Routing error: " .. P.routeError) or ""))
+        return
+    end
+    if not installPrint() then return end
+    if not FCF_OpenNewWindow then say("8 FCF_OpenNewWindow absent"); return end
+    local ok, frame = try("FCF_OpenNewWindow", FCF_OpenNewWindow, "Probe", true)
+    if not (ok and frame) then say("8 no new tab (all chat windows in use?)"); return end
+    local groups = frame.messageTypeList and #frame.messageTypeList or "?"
+    say("8 opened tab " .. show(frame:GetName()) .. " with " .. show(groups) .. " message groups. Routing ChatProbe's lines there.")
+    P.routeFrame = frame
+    say("8 this line should be in the 'Probe' tab, not in General. Watch for a blocked-action line; /cprobe route again to stop.")
+end
+
+--------------------------------------------------------------------------------
 -- Command
 --------------------------------------------------------------------------------
 
@@ -282,6 +384,8 @@ local function help()
     say("/cprobe link     - 4 print a clickable addon link")
     say("/cprobe watch    - 5 toggle logging chat payload secrecy (then /cprobe report)")
     say("/cprobe history  - 6 read the scrollback of every chat frame")
+    say("/cprobe sources  - 7 toggle tracing which addons print to chat, and how")
+    say("/cprobe route    - 8 toggle sending ChatProbe's own lines to a new 'Probe' tab")
     say("/cprobe clear    - empty the saved log")
 end
 
@@ -295,6 +399,8 @@ SlashCmdList.CHATPROBE = function(msg)
     elseif cmd == "watch" then watch()
     elseif cmd == "report" then report()
     elseif cmd == "history" then history()
+    elseif cmd == "sources" then sources()
+    elseif cmd == "route" then route()
     elseif cmd == "clear" then ChatProbeDB.log = {}; say("log cleared")
     else help() end
 end
@@ -310,4 +416,5 @@ boot:SetScript("OnEvent", function(_, _, name)
 end)
 
 ChatProbe_test = { P = P, state = state, clip = clip, copyable = copyable, link = link, watch = watch,
-    report = report, history = history, watcher = watcher }
+    report = report, history = history, watcher = watcher, sources = sources, route = route,
+    sourceOf = sourceOf, printHandler = printHandler }

@@ -12,11 +12,15 @@ file doesn't cover something, check how those handle it before you invent a new 
 
 **Goal:** a much smaller, glass-styled take on Prat-3.0.
 - **The look.** The chat in the "liquid glass" material of the `Glass*` addons (`Glass.lua`).
+  **Readability comes first** (owner): the chat stays visible, on a dark see-through glass panel.
 - **Class colours** on player names.
-- **Copy:** click a link to copy it, and copy any text out of chat.
-- **The headline feature: search and filter** the scrollback, mainly the long probe and addon
-  output the owner pastes into Claude sessions, in a glass popup that copies (and exports to
-  SavedVariables) what it shows.
+- **Smart tabs:** an addon that floods chat (the owner's probes, e.g. ASProbe) is offered its own
+  tab, for the session or permanently. Routing goes through a wrapping print handler.
+- **Focus mode, the headline feature:** freeze and maximise the current tab in a glass window,
+  with search, filters (by kind, by source addon, by time), copy, and an export to SavedVariables
+  that Claude can read directly. It's mainly for the probe output the owner pastes into Claude
+  sessions.
+- **Copy web addresses** by clicking them (URLs only; game links keep their stock behaviour).
 - **Streamlined.** No Prat module zoo, no Ace3, no profiles. Prat's other ~40 modules are out
   unless the owner asks.
 
@@ -27,6 +31,8 @@ Blizzard's. GlassChat uses only documented hooks:
 - `EventRegistry` callbacks (`"SetItemRef"` for our `|Haddon:GlassChat:…|h` links,
   `"ChatFrame.OnHyperlinkClick"`);
 - `hooksecurefunc`;
+- `setprinthandler` wrapping (never replacing) the previous handler;
+- `FCF_OpenNewWindow` for smart tabs;
 - CVars and public `ScrollingMessageFrame` methods (`GetMessageInfo`, `SetMaxLines`,
   `SetTextCopyable`).
 
@@ -35,8 +41,9 @@ or a read of private fields (`historyBuffer`, `visibleLines`). That is how Prat 
 this client each one taints chat. The research behind this is in `docs/PLAN.md`.
 
 **Status: milestone 0 (scaffold and ChatProbe).** The draft plan is `docs/PLAN.md`; its open
-questions wait on the owner. Next: run the probe in game and record the results in
-`docs/FOREVER-PROBE.md`, then M1 (class colours and the glass skin). Work goes through GitHub
+questions are mostly answered. Next: run the probe in game and record the results in
+`docs/FOREVER-PROBE.md`, then M1 (readable glass, class colours), M2 (smart tabs), M3 (focus
+mode), M4 (URL copy). Work goes through GitHub
 issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
 
 ## Layout
