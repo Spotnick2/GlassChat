@@ -75,18 +75,38 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   - **scrollback**: `SetMaxLines(db.lines)`, which keeps the existing lines (CircularBuffer.lua:29);
   - **class colours**: `chatClassColorOverride` kept at `"0"` at login. Turning the option off
     leaves the CVar alone.
-- **`Skin.lua`**: a dark glass panel per window and per edit box. Each panel is **our own child
-  frame**, one level under the Blizzard frame, covering `ChatFrameNBackground`'s rectangle.
+- **`Skin.lua`**: one dark glass container per window, after the owner's mockup.
+  - **The window panel is a child of `UIParent`, pinned to `BACKGROUND`**. It follows the chat
+    frame through `HookScript("OnShow"/"OnHide")`. As a child of the chat frame it drew over the
+    `MEDIUM`-strata tabs, even with its own strata set (measured): the chat frame's strata change
+    is applied to its children.
+  - It covers `ChatFrameNBackground`'s rectangle plus `PAD_X/PAD_Y`, and reaches `TAB_STRIP` px
+    up over the tabs, with a separator line.
   - Blizzard's `CHAT_FRAME_TEXTURES` are **hidden**, not faded: the hover fade skips hidden
-    textures (FloatingChatFrame.lua:1336-1340).
-  - The edit box border and focus art go to **alpha 0**, because focus toggles them with
-    `SetShown`. Focus shows as a brighter rim instead.
-  - `Skin.Refresh()` applies setting changes, and glass off restores both.
-  - No field is ever written on a Blizzard frame: state lives in a weak-keyed table.
-- **`History.lua`**: on each edit box, `SetAltArrowKeyMode(not db.plainArrows)` (plain Up/Down)
-  and `SetHistoryLines(db.history)`. `GlassChatCharDB.sent` is replayed into the box, **then**
-  `hooksecurefunc(edit, "AddHistoryLine", record)` is installed, so replayed lines aren't recorded
-  again. `record` skips secrets, empty lines and a repeat of the last line, and trims to the cap.
+    textures (FloatingChatFrame.lua:1336-1340; measured, nothing comes back on hover).
+  - **Edit box:** its panel is a child of the box (`DIALOG` strata). Its border and focus art go
+    to **alpha 0**, because focus toggles them with `SetShown`. Focus shows as a brighter rim.
+  - **Tabs:**
+    - The name is 14 pt with a shadow, set at `ADDON_LOADED`, before Blizzard names and sizes
+      the tabs. The text box is grown from its 8 px.
+    - The stock art (background, selected and highlight pieces) is at alpha 0.
+    - The selected tab gets a faint fill and a gold underline: textures created on the tab, under
+      the name, repainted after `FCFTab_UpdateColors`. The other names are grey.
+    - Resting opacity goes through `ChatFrameUtil.SetTabAlphas` after `FCFTab_UpdateAlpha`. Never
+      write the `CHAT_FRAME_TAB_*_ALPHA` globals (that taints).
+  - `Skin.Refresh()` applies setting changes, and glass off restores the stock look.
+  - No Lua field or global is ever written on a Blizzard frame: state lives in weak-keyed tables.
+    Creating regions on a tab and calling widget methods is fine.
+- **`History.lua`**: plain Up/Down cycle **our own list**, `GlassChatCharDB.sent`. The edit
+  box's native history ignores plain arrows here, even with `SetAltArrowKeyMode(false)`, because
+  the template has `ignoreArrows="true"` (measured).
+  - Alt mode is turned off so `OnArrowPressed` fires, and a `HookScript` on it walks the list
+    with `SetText`. Down past the newest line restores the draft.
+  - Browsing resets on a send and on focus loss. There's no `SetText` during chat messaging
+    lockdown.
+  - Sends are recorded from `hooksecurefunc(edit, "AddHistoryLine")`, installed **after** the
+    login replay into the native history, so replayed lines aren't recorded again.
+  - `record` skips secrets, empty lines and a repeat of the last line, and trims to the cap.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It
