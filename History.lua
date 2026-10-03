@@ -59,21 +59,46 @@ local function suggesting(edit)
     return ac ~= nil and ac:IsShown() and ac.parent == edit
 end
 
--- Up: one line older. Down: one line newer; past the newest, back to what
--- was being typed. The list is newest last.
+-- The draft is its text AND its destination. SetText re-parses the box
+-- (OnTextChanged -> ParseText, ChatFrameEditBox.lua:473-474), so recalling
+-- "/s ..." switches it to SAY; restoring only the text would then send an
+-- unfinished whisper publicly (Codex review of #4). The destination lives in
+-- these attributes (ChatFrameEditBox.lua:14-50).
+local DESTINATION = { "chatType", "tellTarget", "channelTarget", "stickyType" }
+
+local function saveDraft(edit)
+    local d = { text = edit:GetText() }
+    for _, k in ipairs(DESTINATION) do d[k] = edit:GetAttribute(k) end
+    return d
+end
+
+-- Text first (it re-parses), then the saved destination over whatever the
+-- parse chose, then the header ("Say:", "Tell Bob:") redrawn to match.
+local function restoreDraft(edit, d)
+    edit:SetText(d and d.text or "")
+    if not d then return end
+    for _, k in ipairs(DESTINATION) do edit:SetAttribute(k, d[k]) end
+    if edit.UpdateHeader then
+        local ok, err = pcall(edit.UpdateHeader, edit)
+        if not ok then API.Fail("history header", err) end
+    end
+end
+
+-- Up: one line older. Down: one line newer; past the newest, back to the
+-- draft, destination included. The list is newest last.
 local function onArrow(edit, key)
     if not GC.db.plainArrows or (key ~= "UP" and key ~= "DOWN") or locked() or suggesting(edit) then return end
     local list, s = sent(), state[edit]
     local n = #list
     if n == 0 or not s then return end
     if key == "UP" then
-        if s.index == 0 then s.draft = edit:GetText() end
+        if s.index == 0 then s.draft = saveDraft(edit) end
         if s.index < n then s.index = s.index + 1 end
     else
         if s.index == 0 then return end
         s.index = s.index - 1
     end
-    if s.index == 0 then edit:SetText(s.draft or "") else edit:SetText(list[n - s.index + 1]) end
+    if s.index == 0 then restoreDraft(edit, s.draft) else edit:SetText(list[n - s.index + 1]) end
 end
 
 -- A new history size: the saved list and every native history follow.

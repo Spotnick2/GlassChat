@@ -170,6 +170,14 @@ function Methods.GetName(w) return w._name end
 function Methods.GetDebugName(w) return w._name or ("<" .. w._type .. ">") end
 function Methods.IsForbidden(w) return false end
 
+-- Attributes: recorded; like the client, refused on a protected frame in
+-- combat (the chat edit box isn't one).
+function Methods.SetAttribute(w, k, v)
+    if WoW.combat and w._protected then return end
+    w._attrs = w._attrs or {}
+    w._attrs[k] = v
+end
+function Methods.GetAttribute(w, k) return w._attrs and w._attrs[k] end
 function Methods.SetScript(w, name, fn) w._scripts[name] = fn end
 function Methods.GetScript(w, name) return w._scripts[name] end
 function Methods.HookScript(w, name, fn)
@@ -201,7 +209,12 @@ function Methods.SetTextureSliceMargins(t, l, tp, r, b) t._slice = { l, tp, r, b
 -- FontString: the client formats natively and accepts secrets. With any
 -- secret argument, keep the arguments unformatted instead of calling
 -- string.format (which would throw on the proxy).
-function Methods.SetText(fs, text) fs._text = text end
+-- An EditBox runs its OnTextChanged on SetText, as the client does (the
+-- chat box re-parses its text there).
+function Methods.SetText(fs, text)
+    fs._text = text
+    if fs._type == "EditBox" and fs._scripts.OnTextChanged then fs._scripts.OnTextChanged(fs, false) end
+end
 function Methods.SetTextColor(fs, r, g, b, a) fs._textColor = { r, g, b, a } end
 function Methods.GetText(fs) return fs._text end
 function Methods.SetFormattedText(fs, fmt, ...)

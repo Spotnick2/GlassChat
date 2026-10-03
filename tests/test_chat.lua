@@ -265,6 +265,35 @@ AutoCompleteBox._shown = false
 edit._scripts.OnArrowPressed(edit, "UP")
 eq(edit:GetText(), "old line", "and works again once they're gone")
 
+-- The draft's destination comes back with its text. The box re-parses on
+-- SetText like the client's ParseText: "/s " -> SAY, "/w Name " -> WHISPER.
+edit:SetScript("OnTextChanged", function(self)
+    local t = self:GetText() or ""
+    if t:find("^/s ") then self:SetAttribute("chatType", "SAY")
+    else
+        local name = t:match("^/w (%S+) ")
+        if name then self:SetAttribute("chatType", "WHISPER"); self:SetAttribute("tellTarget", name) end
+    end
+end)
+local headers = 0
+rawset(edit, "UpdateHeader", function() headers = headers + 1 end)
+GlassChatCharDB.sent = { "/w Stranger see you", "/s previous public message" }
+edit._scripts.OnEditFocusLost(edit)
+edit:SetAttribute("chatType", "WHISPER")
+edit:SetAttribute("tellTarget", "Friend")
+edit:SetText("unfinished whisper")
+edit._scripts.OnArrowPressed(edit, "UP")
+eq(edit:GetAttribute("chatType"), "SAY", "recalling '/s ...' switches the box to SAY, as the client does")
+edit._scripts.OnArrowPressed(edit, "UP")
+eq(edit:GetAttribute("tellTarget"), "Stranger", "recalling an old whisper picks its recipient")
+edit._scripts.OnArrowPressed(edit, "DOWN")
+edit._scripts.OnArrowPressed(edit, "DOWN")
+eq(edit:GetText(), "unfinished whisper", "Down past the newest restores the draft's text")
+eq(edit:GetAttribute("chatType"), "WHISPER", "and its chat type: the whisper isn't sent publicly")
+eq(edit:GetAttribute("tellTarget"), "Friend", "and its recipient")
+check(headers >= 1, "and the header is redrawn to match")
+edit:SetScript("OnTextChanged", nil)
+
 -- A new history size reaches the saved list and the native history at once.
 GlassChatCharDB.sent = {}
 for i = 1, 30 do table.insert(GlassChatCharDB.sent, "l" .. i) end

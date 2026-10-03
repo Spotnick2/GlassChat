@@ -115,6 +115,11 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   the template has `ignoreArrows="true"` (measured).
   - Alt mode is turned off so `OnArrowPressed` fires, and a `HookScript` on it walks the list
     with `SetText`. Down past the newest line restores the draft.
+  - **The draft is its text and its destination.** `SetText` re-parses the box (OnTextChanged →
+    ParseText), so recalling `/s …` switches it to SAY. The `chatType` / `tellTarget` /
+    `channelTarget` / `stickyType` attributes are saved when browsing starts, restored after the
+    draft's text, and the header is redrawn (Codex review of #4: an unfinished whisper was sent
+    publicly).
   - Browsing resets on a send and on focus loss. There's no `SetText` during chat messaging
     lockdown.
   - Sends are recorded from `hooksecurefunc(edit, "AddHistoryLine")`, installed **after** the
