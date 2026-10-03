@@ -1,0 +1,255 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+GlassChat is a **chat addon for World of Warcraft: Forever 1.60.1** (Interface `16001`), written
+in **Lua 5.1**. It has a single owner (Spotnick) and uses the same stack and conventions as the
+sibling Forever addons `..\GlassRaidFrames` (the closest sibling in workflow and tests),
+`..\GlassUnitFrames` (the source of the glass material) and `..\GlassXp` (GlassPanel). When this
+file doesn't cover something, check how those handle it before you invent a new idiom.
+
+**Goal:** a much smaller, glass-styled take on Prat-3.0.
+- **The look.** The chat in the "liquid glass" material of the `Glass*` addons (`Glass.lua`).
+- **Class colours** on player names.
+- **Copy:** click a link to copy it, and copy any text out of chat.
+- **The headline feature: search and filter** the scrollback, mainly the long probe and addon
+  output the owner pastes into Claude sessions, in a glass popup that copies (and exports to
+  SavedVariables) what it shows.
+- **Streamlined.** No Prat module zoo, no Ace3, no profiles. Prat's other ~40 modules are out
+  unless the owner asks.
+
+**Extend the stock chat; never replace it.** Forever's chat is Retail's (`ChatFrameMixin`,
+`ChatFrameUtil`, `ScrollingMessageFrame`). Frames, tabs, docking, Edit Mode and the edit box stay
+Blizzard's. GlassChat uses only documented hooks:
+- `ChatFrameUtil.AddMessageEventFilter` / `AddSenderNameFilter`;
+- `EventRegistry` callbacks (`"SetItemRef"` for our `|Haddon:GlassChat:…|h` links,
+  `"ChatFrame.OnHyperlinkClick"`);
+- `hooksecurefunc`;
+- CVars and public `ScrollingMessageFrame` methods (`GetMessageInfo`, `SetMaxLines`,
+  `SetTextCopyable`).
+
+**Never** a `RawHook`, a replaced `MessageEventHandler`, a hook on `ItemRefTooltip:SetHyperlink`,
+or a read of private fields (`historyBuffer`, `visibleLines`). That is how Prat works, and on
+this client each one taints chat. The research behind this is in `docs/PLAN.md`.
+
+**Status: milestone 0 (scaffold and ChatProbe).** The draft plan is `docs/PLAN.md`; its open
+questions wait on the owner. Next: run the probe in game and record the results in
+`docs/FOREVER-PROBE.md`, then M1 (class colours and the glass skin). Work goes through GitHub
+issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
+
+## Layout
+
+TOC load order: `Compat.lua` → `Glass.lua` → `GlassChat.lua`.
+
+- **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
+  absent. It holds:
+  - `IsSecret`;
+  - event registration that reports failures;
+  - `ClassColor`;
+  - `Fail(key, err)`, the **one** failure recorder (`GlassChat.failures`, read by
+    `/gchat failures`);
+  - `MEASURED_ON_BUILD`.
+
+  It is a subset of GlassRaidFrames' `Compat.lua`; lift more from there when needed rather than
+  rewriting.
+- **`Glass.lua`**: the material. It is a **copy of GlassUnitFrames `main:Glass.lua`**; only the
+  header and namespace lines differ. `tests/test_toc.lua` fails while they differ, and the same
+  goes for `Tools/make_textures.py`. Change the material in GlassUnitFrames first, then copy it
+  back. `Media/*.tga` come from that generator.
+- **`GlassChat.lua`**: bootstrap, `GlassChatDB` (defaults filled at `ADDON_LOADED`), the
+  `/gchat` command, and the login warning when the build differs from `MEASURED_ON_BUILD`.
+  There's no combat queue: chat frames aren't protected. If a feature ever needs one, lift
+  GlassRaidFrames' `WhenOutOfCombat` (one queue only).
+- **`Tools/ChatProbe/`**: the throwaway measurement addon (`/cprobe help`). It logs every line to
+  `ChatProbeDB.log` in SavedVariables, so after a full client exit the session is on disk at
+  `WTF\Account\<account>\SavedVariables\ChatProbe.lua` for review. **It never logs what anyone
+  said**, only the type and length of each value and whether it was secret (`test_probe` pins
+  this).
+
+Forever is **Vanilla content running on Blizzard's Retail (Mainline) codebase**: assume Vanilla
+content and the Retail API. Advice that cites a TBC or Classic chat API (`ChatFrame_OnEvent`,
+`ChatFrame_MessageEventHandler`, `ChatFrame_OnHyperlinkShow`) is stale: none of those globals
+exists here.
+
+## References: read these before touching an unfamiliar API
+
+- `C:\Projects\References\PORTING-TBC-TO-FOREVER.md` holds the canonical addon-agnostic field
+  notes, measured on the live client. Treat them as fact; don't re-derive them. Other sessions
+  edit this file, so write new addon-agnostic findings there (it has no chat section yet; the
+  probe results belong in one), not into a copy in this repo.
+- `C:\Projects\References\forever-api-1.60.1.70205.md` is the full API dump for the current
+  build. It lists documented functions and events, enums, **widget methods** (the only list of
+  those) and the `_G` walk. FrameXML tables such as `ChatTypeInfo` aren't in it. It proves a name
+  exists, not that it works. **Presence is not a contract.**
+- For a live check in game: `/api search <name>`, `/api system list`, `/api <system> list`.
+- **`C:\Projects\wow-ui-source` is Forever's own FrameXML** (branch `forever`). Read Blizzard code
+  there first: line numbers in in-game error traces match it. For chat:
+  - `Blizzard_ChatFrameBase/Shared/ChatFrame.lua`: `OnEvent`, `OnHyperlinkClick` firing
+    `EventRegistry`;
+  - `Blizzard_ChatFrameBase/Mainline/ChatFrameOverrides.lua`: `MessageEventHandler`, the default
+    `SetMaxLines(128)`;
+  - `Blizzard_ChatFrameBase/Shared/ChatFrameFilters.lua`: filters run through
+    `securecallfunction`, and **only while `canaccessvalue(...)`**;
+  - `Blizzard_ChatFrameBase/Shared/ChatFrameUtil.lua`: `ShouldColorChatByClass` at 880 and
+    `GetDecoratedSenderName` at 1061;
+  - `Blizzard_SharedXML/ScrollingMessageFrame.lua`: `SetTextCopyable` and drag-select →
+    `CopyToClipboard`;
+  - `Blizzard_UIPanels_Game/Shared/ItemRefHandlersShared.lua`: the `addon` link type →
+    `EventRegistry "SetItemRef"`.
+- `..\GlassUnitFrames\docs\GLASS-MATERIAL.md` is the write-up of the glass material.
+
+## Reference addon
+
+**`C:\Projects\References\Prat-3.0` is the design reference** for *what* a chat addon does. It is
+Forever-aware (`Prat-3.0_Camelot.toc`, `Prat.IsForever`), but its *mechanism* (above) is the one
+we don't use. Worth reading:
+- `modules\UrlCopy.lua`: URL patterns and the TLD list;
+- `modules\CopyChat.lua`: the `GetMessageInfo` loop, secret lines → `<SECRET>`, and
+  `C_StringUtil.StripHyperlinks`;
+- `modules\Search.lua`: a search box per frame (no secret guard);
+- `modules\History.lua`: `SetMaxLines` with a range of 300-5000;
+- `modules\Scrollback.lua`: history kept across sessions in SavedVariables;
+- `services\classcolor.lua` and `services\helpers.lua`: name colouring by GUID.
+
+Prat is **GPL-3.0, like this repo**, so lifting code is allowed with attribution in the file
+header. Prefer our own code anyway: Prat's is written for its Ace3 pipeline.
+
+Keep a `MEASURED_ON_BUILD` constant in the source, matching the dump's build (`1.60.1.70205`),
+and warn at login when `GetBuildInfo()` differs. Bump it only after re-measuring in game.
+
+## Toolchain and commands
+
+There is no build system, compiler or package manager; the client interprets the Lua directly.
+The Lua 5.1 toolchain is at `C:\Program Files (x86)\Lua\5.1\` (`lua.exe`, `luac.exe`). Use it,
+not a newer Lua that may be first on `PATH`.
+
+```powershell
+& 'C:\Program Files (x86)\Lua\5.1\luac.exe' -p File.lua             # syntax check; silent on success
+pwsh tests\run.ps1                                                   # luac -p on TOC files + probe + every tests\test_*.lua
+& 'C:\Program Files (x86)\Lua\5.1\lua.exe' tests\test_boot.lua      # one test, run from the repo root
+python Tools\make_textures.py                                        # regenerate Media\*.tga (a copy of GlassUnitFrames')
+pwsh Tools\deploy.ps1 -Probe                                         # copy the addon (+ ChatProbe) into AddOns
+```
+
+- **Default AddOns path:** `C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns`.
+  The deploy script takes `-AddOnsPath`.
+- **Deploy** rewrites `## Version: @project-version@` to `dev` in the deployed copy only. Never
+  commit a literal version over that token; the packager needs it.
+- **In game:**
+  - Run `/console scriptErrors 1` first, because errors are off by default. Then `/reload`.
+  - A brand-new addon folder needs a full client restart.
+  - Check the AddOns list shows the addon enabled **and not flagged out of date**.
+  - Error delivery stops after 100 errors in a session.
+
+## Addon basics
+
+- One plain `GlassChat.toc`, with no `_Forever` or `_Camelot` suffix. Use `## Interface: 16001`;
+  **`11601` is a transposed-digit bug**.
+- One global namespace table, `GlassChat`. Files start `GlassChat = GlassChat or {}` and alias it
+  `local GC = GlassChat`. The TOC order is the load order. Slash commands: `/gchat`, `/glasschat`.
+- Consumers reach client APIs through `GC.API`, never by injecting globals into `_G`. Read the
+  porting guide's "False friends" section before aliasing anything.
+- **IDs, never names (owner rule: support localized clients).** Never compare against, or save,
+  an English display name. Chat-type tokens (`SAY`, `CHANNEL`), event names and link types are API
+  values, not display text, and are fine. Channel *names* are display text.
+- Keep a `_test` seam table at the bottom of a file to expose file-local internals to tests.
+  Don't promote internals to globals.
+
+## Forever facts that matter for chat
+
+- **Secret values.** Some values come back as values you can hold but not read. Arithmetic,
+  comparison, `tostring`, concatenation, `string.find`/`gsub` and **truth-testing** all throw,
+  and a `x or ""` guard doesn't help. Test with `issecretvalue(v)` **before** any other use. A
+  secret may go straight back to the client (`FontString:SetText`, `AddMessage`).
+  - **Chat messaging lockdown** (`C_ChatInfo.InChatMessagingLockdown`, Retail 12.x) makes chat
+    payloads secret, and Blizzard then **skips addon filters without telling you**. Whether and
+    when Forever enters it is unmeasured (probe item 5).
+  - Scrollback lines can be secret (`ScrollingMessageFrame:HasSecretValues`). Every
+    `GetMessageInfo` read goes inside `pcall` and an `issecretvalue` check. A secret line is
+    shown as hidden, and is never matched, copied or saved.
+  - Never put a secret in SavedVariables. Copy only `type(v) == "string"` values that pass
+    `issecretvalue`.
+- **Taint.** Our code runs tainted. A flag we set on a Blizzard frame (e.g. `textIsCopyable`)
+  taints whatever Blizzard code reads it. That can get a restricted call (`CopyToClipboard`
+  has `HasRestrictions`) blocked, with `ADDON_ACTION_BLOCKED` blamed on us. Measure before relying
+  on such a path (probe items 2-3).
+- **Names have surnames**, space-separated ("Example Surname"). `UnitName` and
+  `GetPlayerInfoByGUID` return the first name only. Key anything per player on the **GUID**, never
+  the name.
+- **`RegisterEvent` throws on unknown names and returns `false` for refusals.** Wrap it
+  (`API.RegisterEvents`), treat both as failures, and report them. Registering
+  `COMBAT_LOG_EVENT_UNFILTERED` is forbidden.
+- `MouseIsOver` is absent (use `frame:IsMouseOver()`). `ReloadUI()` is protected.
+- Options use the Retail `Settings.RegisterAddOnCategory`, not `InterfaceOptions_AddCategory`.
+  **Edit Mode is live**, and the chat frame is an Edit Mode system: don't move or resize
+  `ChatFrame1` ourselves.
+- **SavedVariables persist as of 70009** (broken through 69977). Code may read them but must cope
+  when they're absent. **Verify persistence only with a full client exit**, never `/reload` or by
+  reading the SV file. Count loads inside the addon (the probe does: `ChatProbeDB.loads`).
+
+## Testing
+
+The `tests\` harness follows the siblings': plain Lua 5.1 scripts with no dependencies, a
+`tests\wow_stubs.lua` API mock driven through an exported `WoW` table, `tests\harness.lua`
+(`check` / `eq` / `loadAddon` / `newChat` / `chatHas`), and `tests\run.ps1` to run them all. The
+stub does three more things:
+- It validates event names against the API dump, or against `tests\events-70205.txt` when the
+  dump is absent (CI). `test_toc` fails if the two drift.
+- It models `FontString:SetFormattedText` taking secrets without formatting them in Lua.
+- It records every widget method called. `test_methods.lua` checks each one exists in the dump.
+
+`GlassChat.failures` collects the errors that handlers swallow, so a secrets test should assert
+it stays empty. Before trusting a new test, **mutation-test it**: break the behaviour and confirm
+it goes red.
+
+- **The stub is an allowlist and must model the client's absences.** It fails on any read of an
+  unstubbed global. Before stubbing one, confirm it exists in the current API dump (or in
+  Forever's FrameXML for tables like `ChatTypeInfo`) and copy its exact signature. A test can add
+  its own with `rawset(_G, …)` (see `test_probe.lua`).
+- **Stub secrets as `newproxy(true)` userdata** (`WoW.Secret(label)`) with metamethods that
+  error. `WoW.MarkSecret(v)` marks a real string, to reach `type(x) == "string"` branches. **No
+  Lua 5.1 value can make a truth test or `==` throw**, so the stub can't catch `if secret then`
+  or `secret == x`. Only in-game testing and review catch those.
+- **Strict globals don't cover methods.** A catch-all `__index` swallows calls to widget methods
+  this client lacks. Run the handler, assert what it produced, and check the method against the
+  dump's widget-method section.
+- Offline tests can't cover taint, real secret behaviour, the clipboard or rendering. Those need
+  an in-game checklist and `Tools\ChatProbe`.
+
+## Workflow and releasing (sibling conventions)
+
+- Issue → branch off `main` → PR with `Closes #N` → review (owner-launched) → squash-merge (by
+  the owner). Never commit to `main`.
+  Commit or push only when asked. Before committing, `luac -p` must be clean and the tests green.
+  **After pushing, check the PR's `package-check` run** (`gh run list`, then `gh run view`). CI
+  has no API dump, so run a new test once with `GLASSCHAT_API_DUMP` pointing at a missing file.
+- Review policy: use the shared `$wow-addon-review` skill for PR reviews.
+- **The owner merges and closes PRs, and launches reviews.** Claude opens the issue, branch and
+  PR, runs the tests, and stops there: never `gh pr merge` or close a PR, and never start a Codex
+  or Fable review on its own. When the owner posts or points to a review, reconcile it (below)
+  and push the fixes to the PR.
+- **Adversarial review is mandatory** for plans and significant diffs, **launched by the owner**.
+  When asked, run it through the project's `/codex-consult` skill
+  (`.claude/skills/codex-consult/`), because Codex is a different model family and so has
+  different blind spots. Always hand it `CLAUDE.md`, `docs/PLAN.md` and the porting guide. If
+  Codex is unavailable, fall back to Fable. Then reconcile:
+  - Verify its claims before acting. It has been right, and it has been confidently wrong.
+  - Take its bug-catching seriously.
+  - Push back when it adds complexity to a single-owner addon, or grows scope back toward Prat.
+- Releases are built by **CurseForge's own packager from the tag webhook**, reading `.pkgmeta`.
+  Don't add a GitHub release workflow. CI (`package-check.yml`) only dry-runs
+  `BigWigsMods/packager` with `-d`. The packager derives the `forever` flavor from
+  `## Interface: 16001`.
+- **Every tag needs a `CHANGELOG.md` entry committed first**, written for players. The tag name
+  sets the channel: `alpha` / `beta` / anything else → Release.
+- `.pkgmeta` ignores `.github`, `.claude`, `docs`, `tests`, `Tools`, `CLAUDE.md`, `README.md` and
+  `CHANGELOG.md`.
+
+## Conventions
+
+- **Right-size for a single maintainer.** Do the simplest thing that works, with no speculative
+  abstraction or config.
+- **Measured beats reasoned.** If a claim about the client can be checked in game, check it.
+- Match the surrounding code's idiom. Keep pure refactors in their own commit.

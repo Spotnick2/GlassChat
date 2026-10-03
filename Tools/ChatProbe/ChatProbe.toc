@@ -1,0 +1,9 @@
+## Interface: 16001
+## Title: ChatProbe
+## Notes: Throwaway probe for GlassChat: class colours, clipboard, copyable text, links, chat secrets. /cprobe help
+## Author: Spotnick
+## Version: dev
+## OptionalDeps: GlassChat
+## SavedVariables: ChatProbeDB
+
+ChatProbe.lua
