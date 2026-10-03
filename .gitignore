@@ -10,3 +10,6 @@ luac.out
 
 # Python bytecode from Tools/
 __pycache__/
+
+# Per-session Claude Code runtime state
+.claude/scheduled_tasks.lock

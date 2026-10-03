@@ -26,8 +26,12 @@ local callbacks = {}
 rawset(_G, "EventRegistry", { RegisterCallback = function(self, e, fn, owner) callbacks[e] = fn end })
 rawset(_G, "SetItemRef", function() end)
 -- No "Probe" tab yet on this character (item 8 opens one; item 9 reuses it).
-local windowNames = {}
-rawset(_G, "GetChatWindowInfo", function(i) return windowNames[i] or "General" end)
+-- windows[i] = { name, shown, docked }, GetChatWindowInfo's 1st, 7th and 9th.
+local windows = {}
+rawset(_G, "GetChatWindowInfo", function(i)
+    local w = windows[i] or { "General", true, true }
+    return w[1], 14, 1, 1, 1, 1, w[2], false, w[3]
+end)
 
 -- Two chat frames with a scrollback; line 2 of frame 1 is secret.
 local secretLine = WoW.Secret("chat line")
@@ -40,12 +44,18 @@ local function chatFrame(name, lines)
     rawset(f, "SetTextCopyable", function(self, v) self._copyable = v end)
     rawset(f, "IsTextCopyable", function(self) return self._copyable end)
     rawset(f, "HasSecretValues", function() return true end)
-    -- A real buffer for item 9: AddMessage appends, the predicate removes.
+    -- A real buffer for item 9: AddMessage appends { m, seq }, oldest first;
+    -- the predicate sees the message and walks OLDEST to newest, like
+    -- CircularBufferMixin:RemoveIf (CircularBuffer.lua:89). seq tells two
+    -- identical lines apart.
     f._lines = {}
-    rawset(f, "AddMessage", function(self, msg) table.insert(self._lines, msg) end)
+    rawset(f, "AddMessage", function(self, msg)
+        WoW.seq = (WoW.seq or 0) + 1
+        table.insert(self._lines, { m = msg, seq = WoW.seq })
+    end)
     rawset(f, "RemoveMessagesByPredicate", function(self, pred)
         local keep = {}
-        for _, m in ipairs(self._lines) do if not pred(m) then keep[#keep + 1] = m end end
+        for _, e in ipairs(self._lines) do if not pred(e.m) then keep[#keep + 1] = e end end
         self._lines = keep
     end)
     return f
@@ -55,7 +65,10 @@ chatFrame("ChatFrame2", {})
 chatFrame("ChatFrame3", {})   -- the tab item 8 "opens"
 
 ChatProbeDB = nil
-assert(loadfile("Tools/ChatProbe/ChatProbe.lua"))("ChatProbe", {})
+local ns = {}
+assert(loadfile("Tools/ChatProbe/ChatProbe.lua"))("ChatProbe", ns)
+local T = ns._test
+check(rawget(_G, "ChatProbe_test") == nil, "the test seam stays off _G")
 WoW.fire("ADDON_LOADED", "ChatProbe")
 eq(type(ChatProbeDB.log), "table", "the probe keeps its log in saved variables")
 eq(ChatProbeDB.loads, 1, "it counts its loads (persistence check)")
@@ -111,7 +124,7 @@ local function via(path) return '[Interface/AddOns/ChatProbe/ChatProbe.lua]:289:
     .. '[Interface/AddOns/Blizzard_PrintHandler/Blizzard_PrintHandler.lua]:90: in function <Interface/AddOns/Blizzard_PrintHandler/Blizzard_PrintHandler.lua:86>\n'
     .. '[Interface/AddOns/' .. path .. ']:12: in function <Interface/AddOns/' .. path .. ':10>\n' end
 SlashCmdList.CHATPROBE("sources")
-check(handler == ChatProbe_test.printHandler, "7 installs its print handler")
+check(handler == T.printHandler, "7 installs its print handler")
 stack = via("ASProbe/ASProbe.lua")
 handler("ASProbe", "line one")
 handler("ASProbe", "line two")
@@ -121,22 +134,36 @@ eq(passedOn[#passedOn], "ASProbe line two", "7 passes print lines on to the orig
 stack = via("OtherAddon/Other.lua")
 ChatFrame1:AddMessage("direct", 1, 1, 1, nil, nil, nil, nil)
 ChatFrame1:AddMessage("said", 1, 1, 1, 1, nil, 1, "CHAT_MSG_SAY")
+-- One of Blizzard's own 5-argument lines (no event, only chat plumbing
+-- above the hook) is bucketed as Blizzard, not as an unknown addon.
+stack = '[Interface/AddOns/ChatProbe/ChatProbe.lua]:289: in function <Interface/AddOns/ChatProbe/ChatProbe.lua:287>\n'
+    .. '[Interface/AddOns/ChatProbe/ChatProbe.lua]:313: in function <Interface/AddOns/ChatProbe/ChatProbe.lua:312>\n'
+    .. "[C]: in function 'AddMessage'\n"
+    .. '[Interface/AddOns/Blizzard_ChatFrameBase/Mainline/ChatFrameOverrides.lua]:259: in function <Interface/AddOns/Blizzard_ChatFrameBase/Mainline/ChatFrameOverrides.lua:250>\n'
+ChatFrame1:AddMessage("You are now Away", 1, 1, 0, 1)
 SlashCmdList.CHATPROBE("sources")
+check(logHas("7 AddMessage (no chat event) from Blizzard = 1"), "7 buckets Blizzard's own 5-argument lines")
 check(logHas("7 print from ASProbe = 2"), "7 counts print lines per source addon")
 check(logHas("7 AddMessage (no chat event) from OtherAddon = 1"), "7 counts direct AddMessage lines per addon")
 
 -- 8: a new empty tab gets ChatProbe's own lines; other addons' don't move.
-local routed = {}
 local tab = ChatFrame3
-rawset(tab, "AddMessage", function(_, msg) routed[#routed + 1] = msg end)
+local function texts(f)
+    local out = {}
+    for _, e in ipairs(f._lines) do out[#out + 1] = e.m end
+    return out
+end
+local function routed() return texts(tab) end
 tab.messageTypeList = {}
+windows[3] = { "", false, false }   -- an unused window slot
 rawset(_G, "FCF_OpenNewWindow", function(name, noDefault) tab._tabName, tab._noDefault = name, noDefault; return tab end)
 SlashCmdList.CHATPROBE("route")
 check(tab._tabName == "Probe" and tab._noDefault == true, "8 opens an empty 'Probe' tab")
 local before = #passedOn
 stack = via("ChatProbe/ChatProbe.lua")
 handler("ChatProbe", "mine")
-eq(routed[#routed], "ChatProbe mine", "8 routes ChatProbe's lines to the tab")
+local r = routed()
+eq(r[#r], "ChatProbe mine", "8 routes ChatProbe's lines to the tab")
 stack = via("ASProbe/ASProbe.lua")
 handler("ASProbe", "theirs")
 eq(#passedOn, before + 1, "8 leaves other addons' lines in the main chat")
@@ -145,31 +172,53 @@ stack = via("ChatProbe/ChatProbe.lua")
 handler("ChatProbe", "back")
 eq(passedOn[#passedOn], "ChatProbe back", "8 routing off returns lines to the main chat")
 
--- 9: an addon's direct AddMessage lines move to the existing Probe tab:
--- copied there, removed from General (one copy only), others untouched.
-windowNames[3] = "Probe"
+-- 9: an addon's direct AddMessage lines move to the Probe tab: copied
+-- there, and the copy just added removed from General, not an older
+-- identical line. A CLOSED Probe tab (name kept, hidden, undocked) is not
+-- reused; a shown one is.
 local opened = 0
 rawset(_G, "FCF_OpenNewWindow", function() opened = opened + 1; return tab end)
-routed = {}
+windows[3] = { "Probe", false, false }
 SlashCmdList.CHATPROBE("move AltStableProbe")
-eq(opened, 0, "9 reuses the character's existing Probe tab")
-ChatFrame1._lines = { "old line", "[ASProbe] dup" }
+eq(opened, 1, "9 doesn't reuse a closed Probe tab")
+SlashCmdList.CHATPROBE("move")
+windows[3] = { "Probe", true, true }
+opened = 0
+SlashCmdList.CHATPROBE("sources")   -- tracing on too: the probe's own copies must not count
+SlashCmdList.CHATPROBE("move AltStableProbe")
+eq(opened, 0, "9 reuses the character's shown Probe tab")
+tab._lines = {}
+ChatFrame1._lines = { { m = "old line", seq = -2 }, { m = "[ASProbe] dup", seq = -1 } }
 stack = via("AltStableProbe/Probe.lua")
 ChatFrame1:AddMessage("[ASProbe] dup", 1, 1, 1)
 ChatFrame1:AddMessage("[ASProbe] two", 1, 1, 1)
 stack = via("OtherAddon/Other.lua")
 ChatFrame1:AddMessage("other line", 1, 1, 1)
-eq(table.concat(routed, ","), "[ASProbe] dup,[ASProbe] two", "9 copies the addon's lines to the tab")
-eq(table.concat(ChatFrame1._lines, ","), "old line,[ASProbe] dup,other line",
+eq(table.concat(routed(), ","), "[ASProbe] dup,[ASProbe] two", "9 copies the addon's lines to the tab")
+eq(table.concat(texts(ChatFrame1), ","), "old line,[ASProbe] dup,other line",
     "9 removes one copy per moved line from General and leaves the rest")
+eq(ChatFrame1._lines[2].seq, -1, "9 removes the line just added, not the older identical one")
+SlashCmdList.CHATPROBE("sources")
+-- The stub's stack is static, so a counted copy would show up as two more
+-- AltStableProbe lines: only the 2 originals may count.
+check(logHas("7 AddMessage (no chat event) from AltStableProbe = 2"), "9 the probe's own copies aren't counted as AddMessage output")
 SlashCmdList.CHATPROBE("move")
 check(logHas("9 moving off: 2 lines moved from AltStableProbe, 0 copied but not removed"), "9 reports the counts")
 stack = via("AltStableProbe/Probe.lua")
 ChatFrame1:AddMessage("[ASProbe] after", 1, 1, 1)
-eq(#routed, 2, "9 off: lines stay where they were added")
+eq(#routed(), 2, "9 off: lines stay where they were added")
 
 SlashCmdList.CHATPROBE("watch")
-check(not ChatProbe_test.watcher:IsEventRegistered("CHAT_MSG_SAY"), "5 watch toggles off")
+check(not T.watcher:IsEventRegistered("CHAT_MSG_SAY"), "5 watch toggles off")
+-- 5: filters count only while watching (they can't be removed), and a
+-- refused registration is reported.
+local calls = T.P.filterCalls
+filters.CHAT_MSG_SAY(nil, "CHAT_MSG_SAY", "x")
+check(not T.P.watching and T.P.filterCalls == calls, "5 filters don't count while not watching")
+rawset(T.watcher, "RegisterEvent", function() return false end)
+SlashCmdList.CHATPROBE("watch")
+check(logHas("RegisterEvent CHAT_MSG_SAY: refused"), "5 a refused registration is reported")
+SlashCmdList.CHATPROBE("watch")
 SlashCmdList.CHATPROBE("clear")
 eq(#ChatProbeDB.log, 1, "clear empties the log (leaving its own line)")
 

@@ -20,7 +20,7 @@
 -- Every client call that may be missing or throw goes through try(), so one
 -- refusal cannot stop the rest of the probe.
 
-local ADDON = ...
+local ADDON, NS = ...
 local MAX_LOG = 3000
 local function maxWindows()
     local c = Constants and Constants.ChatFrameConstants
@@ -209,16 +209,31 @@ watcher:SetScript("OnEvent", function(_, event, text, sender, _, _, _, _, _, _, 
     say("5 " .. key .. " text=" .. shape(text) .. " sender=" .. shape(sender) .. " lineID=" .. shape(lineID)
         .. " guid=" .. shape(guid) .. " class=" .. class .. " " .. where())
 end)
-watcher:RegisterEvent("ADDON_ACTION_BLOCKED")
-watcher:RegisterEvent("ADDON_ACTION_FORBIDDEN")
+-- RegisterEvent throws on an unknown name and returns false on a refusal:
+-- both are reported, or an item would read "never fired" instead.
+local function register(frame, event)
+    local ok, registered = pcall(frame.RegisterEvent, frame, event)
+    if not ok then say("|cffff6060FAIL|r RegisterEvent " .. event .. ": " .. tostring(registered))
+    elseif registered == false then say("|cffff6060FAIL|r RegisterEvent " .. event .. ": refused") end
+end
+register(watcher, "ADDON_ACTION_BLOCKED")
+register(watcher, "ADDON_ACTION_FORBIDDEN")
 
-local function messageFilter() P.filterCalls = P.filterCalls + 1; return false end
-local function nameFilter(name) P.nameFilterCalls = P.nameFilterCalls + 1; return name end
+-- The filters can't be removed once added, so they count only while watching,
+-- the same window the event counts cover.
+local function messageFilter()
+    if P.watching then P.filterCalls = P.filterCalls + 1 end
+    return false
+end
+local function nameFilter(name)
+    if P.watching then P.nameFilterCalls = P.nameFilterCalls + 1 end
+    return name
+end
 
 local function watch()
     P.watching = not P.watching
     for _, e in ipairs(WATCH) do
-        if P.watching then try("RegisterEvent " .. e, watcher.RegisterEvent, watcher, e)
+        if P.watching then register(watcher, e)
         else watcher:UnregisterEvent(e) end
     end
     if P.watching and not filtersAdded and ChatFrameUtil then
@@ -293,14 +308,20 @@ local function sourceOf()
     -- hook: measured, debugstack(2) still lists sourceOf). Skip that whole
     -- leading run, then the plumbing and C frames; the next addon is the
     -- caller (ChatProbe again when the probe printed).
-    local leading, found = true, "unknown"
+    local leading, found, blizzard = true, "unknown", false
     for line in stack:gmatch("[^\n]+") do
         local name = line:match("AddOns[/\\]([^/\\]+)[/\\]")
         if leading then
             if name ~= ADDON then leading = false end
         end
-        if not leading and name and not PLUMBING[name] then found = name; break end
+        if not leading and name then
+            if not PLUMBING[name] then found = name; break end
+            blizzard = true
+        end
     end
+    -- Only chat plumbing above us: one of Blizzard's own 5-argument
+    -- AddMessage lines (system, notices: ChatFrameOverrides.lua:211-405).
+    if found == "unknown" and blizzard then found = "Blizzard" end
     -- One raw sample per source, so the log shows the real stack format.
     if P.tracing and not P.stackSamples[found] then P.stackSamples[found] = stack:sub(1, 600) end
     return found
@@ -308,17 +329,22 @@ end
 
 local function bump(t, k) t[k] = (t[k] or 0) + 1 end
 
-local origPrint, inPrint
+-- inPrint: inside the original print handler. selfEmit: the probe itself
+-- re-adding a line (routing, moving). The AddMessage hook ignores both.
+local origPrint, inPrint, selfEmit
 P.printSources, P.directSources = {}, {}
 P.tracing, P.routeFrame = false, nil
 
 -- One wrapper for items 7 and 8. It never prints (that would recurse); it
 -- only counts, and routes our own lines when item 8 is on.
 local function printHandler(...)
+    if not (P.tracing or P.routeFrame) then return origPrint(...) end   -- no stack walk when idle
     local src = sourceOf()
     if P.tracing then bump(P.printSources, src) end
     if P.routeFrame and src == ADDON then
+        selfEmit = true
         local ok, err = pcall(function(...) P.routeFrame:AddMessage(strjoin(" ", tostringall(...))) end, ...)
+        selfEmit = false
         if not ok then P.routeError = tostring(err) end
         return
     end
@@ -344,15 +370,29 @@ local hookedFrames = {}
 local function moveLine(frame, msg, r, g, b)
     local target = P.moveTarget
     if frame == target or type(msg) ~= "string" or (issecretvalue and issecretvalue(msg)) then return end
+    selfEmit = true
     local okA, errA = pcall(target.AddMessage, target, msg, r, g, b)
+    selfEmit = false
     if not okA then P.moveError = tostring(errA); return end
-    local removed = false
-    local okR, errR = pcall(frame.RemoveMessagesByPredicate, frame, function(m)
-        if removed or m ~= msg then return false end
-        removed = true
-        return true
+    -- RemoveIf walks OLDEST to newest (CircularBuffer.lua:89), and an older
+    -- identical line may exist: count the matches, then remove only the last
+    -- one, which is the line just added. Secret lines are never compared.
+    local function same(m) return not (issecretvalue and issecretvalue(m)) and m == msg end
+    local matches, seen, removed = 0, 0, false
+    local okC, errC = pcall(frame.RemoveMessagesByPredicate, frame, function(m)
+        if same(m) then matches = matches + 1 end
+        return false
     end)
-    if not okR then P.moveError = tostring(errR) end
+    local okR, errR = true, nil
+    if okC and matches > 0 then
+        okR, errR = pcall(frame.RemoveMessagesByPredicate, frame, function(m)
+            if not same(m) then return false end
+            seen = seen + 1
+            if seen == matches then removed = true; return true end
+            return false
+        end)
+    end
+    if not okC then P.moveError = tostring(errC) elseif not okR then P.moveError = tostring(errR) end
     P.moved = P.moved + 1
     if not removed then P.notRemoved = P.notRemoved + 1 end
 end
@@ -363,7 +403,7 @@ local function hookDirect()
         if f and not hookedFrames[f] then
             hookedFrames[f] = true
             try("hook AddMessage " .. i, hooksecurefunc, f, "AddMessage", function(frame, msg, r, g, b, _, _, _, event)
-                if inPrint or not (P.tracing or P.moveSource) then return end
+                if inPrint or selfEmit or not (P.tracing or P.moveSource) then return end
                 if issecretvalue and issecretvalue(event) then
                     if P.tracing then bump(P.directSources, "<secret event>") end
                     return
@@ -402,8 +442,12 @@ end
 -- The "Probe" tab: the one this character already has, else a new empty one.
 local function probeTab()
     for i = 1, maxWindows() do
-        local ok, name = pcall(GetChatWindowInfo, i)
-        if ok and name == "Probe" and _G["ChatFrame" .. i] then return _G["ChatFrame" .. i], false end
+        -- A closed tab keeps its name (FCF_Close only hides and undocks), so
+        -- reuse only one that is shown or docked.
+        local ok, name, _, _, _, _, _, shown, _, docked = pcall(GetChatWindowInfo, i)
+        if ok and name == "Probe" and (shown or docked) and _G["ChatFrame" .. i] then
+            return _G["ChatFrame" .. i], false
+        end
     end
     if not FCF_OpenNewWindow then say("FCF_OpenNewWindow absent"); return nil end
     local ok, frame = try("FCF_OpenNewWindow", FCF_OpenNewWindow, "Probe", true)
@@ -484,7 +528,7 @@ SlashCmdList.CHATPROBE = function(msg)
 end
 
 local boot = CreateFrame("Frame")
-boot:RegisterEvent("ADDON_LOADED")
+register(boot, "ADDON_LOADED")
 boot:SetScript("OnEvent", function(_, _, name)
     if name ~= ADDON then return end
     if type(ChatProbeDB) ~= "table" then ChatProbeDB = {} end
@@ -493,6 +537,7 @@ boot:SetScript("OnEvent", function(_, _, name)
     say("loaded (" .. ChatProbeDB.loads .. " loads). /cprobe help")
 end)
 
-ChatProbe_test = { P = P, state = state, clip = clip, copyable = copyable, link = link, watch = watch,
+-- The test seam lives on the addon namespace, not in _G.
+NS._test = { P = P, state = state, clip = clip, copyable = copyable, link = link, watch = watch,
     report = report, history = history, watcher = watcher, sources = sources, route = route,
     sourceOf = sourceOf, printHandler = printHandler, move = move }
