@@ -9,7 +9,7 @@ Probe items are numbered as in `Tools/ChatProbe` (`/cprobe help`).
 2. Click a web address to copy it.
 3. Copy **any** text out of chat.
 4. **Search and filter**, mainly for the long probe and addon output that gets pasted into Claude
-   sessions: smart tabs (M2) and focus mode (M3).
+   sessions: smart tabs (M3) and focus mode (M4).
 5. The look: the liquid glass of the `Glass*` addons, with readability first.
 
 Everything else Prat does is out unless asked for.
@@ -108,8 +108,37 @@ addon-agnostic findings also go in the porting guide.
   if that falls short, a sender-name filter colouring by GUID through `API.ClassColor`. Names
   **inside** message text (Prat's PlayerNameGlobalPatterns) are out.
 - A longer scrollback: `SetMaxLines` (e.g. 1000; Prat's default is 384).
+- **Sent-message history on plain Up/Down** (owner: "clearly a feature I want back from Prat").
+  It's the edit box's own history: stock Forever needs Alt+Up/Down.
+  `EditBox:SetAltArrowKeyMode(false)` on every chat edit box makes the plain arrows cycle it, as
+  Prat's Editbox module does. A longer list comes from `SetHistoryLines`. It's kept across
+  sessions per character (`GlassChatCharDB.sent`, filled from a `hooksecurefunc` on
+  `AddHistoryLine`, replayed with `AddHistoryLine` at login, Prat History's recipe). All of these
+  are widget methods in the 70205 dump.
 
-### M2: smart tabs (the owner's main pain: probe output)
+### M2: one chat layout for every character
+
+Owner: "set it up on every character" was always a chore with Prat. Prat's **Memory** module did
+this. Chat windows are **per character** (probe item 8).
+
+- **"Save as my layout"** (`/gchat layout save`) records, per chat window, what the client's own
+  chat-window API reports: `GetChatWindowInfo` (name, font size, colour, alpha, shown, locked,
+  docked, uninteractable), `GetChatWindowMessages`, `GetChatWindowChannels`,
+  `GetChatWindowSavedDimensions` and `GetChatWindowSavedPosition`. It goes in `GlassChatDB.layout`,
+  account-wide. Channels are kept by name, because channel numbers differ per character. Our
+  smart-tab rules are already account-wide (M3).
+- **On a character that hasn't had it**, GlassChat offers it once at login with a clickable
+  `[Apply my chat layout]` link, then remembers the answer (`GlassChatCharDB.layoutApplied`).
+  `/gchat layout apply` does it at any time. Applying uses the matching `SetChatWindow*` calls,
+  `FCF_OpenNewWindow` for missing tabs (your Whispers tab), and
+  `RemoveAllMessageGroups`/`AddMessageGroup` and `AddChannel` on the frame. The recipe is Prat
+  Memory.lua:145-240.
+- **Position of the main window:** `ChatFrame1` is an Edit Mode system. Its spot may already follow
+  you if your Edit Mode layout is an *Account* layout rather than a *Character* one. Check that
+  first. Otherwise, measure whether `SetChatWindowSavedPosition` sticks or Edit Mode overrides it.
+- The glass options from M1 (opacity, font outline) live in the same account-wide table.
+
+### M3: smart tabs (the owner's main pain: probe output)
 
 - GlassChat installs a **wrapping print handler** (probe item 7) that names the addon behind each
   `print` line from the stack. The handler passes every line on unchanged unless a rule moves it.
@@ -120,14 +149,15 @@ addon-agnostic findings also go in the porting guide.
   (`GlassChatDB.routes[addonFolder]`), reapplied at login. **No:** never ask again for that
   addon. `/gchat tabs` lists the rules and removes them.
 - The tab is a stock chat window (`FCF_OpenNewWindow(name, true)`, no message groups), named after
-  the addon. An existing window with that name is reused, so a permanent tab isn't duplicated
-  after a relog.
+  the addon. Chat tabs are **per character** (measured), so rules are account-wide and each
+  character opens its own tab on that addon's first line. An existing window with that name is
+  reused, so a permanent tab isn't duplicated after a relog.
 - Every routed line is also kept in GlassChat's own buffer, with its source addon and time, for
-  M3.
+  M4.
 - Limits: only `print` output can be moved (probe item 7 says how much that covers). Blizzard
   caps chat windows at 10. Lua errors go to the error frame, not chat, and are out of scope.
 
-### M3: focus mode (freeze, maximise, search, filter, copy)
+### M4: focus mode (freeze, maximise, search, filter, copy)
 
 The owner's picture: freeze and maximise the current tab, which reveals search and filters.
 
@@ -140,7 +170,7 @@ The owner's picture: freeze and maximise the current tab, which reveals search a
 - **Search:** live, case-insensitive plain text over the colour-stripped line, no patterns. A
   "matches only / with context" toggle.
 - **Filters:** chips by kind (Say, Party, Guild, Whisper, Channel, System), **by source addon**
-  (from M2's attribution, e.g. only ASProbe), and by time (last N minutes, since `/reload`).
+  (from M3's attribution, e.g. only ASProbe), and by time (last N minutes, since `/reload`).
 - **Copy:** drag-select (probe item 3), or click / shift-click lines, then Copy. The text goes to
   the clipboard (probe item 2) or into a pre-selected edit box for Ctrl+C. It's plain text, one
   line per message, with optional timestamps.
@@ -148,7 +178,7 @@ The owner's picture: freeze and maximise the current tab, which reveals search a
   Claude reads it straight from `WTF\...\SavedVariables\GlassChat.lua`.
 - Esc closes it, and the chat behind it was never touched.
 
-### M4: copy web addresses
+### M5: copy web addresses
 
 - **URLs only** (owner). A message filter wraps them in an addon link (`|Haddon:GlassChat:url:…|h`).
   A click opens a small glass box with the URL selected (Ctrl+C), or copies it directly if probe
@@ -164,8 +194,8 @@ The owner's picture: freeze and maximise the current tab, which reveals search a
 
 ## Owner answers (2026-10-03)
 
-1. **Search:** freeze and maximise the current tab to reveal search and filters (M3), plus smart
-   tabs for chatty addons, per session or permanent (M2).
+1. **Search:** freeze and maximise the current tab to reveal search and filters (M4), plus smart
+   tabs for chatty addons, per session or permanent (M3).
 2. **Copy links:** web addresses only.
 3. **What gets pasted into Claude:** probe output today. Smart tabs, plus focus mode filtered by
    source and Export, should cover it.

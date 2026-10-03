@@ -13,7 +13,7 @@ rawset(_G, "GetInstanceInfo", function() return "Eastern Kingdoms", "none" end)
 rawset(_G, "C_CVar", { GetCVar = function(name) return name == "chatClassColorOverride" and "2" or nil end })
 rawset(_G, "C_ChatInfo", { InChatMessagingLockdown = function() return false end })
 rawset(_G, "ChatTypeInfo", { SAY = { colorNameByClass = true }, GUILD = { colorNameByClass = false } })
-rawset(_G, "Constants", { ChatFrameConstants = { MaxChatWindows = 2 } })
+rawset(_G, "Constants", { ChatFrameConstants = { MaxChatWindows = 3 } })
 rawset(_G, "CopyToClipboard", function(text) clipboard = text; return #text end)
 rawset(_G, "GetPlayerInfoByGUID", function() return "Mage", "MAGE" end)
 local filters, nameFilters = {}, {}
@@ -25,6 +25,9 @@ rawset(_G, "ChatFrameUtil", {
 local callbacks = {}
 rawset(_G, "EventRegistry", { RegisterCallback = function(self, e, fn, owner) callbacks[e] = fn end })
 rawset(_G, "SetItemRef", function() end)
+-- No "Probe" tab yet on this character (item 8 opens one; item 9 reuses it).
+local windowNames = {}
+rawset(_G, "GetChatWindowInfo", function(i) return windowNames[i] or "General" end)
 
 -- Two chat frames with a scrollback; line 2 of frame 1 is secret.
 local secretLine = WoW.Secret("chat line")
@@ -37,10 +40,19 @@ local function chatFrame(name, lines)
     rawset(f, "SetTextCopyable", function(self, v) self._copyable = v end)
     rawset(f, "IsTextCopyable", function(self) return self._copyable end)
     rawset(f, "HasSecretValues", function() return true end)
+    -- A real buffer for item 9: AddMessage appends, the predicate removes.
+    f._lines = {}
+    rawset(f, "AddMessage", function(self, msg) table.insert(self._lines, msg) end)
+    rawset(f, "RemoveMessagesByPredicate", function(self, pred)
+        local keep = {}
+        for _, m in ipairs(self._lines) do if not pred(m) then keep[#keep + 1] = m end end
+        self._lines = keep
+    end)
     return f
 end
 chatFrame("ChatFrame1", { "hello there", secretLine, "a much longer line of text" })
 chatFrame("ChatFrame2", {})
+chatFrame("ChatFrame3", {})   -- the tab item 8 "opens"
 
 ChatProbeDB = nil
 assert(loadfile("Tools/ChatProbe/ChatProbe.lua"))("ChatProbe", {})
@@ -89,9 +101,15 @@ rawset(_G, "setprinthandler", function(fn) handler = fn end)
 rawset(_G, "debugstack", function() return stack end)
 rawset(_G, "strjoin", function(sep, ...) return table.concat({ ... }, sep) end)
 rawset(_G, "tostringall", function(...) return ... end)
-local function via(path) return '[string "@Interface/AddOns/ChatProbe/ChatProbe.lua"]:300: in function <handler>\n'
-    .. '[string "@Interface/AddOns/Blizzard_PrintHandler/Blizzard_PrintHandler.lua"]:90: in function <print>\n'
-    .. '[string "@Interface/AddOns/' .. path .. '"]:12: in main chunk\n' end
+-- Each frame line names its file twice, as the client's do: that is what
+-- made every line come out as ChatProbe on 70205.
+-- And the probe's own frames come first, more than one (sourceOf, then the
+-- handler or hook), as in the 70205 sample stack.
+local function via(path) return '[Interface/AddOns/ChatProbe/ChatProbe.lua]:289: in function <Interface/AddOns/ChatProbe/ChatProbe.lua:287>\n'
+    .. '[Interface/AddOns/ChatProbe/ChatProbe.lua]:313: in function <Interface/AddOns/ChatProbe/ChatProbe.lua:312>\n'
+    .. '[C]: in function \'pcall\'\n'
+    .. '[Interface/AddOns/Blizzard_PrintHandler/Blizzard_PrintHandler.lua]:90: in function <Interface/AddOns/Blizzard_PrintHandler/Blizzard_PrintHandler.lua:86>\n'
+    .. '[Interface/AddOns/' .. path .. ']:12: in function <Interface/AddOns/' .. path .. ':10>\n' end
 SlashCmdList.CHATPROBE("sources")
 check(handler == ChatProbe_test.printHandler, "7 installs its print handler")
 stack = via("ASProbe/ASProbe.lua")
@@ -109,7 +127,7 @@ check(logHas("7 AddMessage (no chat event) from OtherAddon = 1"), "7 counts dire
 
 -- 8: a new empty tab gets ChatProbe's own lines; other addons' don't move.
 local routed = {}
-local tab = CreateFrame("ScrollingMessageFrame", "ChatFrame3", UIParent)
+local tab = ChatFrame3
 rawset(tab, "AddMessage", function(_, msg) routed[#routed + 1] = msg end)
 tab.messageTypeList = {}
 rawset(_G, "FCF_OpenNewWindow", function(name, noDefault) tab._tabName, tab._noDefault = name, noDefault; return tab end)
@@ -126,6 +144,29 @@ SlashCmdList.CHATPROBE("route")
 stack = via("ChatProbe/ChatProbe.lua")
 handler("ChatProbe", "back")
 eq(passedOn[#passedOn], "ChatProbe back", "8 routing off returns lines to the main chat")
+
+-- 9: an addon's direct AddMessage lines move to the existing Probe tab:
+-- copied there, removed from General (one copy only), others untouched.
+windowNames[3] = "Probe"
+local opened = 0
+rawset(_G, "FCF_OpenNewWindow", function() opened = opened + 1; return tab end)
+routed = {}
+SlashCmdList.CHATPROBE("move AltStableProbe")
+eq(opened, 0, "9 reuses the character's existing Probe tab")
+ChatFrame1._lines = { "old line", "[ASProbe] dup" }
+stack = via("AltStableProbe/Probe.lua")
+ChatFrame1:AddMessage("[ASProbe] dup", 1, 1, 1)
+ChatFrame1:AddMessage("[ASProbe] two", 1, 1, 1)
+stack = via("OtherAddon/Other.lua")
+ChatFrame1:AddMessage("other line", 1, 1, 1)
+eq(table.concat(routed, ","), "[ASProbe] dup,[ASProbe] two", "9 copies the addon's lines to the tab")
+eq(table.concat(ChatFrame1._lines, ","), "old line,[ASProbe] dup,other line",
+    "9 removes one copy per moved line from General and leaves the rest")
+SlashCmdList.CHATPROBE("move")
+check(logHas("9 moving off: 2 lines moved from AltStableProbe, 0 copied but not removed"), "9 reports the counts")
+stack = via("AltStableProbe/Probe.lua")
+ChatFrame1:AddMessage("[ASProbe] after", 1, 1, 1)
+eq(#routed, 2, "9 off: lines stay where they were added")
 
 SlashCmdList.CHATPROBE("watch")
 check(not ChatProbe_test.watcher:IsEventRegistered("CHAT_MSG_SAY"), "5 watch toggles off")

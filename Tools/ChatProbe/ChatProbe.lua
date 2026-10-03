@@ -15,6 +15,7 @@
 --   6. reading the scrollback (GetMessageInfo), secret lines         /cprobe history
 --   7. which addons write to chat, through print or AddMessage       /cprobe sources
 --   8. routing one addon's print output to its own tab              /cprobe route
+--   9. moving one addon's direct AddMessage lines to that tab        /cprobe move
 --
 -- Every client call that may be missing or throw goes through try(), so one
 -- refusal cannot stop the rest of the probe.
@@ -277,19 +278,32 @@ end
 -- 7. Where addon output comes from (smart tabs)
 --------------------------------------------------------------------------------
 
--- The addon folder that called print (or AddMessage): the first AddOns path
--- in the stack that is neither the print plumbing nor, as the handler, us.
+-- The addon folder that called print (or AddMessage): the first stack FRAME
+-- whose file is neither the print plumbing nor, as the handler, us. Per line,
+-- the first path only: a frame line names its file twice (where it is, and
+-- "in function <file:line>"), so matching every path skipped us once and
+-- then found us again (measured, 70205: everything came out as ChatProbe).
 local PLUMBING = { Blizzard_PrintHandler = true, Blizzard_SharedXML = true, Blizzard_ChatFrameBase = true }
+P.stackSamples = {}
 local function sourceOf()
     if not debugstack then return "no debugstack" end
     local ok, stack = pcall(debugstack, 2, 20, 0)
     if not ok or type(stack) ~= "string" then return "unknown" end
-    local skipped = false
-    for name in stack:gmatch("AddOns[/\\]([^/\\]+)[/\\]") do
-        if name == ADDON and not skipped then skipped = true
-        elseif not PLUMBING[name] then return name end
+    -- The stack starts with OUR frames (sourceOf itself, then the handler or
+    -- hook: measured, debugstack(2) still lists sourceOf). Skip that whole
+    -- leading run, then the plumbing and C frames; the next addon is the
+    -- caller (ChatProbe again when the probe printed).
+    local leading, found = true, "unknown"
+    for line in stack:gmatch("[^\n]+") do
+        local name = line:match("AddOns[/\\]([^/\\]+)[/\\]")
+        if leading then
+            if name ~= ADDON then leading = false end
+        end
+        if not leading and name and not PLUMBING[name] then found = name; break end
     end
-    return "unknown"
+    -- One raw sample per source, so the log shows the real stack format.
+    if P.tracing and not P.stackSamples[found] then P.stackSamples[found] = stack:sub(1, 600) end
+    return found
 end
 
 local function bump(t, k) t[k] = (t[k] or 0) + 1 end
@@ -324,15 +338,40 @@ local function installPrint()
 end
 
 local hookedFrames = {}
+-- Item 9 moves one addon's direct AddMessage lines: the post-hook copies the
+-- line to the tab, then removes it from the frame it landed in through the
+-- public RemoveMessagesByPredicate (ScrollingMessageFrame.lua:45).
+local function moveLine(frame, msg, r, g, b)
+    local target = P.moveTarget
+    if frame == target or type(msg) ~= "string" or (issecretvalue and issecretvalue(msg)) then return end
+    local okA, errA = pcall(target.AddMessage, target, msg, r, g, b)
+    if not okA then P.moveError = tostring(errA); return end
+    local removed = false
+    local okR, errR = pcall(frame.RemoveMessagesByPredicate, frame, function(m)
+        if removed or m ~= msg then return false end
+        removed = true
+        return true
+    end)
+    if not okR then P.moveError = tostring(errR) end
+    P.moved = P.moved + 1
+    if not removed then P.notRemoved = P.notRemoved + 1 end
+end
+
 local function hookDirect()
     for i = 1, maxWindows() do
         local f = _G["ChatFrame" .. i]
         if f and not hookedFrames[f] then
             hookedFrames[f] = true
-            try("hook AddMessage " .. i, hooksecurefunc, f, "AddMessage", function(_, _, _, _, _, _, _, _, event)
-                if not P.tracing or inPrint then return end
-                if issecretvalue and issecretvalue(event) then bump(P.directSources, "<secret event>"); return end
-                if event == nil then bump(P.directSources, sourceOf()) end
+            try("hook AddMessage " .. i, hooksecurefunc, f, "AddMessage", function(frame, msg, r, g, b, _, _, _, event)
+                if inPrint or not (P.tracing or P.moveSource) then return end
+                if issecretvalue and issecretvalue(event) then
+                    if P.tracing then bump(P.directSources, "<secret event>") end
+                    return
+                end
+                if event ~= nil then return end
+                local src = sourceOf()
+                if P.tracing then bump(P.directSources, src) end
+                if P.moveSource and src == P.moveSource then moveLine(frame, msg, r, g, b) end
             end)
         end
     end
@@ -349,28 +388,64 @@ local function sources()
     P.tracing = false
     for src, n in pairs(P.printSources) do say("7 print from " .. src .. " = " .. n) end
     for src, n in pairs(P.directSources) do say("7 AddMessage (no chat event) from " .. src .. " = " .. n) end
-    say("7 tracing off. 'print' lines can be routed by a print handler; 'AddMessage' ones can't.")
+    for src, stack in pairs(P.stackSamples) do
+        say("7 sample stack for " .. src .. ": " .. stack:gsub("\n", " || "))
+    end
+    P.printSources, P.directSources, P.stackSamples = {}, {}, {}
+    say("7 tracing off. 'print' lines go through the print handler; 'AddMessage' ones need item 9.")
 end
 
 --------------------------------------------------------------------------------
 -- 8. Route one addon's output to its own tab
 --------------------------------------------------------------------------------
 
+-- The "Probe" tab: the one this character already has, else a new empty one.
+local function probeTab()
+    for i = 1, maxWindows() do
+        local ok, name = pcall(GetChatWindowInfo, i)
+        if ok and name == "Probe" and _G["ChatFrame" .. i] then return _G["ChatFrame" .. i], false end
+    end
+    if not FCF_OpenNewWindow then say("FCF_OpenNewWindow absent"); return nil end
+    local ok, frame = try("FCF_OpenNewWindow", FCF_OpenNewWindow, "Probe", true)
+    if not (ok and frame) then say("no new tab (all chat windows in use?)"); return nil end
+    return frame, true
+end
+
 local function route()
     if P.routeFrame then
         P.routeFrame = nil
-        say("8 routing off: ChatProbe lines are back in the main chat. Close the 'Probe' tab by hand."
+        say("8 routing off: ChatProbe lines are back in the main chat."
             .. (P.routeError and (" Routing error: " .. P.routeError) or ""))
         return
     end
     if not installPrint() then return end
-    if not FCF_OpenNewWindow then say("8 FCF_OpenNewWindow absent"); return end
-    local ok, frame = try("FCF_OpenNewWindow", FCF_OpenNewWindow, "Probe", true)
-    if not (ok and frame) then say("8 no new tab (all chat windows in use?)"); return end
+    local frame, new = probeTab()
+    if not frame then return end
     local groups = frame.messageTypeList and #frame.messageTypeList or "?"
-    say("8 opened tab " .. show(frame:GetName()) .. " with " .. show(groups) .. " message groups. Routing ChatProbe's lines there.")
+    say("8 " .. (new and "opened" or "reusing") .. " tab " .. show(frame:GetName()) .. " with " .. show(groups)
+        .. " message groups. Routing ChatProbe's lines there.")
     P.routeFrame = frame
     say("8 this line should be in the 'Probe' tab, not in General. Watch for a blocked-action line; /cprobe route again to stop.")
+end
+
+--------------------------------------------------------------------------------
+-- 9. Move one addon's direct AddMessage output to its own tab
+--------------------------------------------------------------------------------
+
+P.moved, P.notRemoved = 0, 0
+local function move(arg)
+    if P.moveSource then
+        say("9 moving off: " .. P.moved .. " lines moved from " .. P.moveSource .. ", " .. P.notRemoved
+            .. " copied but not removed" .. (P.moveError and (", error: " .. P.moveError) or ""))
+        P.moveSource, P.moveTarget, P.moved, P.notRemoved, P.moveError = nil, nil, 0, 0, nil
+        return
+    end
+    local frame = probeTab()
+    if not frame then return end
+    hookDirect()
+    P.moveTarget, P.moveSource = frame, (arg and arg ~= "") and arg or "AltStableProbe"
+    say("9 moving " .. P.moveSource .. "'s AddMessage lines to the 'Probe' tab. Use it, check General has none"
+        .. " of them and Probe has them all, then /cprobe move again for the counts.")
 end
 
 --------------------------------------------------------------------------------
@@ -386,12 +461,14 @@ local function help()
     say("/cprobe history  - 6 read the scrollback of every chat frame")
     say("/cprobe sources  - 7 toggle tracing which addons print to chat, and how")
     say("/cprobe route    - 8 toggle sending ChatProbe's own lines to a new 'Probe' tab")
+    say("/cprobe move [addon] - 9 toggle moving an addon's direct AddMessage lines (default AltStableProbe) to 'Probe'")
     say("/cprobe clear    - empty the saved log")
 end
 
 SLASH_CHATPROBE1 = "/cprobe"
 SlashCmdList.CHATPROBE = function(msg)
-    local cmd = (msg or ""):lower():match("^%s*(%S*)")
+    local cmd, arg = (msg or ""):match("^%s*(%S*)%s*(.-)%s*$")
+    cmd = cmd:lower()
     if cmd == "state" then state()
     elseif cmd == "clip" then clip()
     elseif cmd == "copyable" then copyable()
@@ -401,6 +478,7 @@ SlashCmdList.CHATPROBE = function(msg)
     elseif cmd == "history" then history()
     elseif cmd == "sources" then sources()
     elseif cmd == "route" then route()
+    elseif cmd == "move" then move(arg)
     elseif cmd == "clear" then ChatProbeDB.log = {}; say("log cleared")
     else help() end
 end
@@ -417,4 +495,4 @@ end)
 
 ChatProbe_test = { P = P, state = state, clip = clip, copyable = copyable, link = link, watch = watch,
     report = report, history = history, watcher = watcher, sources = sources, route = route,
-    sourceOf = sourceOf, printHandler = printHandler }
+    sourceOf = sourceOf, printHandler = printHandler, move = move }

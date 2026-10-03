@@ -42,8 +42,8 @@ this client each one taints chat. The research behind this is in `docs/PLAN.md`.
 
 **Status: milestone 0 (scaffold and ChatProbe).** The draft plan is `docs/PLAN.md`; its open
 questions are mostly answered. Next: run the probe in game and record the results in
-`docs/FOREVER-PROBE.md`, then M1 (readable glass, class colours), M2 (smart tabs), M3 (focus
-mode), M4 (URL copy). Work goes through GitHub
+`docs/FOREVER-PROBE.md`, then M1 (readable glass, class colours), M2 (one layout for every character), M3 (smart tabs), M4 (focus
+mode), M5 (URL copy). Work goes through GitHub
 issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
 
 ## Layout
