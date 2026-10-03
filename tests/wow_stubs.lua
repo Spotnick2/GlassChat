@@ -201,6 +201,7 @@ function Methods.SetTextureSliceMargins(t, l, tp, r, b) t._slice = { l, tp, r, b
 -- secret argument, keep the arguments unformatted instead of calling
 -- string.format (which would throw on the proxy).
 function Methods.SetText(fs, text) fs._text = text end
+function Methods.SetTextColor(fs, r, g, b, a) fs._textColor = { r, g, b, a } end
 function Methods.GetText(fs) return fs._text end
 function Methods.SetFormattedText(fs, fmt, ...)
     local n = select("#", ...)
@@ -287,7 +288,8 @@ function WoW.makeChatFrames(n)
             local tab = CreateFrame("Button", name .. "Tab", UIParent)
             tab._fontString = Methods.CreateFontString(tab)
             tab._fontString._height = 8
-            for _, k in ipairs({ "Left", "Middle", "Right", "ActiveLeft", "ActiveMiddle", "ActiveRight" }) do
+            for _, k in ipairs({ "Left", "Middle", "Right", "ActiveLeft", "ActiveMiddle", "ActiveRight",
+                "HighlightLeft", "HighlightMiddle", "HighlightRight" }) do
                 tab[k] = Methods.CreateTexture(tab)
             end
             local e = CreateFrame("EditBox", name .. "EditBox", f)

@@ -68,31 +68,37 @@ eq(ChatFrame1EditBoxMid._alpha, 1, "and the edit box border")
 GC.Settings.SetGlass(true)
 check(p.panel:IsShown() and not ChatFrame1Background:IsShown(), "glass on again")
 
--- Tabs: a bigger shadowed name (set at load, before Blizzard names and
--- sizes the tabs), a glass pill instead of the stock art, and higher
--- resting opacity through Blizzard's own setter after its update.
+-- Tabs, after the owner's mockup: the panel reaches up over the tab strip
+-- with a separator line; the stock tab art is invisible; the selected tab
+-- gets a faint fill and a gold underline, the others plain grey names.
 local tab, text = ChatFrame1Tab, ChatFrame1Tab:GetFontString()
+eq(select(5, p.panel:GetPoint(1)), GC.Skin.PAD_Y + GC.Skin.TAB_STRIP, "the panel reaches up over the tabs")
+check(p.separator ~= nil, "a separator line runs under the tabs")
 eq(select(2, text:GetFont()), 14, "the tab name is 14 pt")
 eq(text:GetHeight(), 18, "and its 8 px box is grown so it isn't clipped")
 eq(tab.Middle._alpha, 0, "the stock tab art is invisible")
-local tp = P[tab]
-check(tp and tp.panel:IsShown(), "the tab has a glass pill")
-eq(select(2, tp.panel:GetPoint(1)), text, "around the name")
+eq(tab.ActiveMiddle._alpha, 0, "the stock selected art too")
+check(P[tab] == nil, "no glass pill per tab any more")
+local lit = GC.Skin._test.tabLit[tab]
+FCFTab_UpdateColors(tab, true)
+check(lit.fill:IsShown() and lit.line:IsShown(), "the selected tab is lit with an underline")
+eq(text._textColor and text._textColor[2], 0.82, "in gold")
+FCFTab_UpdateColors(tab, false)
+check(not lit.fill:IsShown() and not lit.line:IsShown(), "an unselected tab isn't lit")
+eq(text._textColor and text._textColor[1], 0.8, "and its name is grey")
 FCFTab_UpdateAlpha(ChatFrame1)
 FCFTab_UpdateAlpha(ChatFrame2)
-eq(ChatFrame1Tab._alpha, 0.9, "the selected tab rests at 0.9 (stock 0.4)")
-eq(ChatFrame2Tab._alpha, 0.6, "the others at 0.6 (stock 0.2)")
+eq(ChatFrame1Tab._alpha, 1, "the selected tab rests at full (stock 0.4)")
+eq(ChatFrame2Tab._alpha, 0.9, "the others at 0.9 (stock 0.2)")
 eq(WoW.tabAlphas[ChatFrame2Tab][1], 1, "mouse-over brings any tab to full")
-FCFTab_UpdateColors(tab, true)
-eq(tp.g.rim._alpha, GC.Skin.RIM_FOCUS, "the selected tab's rim is brighter")
-FCFTab_UpdateColors(tab, false)
-eq(tp.g.rim._alpha, GC.Skin.RIM_IDLE, "an unselected one's isn't")
 GC.Settings.SetTabSize(30)
 eq(select(2, text:GetFont()), 20, "tab size is capped at 20")
 GC.Settings.SetGlass(false)
 eq(select(2, text:GetFont()), 10, "glass off gives the tab its stock font back")
 eq(text:GetHeight(), 8, "and its stock height")
 eq(tab.Middle._alpha, 1, "and its stock art")
+FCFTab_UpdateColors(tab, true)
+check(not lit.fill:IsShown(), "and no lit look")
 GC.Settings.SetGlass(true)
 GC.Settings.SetTabSize(14)
 
