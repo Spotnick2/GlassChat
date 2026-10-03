@@ -51,10 +51,18 @@ local function locked()
     return C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() == true
 end
 
+-- Name suggestions (/w Exa...) use Up/Down too: leave the keys to them
+-- while the list is open for this box (Blizzard's own test,
+-- AutoComplete.lua:360).
+local function suggesting(edit)
+    local ac = rawget(_G, "AutoCompleteBox")
+    return ac ~= nil and ac:IsShown() and ac.parent == edit
+end
+
 -- Up: one line older. Down: one line newer; past the newest, back to what
 -- was being typed. The list is newest last.
 local function onArrow(edit, key)
-    if not GC.db.plainArrows or (key ~= "UP" and key ~= "DOWN") or locked() then return end
+    if not GC.db.plainArrows or (key ~= "UP" and key ~= "DOWN") or locked() or suggesting(edit) then return end
     local list, s = sent(), state[edit]
     local n = #list
     if n == 0 or not s then return end
@@ -68,11 +76,16 @@ local function onArrow(edit, key)
     if s.index == 0 then edit:SetText(s.draft or "") else edit:SetText(list[n - s.index + 1]) end
 end
 
+-- A new history size: the saved list and every native history follow.
+function History.Trim()
+    trim(sent(), GC.db.history)
+end
+
 function History.EditBox(edit)
     edit:SetAltArrowKeyMode(not GC.db.plainArrows)
+    edit:SetHistoryLines(GC.db.history)
     if state[edit] then return end
     state[edit] = { index = 0 }
-    edit:SetHistoryLines(GC.db.history)
     local ok, err = pcall(function()
         for _, line in ipairs(sent()) do edit:AddHistoryLine(line) end
     end)

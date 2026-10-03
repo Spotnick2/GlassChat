@@ -169,7 +169,12 @@ function Skin.Frame(f)
         panels[f] = p
         -- The panel follows the chat frame's size: refit the lines then.
         panel:SetScript("OnSizeChanged", function() Skin.FitLines(f) end)
-        f:HookScript("OnShow", function() if GC.db.glass then panel:Show() end end)
+        -- Shown again (its tab selected): refit too, since a hidden window
+        -- may have been resized while its panel was hidden.
+        f:HookScript("OnShow", function()
+            if GC.db.glass then panel:Show() end
+            Skin.FitLines(f)
+        end)
         f:HookScript("OnHide", function() panel:Hide() end)
     end
     if p then p.panel:SetShown(on and f:IsShown()); tune(p.g); Skin.WindowLook(p) end
@@ -231,6 +236,11 @@ function Skin.FitLines(f)
         return
     end
     local n = math.floor((h - Skin.TEXT_GAP) / lh)
+    if n < 1 then   -- shorter than one line plus the gap: never an empty box
+        box:ClearAllPoints()
+        box:SetAllPoints(f)
+        return
+    end
     box:ClearAllPoints()
     box:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -(h - n * lh + Skin.FIT_TRIM))
     box:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
@@ -266,17 +276,40 @@ local tabLit = setmetatable({}, { __mode = "k" })    -- tab -> { fill, line }
 
 local function tabOf(f) return rawget(_G, f:GetName() .. "Tab") end
 
--- Selected (or alerting) tabs rest at mouse-over 1 in stock; the others lower.
+-- Selected (or alerting) tabs rest at mouse-over 1 in stock; the others
+-- lower. Blizzard's own pair is remembered when it sets one (the hook), so a
+-- later scan never mistakes our raised values for a selected tab.
+local blizzAlphas = setmetatable({}, { __mode = "k" })   -- tab -> { over, rest } as Blizzard set them
+
+local function raiseTab(tab, over, rest)
+    local floor = (over >= 1) and Skin.TAB_REST.selected or Skin.TAB_REST.other
+    local newRest, newOver = math.max(rest, floor), math.max(over, Skin.TAB_HOVER)
+    -- Faded in now? Blizzard has just set the tab to its own over or rest.
+    local fadedIn = over ~= rest and math.abs(tab:GetAlpha() - over) < 0.001
+    ChatFrameUtil.SetTabAlphas(tab, newOver, newRest)
+    tab:SetAlpha(fadedIn and newOver or newRest)
+end
+
+-- After Blizzard's FCFTab_UpdateAlpha: its values are fresh.
+local function onTabAlpha(f)
+    local tab = tabOf(f)
+    if not (tab and ChatFrameUtil and ChatFrameUtil.GetTabAlphas) then return end
+    local over, rest = ChatFrameUtil.GetTabAlphas(tab)
+    if type(over) ~= "number" or type(rest) ~= "number" then return end
+    blizzAlphas[tab] = { over, rest }
+    if GC.db.glass then raiseTab(tab, over, rest) end
+end
+
+-- From a scan: only from Blizzard's remembered pair.
 local function applyTabAlpha(f)
     local tab = tabOf(f)
-    if not (tab and GC.db.glass and ChatFrameUtil and ChatFrameUtil.GetTabAlphas) then return end
-    local over, rest = ChatFrameUtil.GetTabAlphas(tab)
-    if type(over) ~= "number" or type(rest) ~= "number" then return end   -- not set up by Blizzard yet
-    local floor = (over >= 1) and Skin.TAB_REST.selected or Skin.TAB_REST.other
-    rest = math.max(rest, floor)
-    over = math.max(over, Skin.TAB_HOVER)
-    ChatFrameUtil.SetTabAlphas(tab, over, rest)
-    tab:SetAlpha(f.hasBeenFaded and over or rest)
+    local b = tab and blizzAlphas[tab]
+    if not (b and ChatFrameUtil and ChatFrameUtil.SetTabAlphas) then return end
+    if GC.db.glass then
+        raiseTab(tab, b[1], b[2])
+    else
+        ChatFrameUtil.SetTabAlphas(tab, b[1], b[2])
+    end
 end
 
 -- The selected look, or the plain one; nothing with glass off.
@@ -335,7 +368,11 @@ end
 
 -- Re-apply after a setting change (glass on/off, opacity, tab size).
 function Skin.Refresh()
-    for _, f in ipairs(GC.Chat.Frames()) do Skin.Frame(f); Skin.Tab(f) end
+    for _, f in ipairs(GC.Chat.Frames()) do
+        Skin.Frame(f)
+        Skin.Tab(f)
+        Skin.LiftTab(f, 0)   -- every FCF_SetTabPosition call site passes 0
+    end
     Skin.LiftDock()
 end
 
@@ -345,9 +382,14 @@ GC.Chat.OnEachFrame("tabs", Skin.Tab)
 -- The tab strip, GAP px up with glass on, where Blizzard put it with glass off.
 local function gap() return GC.db.glass and Skin.TAB_GAP or 0 end
 
-function Skin.LiftDock()
+-- The dock's primary window comes from the FCFDock_SetPrimary hook's own
+-- argument, else DEFAULT_CHAT_FRAME, not from the dock's fields.
+local primary
+function Skin.LiftDock(_, chatFrame)
+    if chatFrame then primary = chatFrame end
     local dock = rawget(_G, "GeneralDockManager")
-    local bg = dock and dock.primary and dock.primary.Background
+    local p = primary or rawget(_G, "DEFAULT_CHAT_FRAME")
+    local bg = dock and p and rawget(_G, p:GetName() .. "Background")
     if not bg then return end
     dock:ClearAllPoints()
     dock:SetPoint("BOTTOMLEFT", bg, "TOPLEFT", 0, gap())
@@ -359,13 +401,15 @@ end
 local function liftTab(chatFrame, x)
     -- Docked tabs are laid out by the dock (FCFDock_UpdateTabs); Blizzard
     -- also calls this on docked frames (FloatingChatFrame_Update, line 609).
-    if chatFrame.isDocked then return end
+    if GC.Chat.IsDocked(chatFrame) then return end
     local tab = tabOf(chatFrame)
     local bg = rawget(_G, chatFrame:GetName() .. "Background")
     if not (tab and bg) then return end
     tab:ClearAllPoints()
     tab:SetPoint("BOTTOMLEFT", bg, "TOPLEFT", (x or 0) + 2, gap())
 end
+
+Skin.LiftTab = liftTab
 
 -- After Blizzard's own tab updates (selection, docking, alerts).
 function Skin.HookTabs()
@@ -377,7 +421,7 @@ function Skin.HookTabs()
     end
     if rawget(_G, "FCF_SetTabPosition") then hooksecurefunc("FCF_SetTabPosition", liftTab) end
     Skin.LiftDock()
-    if rawget(_G, "FCFTab_UpdateAlpha") then hooksecurefunc("FCFTab_UpdateAlpha", applyTabAlpha) end
+    if rawget(_G, "FCFTab_UpdateAlpha") then hooksecurefunc("FCFTab_UpdateAlpha", onTabAlpha) end
     if rawget(_G, "FCFTab_UpdateColors") then
         hooksecurefunc("FCFTab_UpdateColors", paintTab)
     end

@@ -157,6 +157,7 @@ function Methods.SetHeight(w, y) w._height = y end
 function Methods.GetWidth(w) return w._width end
 function Methods.GetHeight(w) return w._height end
 function Methods.SetAlpha(w, a) w._alpha = a end
+function Methods.GetAlpha(w) return w._alpha or 1 end
 function Methods.GetParent(w) return w._parent end
 function Methods.SetParent(w, p) w._parent = p end
 function Methods.GetFrameLevel(w) return w._level end
@@ -277,6 +278,23 @@ CHAT_FRAME_TEXTURES = { "Background", "TopLeftTexture", "BottomLeftTexture", "To
     "ButtonFrameRightTexture", "ButtonFrameBottomTexture", "ButtonFrameTopTexture" }
 Constants = { ChatFrameConstants = { MaxChatWindows = 10 } }
 
+-- Blizzard's list of every chat window's name, temporary ones included
+-- (FloatingChatFrame.lua:93, 445).
+CHAT_FRAMES = {}
+
+-- A temporary whisper window: ChatFrame11 and up (FloatingChatFrame.lua:975).
+function WoW.makeTemporaryWindow(i)
+    local saved = rawget(_G, "ChatFrame1")
+    for n = 1, i - 1 do
+        if not rawget(_G, "ChatFrame" .. n) then rawset(_G, "ChatFrame" .. n, false) end
+    end
+    WoW.makeChatFrames(i)
+    for n = 1, i - 1 do
+        if rawget(_G, "ChatFrame" .. n) == false then rawset(_G, "ChatFrame" .. n, nil) end
+    end
+    return rawget(_G, "ChatFrame" .. i), saved
+end
+
 -- Chat windows 1..n as FloatingChatFrameTemplate builds them: ChatFrameN with its
 -- named background textures, and ChatFrameNEditBox with its border art.
 function WoW.makeChatFrames(n)
@@ -284,6 +302,7 @@ function WoW.makeChatFrames(n)
         local name = "ChatFrame" .. i
         if not rawget(_G, name) then   -- only the missing ones, as a new tab adds one
             local f = CreateFrame("ScrollingMessageFrame", name, UIParent)
+            table.insert(CHAT_FRAMES, name)
             f._level = 5
             for _, t in ipairs(CHAT_FRAME_TEXTURES) do rawset(_G, name .. t, Methods.CreateTexture(f)) end
             f.Background = _G[name .. "Background"]
@@ -333,10 +352,16 @@ function FCFTab_UpdateColors(tab, selected) end
 -- The dock that holds the docked tabs, anchored on its primary window's
 -- Background (FCFDock_SetPrimary, FloatingChatFrame.lua:2263-2266).
 GeneralDockManager = newWidget("Frame", UIParent, "GeneralDockManager")
+GENERAL_CHAT_DOCK = GeneralDockManager
+GeneralDockManager._docked = {}
 function FCFDock_SetPrimary(dock, chatFrame)
     dock.primary = chatFrame
     dock:SetPoint("BOTTOMLEFT", chatFrame.Background, "TOPLEFT")
 end
+function FCFDock_GetChatFrames(dock) return dock._docked end
+-- The name-suggestion list under the edit box (Blizzard_AutoComplete).
+AutoCompleteBox = newWidget("Frame", UIParent, "AutoCompleteBox")
+AutoCompleteBox._shown = false
 function FCF_SetChatWindowFontSize(self, chatFrame, fontSize)
     local file, _, flags = chatFrame:GetFont()
     chatFrame:SetFont(file, fontSize, flags)

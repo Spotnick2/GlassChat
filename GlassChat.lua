@@ -102,6 +102,7 @@ end
 
 function Settings.SetHistory(n)
     GC.db.history = clamp(math.floor(n), GC.History.MIN, GC.History.MAX)
+    GC.History.Trim()
     GC.Chat.Scan()
 end
 
@@ -156,7 +157,7 @@ local function tuneCmd(arg)
     end
     if GC.Skin.LOOK[key] ~= nil then
         local v = tonumber(value)
-        if v then
+        if v and v == v then
             Settings.SetLook(key, v)
             say("tune " .. key .. " " .. GC.Skin.Look(key))
             return
@@ -184,7 +185,8 @@ local function slash(msg)
         say(cmd .. " " .. onOff(v))
     elseif NUMBERS[cmd] then
         local v = tonumber(arg)
-        if not v then say("/gchat " .. cmd .. " <number>"); return end
+        -- v ~= v: the client's tonumber accepts "nan", which no clamp catches.
+        if not v or v ~= v then say("/gchat " .. cmd .. " <number>"); return end
         NUMBERS[cmd](v)
         say(cmd .. " " .. tostring(GC.db[cmd == "tabsize" and "tabSize" or cmd]))
     else

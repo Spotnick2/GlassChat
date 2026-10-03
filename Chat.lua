@@ -19,15 +19,37 @@ function Chat.MaxWindows()
     return (c and c.MaxChatWindows) or 10
 end
 
--- The chat windows that exist, by index. A tab the player never opened still
--- has its frame; the setup is cheap and idempotent, so all of them get it.
+-- The chat windows that exist. A tab the player never opened still has its
+-- frame; the setup is cheap and idempotent, so all of them get it.
+-- Temporary whisper windows are ChatFrame11 and up (FloatingChatFrame.lua:975,
+-- MaxChatWindows + 1), so Blizzard's own list, CHAT_FRAMES (lines 93, 445),
+-- is walked too; 1..MaxChatWindows covers a client without it.
 function Chat.Frames()
-    local out = {}
+    local out, seen = {}, {}
+    local function add(f)
+        if f and not seen[f] then seen[f] = true; out[#out + 1] = f end
+    end
     for i = 1, Chat.MaxWindows() do
-        local f = rawget(_G, "ChatFrame" .. i)   -- rawget: absent windows read nil, never an error
-        if f then out[#out + 1] = f end
+        add(rawget(_G, "ChatFrame" .. i))   -- rawget: absent windows read nil, never an error
+    end
+    local names = rawget(_G, "CHAT_FRAMES")
+    if type(names) == "table" then
+        for _, name in ipairs(names) do
+            if type(name) == "string" then add(rawget(_G, name)) end
+        end
     end
     return out
+end
+
+-- Whether a window is in the main dock, from Blizzard's accessor rather
+-- than the frame's own fields.
+function Chat.IsDocked(f)
+    local dock = rawget(_G, "GENERAL_CHAT_DOCK")
+    if not (dock and rawget(_G, "FCFDock_GetChatFrames")) then return false end
+    for _, d in ipairs(FCFDock_GetChatFrames(dock) or {}) do
+        if d == f then return true end
+    end
+    return false
 end
 
 -- Per-window setup functions, run on every window at each scan. Each one
@@ -83,23 +105,37 @@ function Chat.ShortChannel(_, _, ...)
     return false, unpack(args, 1, n)
 end
 
+-- Each step on its own, so one failing (a hooked global changed on a new
+-- build) never costs the others: the events and the filter come first,
+-- since they are what keeps re-applying everything later.
 local started = false
+local function step(key, fn)
+    local ok, err = pcall(fn)
+    if not ok then API.Fail("start " .. key, err) end
+end
+
 function Chat.Start()
     if started then return end
     started = true
-    Chat.Scan()
-    GC.Skin.HookTabs()
-    if ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter then
-        ChatFrameUtil.AddMessageEventFilter("CHAT_MSG_CHANNEL", Chat.ShortChannel)
-    end
-    -- New tabs, and the temporary whisper windows, get the same setup.
-    for _, name in ipairs({ "FCF_OpenNewWindow", "FCF_OpenTemporaryWindow" }) do
-        if rawget(_G, name) then hooksecurefunc(name, function() Chat.Scan() end) end
-    end
-    local f = CreateFrame("Frame")
-    f:SetScript("OnEvent", function(_, event)
-        if event == "PLAYER_LOGIN" then Chat.ApplyClassColors() end
-        Chat.Scan()
+    step("events", function()
+        local f = CreateFrame("Frame")
+        f:SetScript("OnEvent", function(_, event)
+            if event == "PLAYER_LOGIN" then Chat.ApplyClassColors() end
+            Chat.Scan()
+        end)
+        API.RegisterEvents(f, { "PLAYER_LOGIN", "UPDATE_CHAT_WINDOWS", "UPDATE_FLOATING_CHAT_WINDOWS" })
     end)
-    API.RegisterEvents(f, { "PLAYER_LOGIN", "UPDATE_CHAT_WINDOWS", "UPDATE_FLOATING_CHAT_WINDOWS" })
+    step("channel filter", function()
+        if ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter then
+            ChatFrameUtil.AddMessageEventFilter("CHAT_MSG_CHANNEL", Chat.ShortChannel)
+        end
+    end)
+    -- New tabs, and the temporary whisper windows, get the same setup.
+    step("window hooks", function()
+        for _, name in ipairs({ "FCF_OpenNewWindow", "FCF_OpenTemporaryWindow" }) do
+            if rawget(_G, name) then hooksecurefunc(name, function() Chat.Scan() end) end
+        end
+    end)
+    step("tab hooks", GC.Skin.HookTabs)
+    step("scan", Chat.Scan)
 end

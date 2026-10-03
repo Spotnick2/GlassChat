@@ -34,7 +34,9 @@ function loadAddon(opts)
     opts = opts or {}
     if not rawget(_G, "ChatFrame1") then
         WoW.makeChatFrames(opts.windows or 3)
+        DEFAULT_CHAT_FRAME = ChatFrame1
         FCFDock_SetPrimary(GeneralDockManager, ChatFrame1)   -- as FrameXML does before addons load
+        GeneralDockManager._docked = { ChatFrame1, ChatFrame2 }
     end
     local ns = {}
     for _, file in ipairs(tocFiles()) do

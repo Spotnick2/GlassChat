@@ -37,7 +37,12 @@ Blizzard's. GlassChat uses only documented hooks:
   `SetTextCopyable`).
 
 **Never** a `RawHook`, a replaced `MessageEventHandler`, a hook on `ItemRefTooltip:SetHyperlink`,
-or a read of private fields (`historyBuffer`, `visibleLines`). That is how Prat works, and on
+or a read of private fields (`historyBuffer`, `visibleLines`). Reading a template's
+**`parentKey`** child (`FontStringContainer`, a tab's `Left`/`ActiveMiddle`) is fine, because the
+XML declares it. Runtime state set by Blizzard's Lua (`isDocked`, `hasBeenFaded`, `dock.primary`)
+is not: use an accessor (`FCFDock_GetChatFrames`), a hook's own arguments, or the widget
+(`tab:GetAlpha()`) instead. The one exception is `AutoCompleteBox.parent`, which is Blizzard's own
+test (AutoComplete.lua:360). That is how Prat works, and on
 this client each one taints chat. The research behind this is in `docs/PLAN.md`.
 
 **Status: milestone 1 (readable glass, class colours, scrollback, sent history).** M0's probe

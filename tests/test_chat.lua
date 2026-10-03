@@ -70,6 +70,17 @@ eq(y, -6, "the line box starts 6 px down: 14 whole lines, trimmed")
 FCF_SetChatWindowFontSize(nil, ChatFrame1, 18)
 _, _, _, _, y = box:GetPoint(1)
 eq(y, -4, "refit at 18 pt: 11 whole lines, trimmed")
+ChatFrame1._height = 19   -- one 18 px line, but not one plus the 2 px gap
+GC.Skin.FitLines(ChatFrame1)
+eq(box:GetPoint(1), "ALL", "a window under one line keeps its full line box, never an empty one")
+ChatFrame1._height = 200
+ChatFrame1:Hide()
+ChatFrame1._height = 300   -- resized while hidden (another tab selected)
+ChatFrame1:Show()
+_, _, _, _, y = box:GetPoint(1)
+eq(y, -(300 - 16 * 18 + 2), "shown again: refit to its new height")
+ChatFrame1._height = 200
+GC.Skin.FitLines(ChatFrame1)
 
 -- /gchat tune: the window surface, live and saved, clamped, and reset.
 SlashCmdList.GLASSCHAT("tune shadow 0.2")
@@ -118,12 +129,16 @@ local gapY = GC.Skin.TAB_GAP
 eq(select(5, GeneralDockManager:GetPoint(1)), gapY, "the tab dock sits TAB_GAP px higher")
 FCFDock_SetPrimary(GeneralDockManager, ChatFrame1)
 eq(select(5, GeneralDockManager:GetPoint(1)), gapY, "and stays there when Blizzard re-anchors it")
-ChatFrame3.isDocked = false
-FCF_SetTabPosition(ChatFrame3, 0)
+FCF_SetTabPosition(ChatFrame3, 0)   -- ChatFrame3 isn't in the dock
 eq(select(5, ChatFrame3Tab:GetPoint(1)), gapY, "a floating window's tab is raised too")
-ChatFrame3.isDocked = true
+table.insert(GeneralDockManager._docked, ChatFrame3)
 FCF_SetTabPosition(ChatFrame3, 0)
 eq(select(5, ChatFrame3Tab:GetPoint(1)), 0, "a docked tab is left to the dock")
+table.remove(GeneralDockManager._docked)
+GC.Settings.SetGlass(false)
+eq(select(5, ChatFrame3Tab:GetPoint(1)), 0, "glass off lowers a floating window's tab again")
+GC.Settings.SetGlass(true)
+eq(select(5, ChatFrame3Tab:GetPoint(1)), gapY, "and glass on raises it")
 eq(select(2, text:GetFont()), 14, "the tab name is 14 pt")
 eq(text:GetHeight(), 18, "and its 8 px box is grown so it isn't clipped")
 eq(tab.Middle._alpha, 0, "the stock tab art is invisible")
@@ -141,6 +156,8 @@ FCFTab_UpdateAlpha(ChatFrame2)
 eq(ChatFrame1Tab._alpha, 1, "the selected tab rests at full (stock 0.4)")
 eq(ChatFrame2Tab._alpha, 0.9, "the others at 0.9 (stock 0.2)")
 eq(WoW.tabAlphas[ChatFrame2Tab][1], 1, "mouse-over brings any tab to full")
+GC.Chat.Scan()   -- re-applying from a scan must not read back our own raised values
+eq(ChatFrame2Tab._alpha, 0.9, "a scan keeps an unselected tab at 0.9, not full")
 GC.Settings.SetTabSize(30)
 eq(select(2, text:GetFont()), 20, "tab size is capped at 20")
 GC.Settings.SetGlass(false)
@@ -230,6 +247,31 @@ r = run("LFM", "Rat War", "", "1. General - The Barrens", "Rat War", "", 1, 1, "
 eq(#r, 1, "channels off: nothing is rewritten")
 GC.Settings.SetShortChannels(true)
 
+-- A temporary whisper window (ChatFrame11, past MaxChatWindows) is set up too.
+GC.Settings.SetPlainArrows(true)
+local temp = WoW.makeTemporaryWindow(11)
+FCF_OpenTemporaryWindow("WHISPER", "Bob")
+eq(temp:GetMaxLines(), 1000, "a temporary whisper window gets the longer scrollback")
+check(P[temp] ~= nil, "and the glass")
+eq(ChatFrame11EditBox:GetAltArrowKeyMode(), false, "and plain Up/Down")
+
+-- Up/Down are left to the name suggestions while their list is open.
+GlassChatCharDB.sent = { "old line" }
+edit:SetText("/w Exa")
+AutoCompleteBox._shown, AutoCompleteBox.parent = true, edit
+edit._scripts.OnArrowPressed(edit, "UP")
+eq(edit:GetText(), "/w Exa", "Up while suggestions show doesn't replace what was typed")
+AutoCompleteBox._shown = false
+edit._scripts.OnArrowPressed(edit, "UP")
+eq(edit:GetText(), "old line", "and works again once they're gone")
+
+-- A new history size reaches the saved list and the native history at once.
+GlassChatCharDB.sent = {}
+for i = 1, 30 do table.insert(GlassChatCharDB.sent, "l" .. i) end
+GC.Settings.SetHistory(12)
+eq(#GlassChatCharDB.sent, 12, "the saved list is trimmed to the new size")
+eq(edit:GetHistoryLines(), 12, "and the native history follows")
+
 -- /gchat drives the same settings.
 newChat()
 SlashCmdList.GLASSCHAT("alpha 0.6")
@@ -240,6 +282,18 @@ SlashCmdList.GLASSCHAT("glass maybe")
 check(chatHas("/gchat glass on|off"), "a bad value prints the usage")
 SlashCmdList.GLASSCHAT("lines lots")
 eq(db.lines, 1000, "a non-number leaves the setting alone")
+-- The client's tonumber reads "nan" (strtod); Lua 5.1 on Windows doesn't,
+-- so model the client's here.
+local realTonumber = tonumber
+rawset(_G, "tonumber", function(v, ...)
+    if v == "nan" then return 0 / 0 end
+    return realTonumber(v, ...)
+end)
+SlashCmdList.GLASSCHAT("lines nan")
+eq(db.lines, 1000, "nor does nan, which tonumber accepts")
+SlashCmdList.GLASSCHAT("tune rim nan")
+check(GlassChatDB.look == nil or GlassChatDB.look.rim == nil, "a nan tune value is refused too")
+rawset(_G, "tonumber", realTonumber)
 SlashCmdList.GLASSCHAT("")
 check(chatHas("panel darkness %(0.6%)"), "help shows the current values")
 
