@@ -52,8 +52,21 @@ check(not ChatFrame1Background:IsShown() and not ChatFrame1ButtonFrameBackground
     "Blizzard's background pieces are hidden")
 eq(ChatFrame1EditBoxMid._alpha, 0, "the edit box border is invisible")
 eq(ChatFrame1EditBoxFocusLeft._alpha, 0, "its focus art too")
-eq(p.g.tint._color[4], 0.45, "the panel is dark at the default alpha")
-eq(p.g.tint._color[1] + p.g.tint._color[2] + p.g.tint._color[3], 0, "and black, not the material's blue tint")
+eq(p.g.tint._color[4], 0.55, "the panel is dark at the default alpha")
+check(p.g.tint._color[1] <= 0.06 and p.g.tint._color[3] <= 0.06, "a neutral charcoal, not the material's blue tint")
+eq(p.g.wash._alpha, 0, "no milky wash over the header")
+eq(p.g.rim._alpha, GC.Skin.WINDOW_RIM, "the material's thick rim is dimmed on the window")
+check(p.edge and p.edge.top._color[4] > p.edge.bottom._color[1], "a fine bright top edge and a dark bottom one")
+
+-- Whole lines only: the clipping container's top comes down to a whole
+-- number of lines (200 px, 14 px lines, 2 px gap: 14 lines = 196, 4 px off),
+-- refit when the font size changes, and given back with glass off.
+local box = ChatFrame1.FontStringContainer
+local _, _, _, _, y = box:GetPoint(1)
+eq(y, -4, "the line box starts 4 px down: 14 whole lines")
+FCF_SetChatWindowFontSize(nil, ChatFrame1, 18)
+_, _, _, _, y = box:GetPoint(1)
+eq(y, -2, "refit at 18 pt: 11 whole lines")
 
 ChatFrame1EditBox._scripts.OnEditFocusGained(ChatFrame1EditBox)
 eq(e.g.rim._alpha, GC.Skin.RIM_FOCUS, "focus brightens the edit box rim")
@@ -64,10 +77,11 @@ GC.Settings.SetAlpha(0.7)
 eq(p.g.tint._color[4], 0.7, "the opacity setting reaches every panel")
 GC.Settings.SetAlpha(5)
 eq(db.alpha, 1, "opacity is clamped to 1")
-GC.Settings.SetAlpha(0.45)
+GC.Settings.SetAlpha(0.55)
 
 GC.Settings.SetGlass(false)
 check(not p.panel:IsShown() and not e.panel:IsShown(), "glass off hides the panels")
+eq(box:GetPoint(1), "ALL", "glass off gives the line box back its full frame")
 eq(select(5, GeneralDockManager:GetPoint(1)), 0, "glass off puts the tabs back where Blizzard had them")
 check(ChatFrame1Background:IsShown(), "and gives Blizzard's background back")
 eq(ChatFrame1EditBoxMid._alpha, 1, "and the edit box border")

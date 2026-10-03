@@ -216,6 +216,9 @@ function Methods.GetFont(fs)
     return f[1], f[2], f[3]
 end
 function Methods.GetFontString(b) return b._fontString end
+-- One line of text is as tall as its font size here: enough to check the
+-- line-fitting arithmetic.
+function Methods.GetLineHeight(fs) return (select(2, Methods.GetFont(fs))) end
 
 -- ScrollingMessageFrame: the line limit (stock 128, ChatFrameOverrides.lua:3).
 function Methods.SetMaxLines(f, n) f._maxLines = n end
@@ -284,6 +287,11 @@ function WoW.makeChatFrames(n)
             f._level = 5
             for _, t in ipairs(CHAT_FRAME_TEXTURES) do rawset(_G, name .. t, Methods.CreateTexture(f)) end
             f.Background = _G[name .. "Background"]
+            -- The lines live in a clipping child that covers the frame
+            -- (ScrollingMessageFrame.xml:10); 200 px tall, 14 pt font.
+            f._height, f._font = 200, { "Fonts\ARIALN.TTF", 14, "" }
+            f.FontStringContainer = CreateFrame("Frame", nil, f)
+            f.FontStringContainer._points = { { "ALL", f } }
             -- The tab: ChatTabTemplate, its name in a ButtonText 8 px tall
             -- (FloatingChatFrame.xml:432), its art as parentKeys.
             local tab = CreateFrame("Button", name .. "Tab", UIParent)
@@ -328,6 +336,10 @@ GeneralDockManager = newWidget("Frame", UIParent, "GeneralDockManager")
 function FCFDock_SetPrimary(dock, chatFrame)
     dock.primary = chatFrame
     dock:SetPoint("BOTTOMLEFT", chatFrame.Background, "TOPLEFT")
+end
+function FCF_SetChatWindowFontSize(self, chatFrame, fontSize)
+    local file, _, flags = chatFrame:GetFont()
+    chatFrame:SetFont(file, fontSize, flags)
 end
 function FCF_SetTabPosition(chatFrame, x)
     local tab = _G[chatFrame:GetName() .. "Tab"]

@@ -27,9 +27,19 @@ local FRAME_TEXTURES = CHAT_FRAME_TEXTURES or {
 }
 local EDIT_TEXTURES = { "Left", "Right", "Mid", "FocusLeft", "FocusRight", "FocusMid" }
 
--- The look: the material, made darker and flatter for text.
-Skin.GRAIN, Skin.WASH = 0.2, 0.05
+-- The look: the material, made darker and flatter for text. Second pass
+-- (owner + outside critique): a neutral charcoal tint, no milky wash, less
+-- grain, and on the window panel a thinner, directional edge: the
+-- material's rim much dimmer, a fine bright line along the top, a darker
+-- one along the bottom. All of it on the regions Glass.Apply returns; the
+-- material copy itself is untouched.
+Skin.TINT = { 0.05, 0.05, 0.06 }
+Skin.GRAIN, Skin.WASH = 0.12, 0
 Skin.RIM_IDLE, Skin.RIM_FOCUS = 0.45, 0.9
+Skin.WINDOW_RIM, Skin.WINDOW_DARK = 0.25, 0.45
+Skin.EDGE_TOP, Skin.EDGE_GLOW, Skin.EDGE_BOTTOM = 0.45, 0.10, 0.5
+Skin.EDGE_INSET = 14     -- keep the straight edge lines off the rounded corners
+Skin.EDGE_GLOW_H = 6
 -- px the panel reaches past Blizzard's background (owner: "a little more
 -- padding" than the 2 px first shipped).
 Skin.PAD_X, Skin.PAD_Y = 8, 5
@@ -50,7 +60,7 @@ Skin.EDIT_INSET = 4       -- the edit box art is 32 px tall; the box reads small
 local panels = setmetatable({}, { __mode = "k" })   -- Blizzard frame -> { panel, g }
 
 local function tune(g)
-    g.tint:SetColorTexture(0, 0, 0, GC.db.alpha)
+    g.tint:SetColorTexture(Skin.TINT[1], Skin.TINT[2], Skin.TINT[3], GC.db.alpha)
     g.grain:SetAlpha(Skin.GRAIN)
     g.wash:SetAlpha(Skin.WASH)
 end
@@ -105,13 +115,35 @@ function Skin.Frame(f)
         sep:SetPoint("TOPLEFT", bg, "TOPLEFT", 0, Skin.PAD_Y + Skin.TAB_GAP)
         sep:SetPoint("TOPRIGHT", bg, "TOPRIGHT", 0, Skin.PAD_Y + Skin.TAB_GAP)
         sep:SetHeight(1)
-        p = { panel = panel, g = g, separator = sep }
+        -- The directional edge, over the dimmed material rim.
+        g.rim:SetAlpha(Skin.WINDOW_RIM)
+        g.dark:SetAlpha(Skin.WINDOW_DARK)
+        local top = g.top:CreateTexture(nil, "OVERLAY", nil, 7)
+        top:SetColorTexture(1, 1, 1, Skin.EDGE_TOP)
+        top:SetPoint("TOPLEFT", panel, "TOPLEFT", Skin.EDGE_INSET, -1)
+        top:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -Skin.EDGE_INSET, -1)
+        top:SetHeight(1)
+        local glow = g.top:CreateTexture(nil, "OVERLAY", nil, 5)
+        glow:SetColorTexture(1, 1, 1, 1)
+        glow:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, Skin.EDGE_GLOW))
+        glow:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, 0)
+        glow:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT", 0, 0)
+        glow:SetHeight(Skin.EDGE_GLOW_H)
+        local bottom = g.top:CreateTexture(nil, "OVERLAY", nil, 7)
+        bottom:SetColorTexture(0, 0, 0, Skin.EDGE_BOTTOM)
+        bottom:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", Skin.EDGE_INSET, 1)
+        bottom:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -Skin.EDGE_INSET, 1)
+        bottom:SetHeight(1)
+        p = { panel = panel, g = g, separator = sep, edge = { top = top, glow = glow, bottom = bottom } }
         panels[f] = p
+        -- The panel follows the chat frame's size: refit the lines then.
+        panel:SetScript("OnSizeChanged", function() Skin.FitLines(f) end)
         f:HookScript("OnShow", function() if GC.db.glass then panel:Show() end end)
         f:HookScript("OnHide", function() panel:Hide() end)
     end
     if p then p.panel:SetShown(on and f:IsShown()); tune(p.g) end
     setTextures(name, FRAME_TEXTURES, not on)
+    Skin.FitLines(f)
 
     local edit = rawget(_G, name .. "EditBox")
     if not edit then return end
@@ -128,6 +160,44 @@ function Skin.Frame(f)
     end
     if e then e.panel:SetShown(on); tune(e.g) end
     setEditArt(edit:GetName(), on and 0 or 1)
+end
+
+-- Whole lines only under the header (critique: "the first visible line is
+-- cut through"). Blizzard stacks the lines up from the frame's bottom and
+-- clips them to FontStringContainer, which covers the frame
+-- (ScrollingMessageFrame.lua:578-610, .xml:10), so the top line is cut
+-- wherever the height runs out. Lowering the container's top edge to a whole
+-- number of lines leaves only full lines (exact when message spacing is 0,
+-- as in chat). Refit on resize (the panel's OnSizeChanged: Blizzard sets the
+-- chat frame's own OnSizeChanged with SetScript) and on font size changes.
+Skin.TEXT_GAP = 2
+local measure
+local function lineHeight(f)
+    local file, size, flags = f:GetFont()
+    if not (file and size) then return nil end
+    if not measure then
+        measure = UIParent:CreateFontString(nil, "BACKGROUND")
+        measure:Hide()
+    end
+    measure:SetFont(file, size, flags)
+    measure:SetText("Ag")
+    local lh = measure:GetLineHeight()
+    if type(lh) == "number" and lh > 0 then return lh + (f:GetSpacing() or 0) end
+end
+
+function Skin.FitLines(f)
+    local box = f.FontStringContainer
+    if not box then return end
+    local lh, h = lineHeight(f), f:GetHeight()
+    if not (GC.db.glass and lh and h and h > lh) then
+        box:ClearAllPoints()
+        box:SetAllPoints(f)
+        return
+    end
+    local n = math.floor((h - Skin.TEXT_GAP) / lh)
+    box:ClearAllPoints()
+    box:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -(h - n * lh))
+    box:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
 end
 
 -- Tabs (owner: "really small and hard to read", then the mockup: tabs
@@ -264,6 +334,11 @@ end
 -- After Blizzard's own tab updates (selection, docking, alerts).
 function Skin.HookTabs()
     if rawget(_G, "FCFDock_SetPrimary") then hooksecurefunc("FCFDock_SetPrimary", Skin.LiftDock) end
+    if rawget(_G, "FCF_SetChatWindowFontSize") then
+        hooksecurefunc("FCF_SetChatWindowFontSize", function()
+            for _, f in ipairs(GC.Chat.Frames()) do Skin.FitLines(f) end
+        end)
+    end
     if rawget(_G, "FCF_SetTabPosition") then hooksecurefunc("FCF_SetTabPosition", liftTab) end
     Skin.LiftDock()
     if rawget(_G, "FCFTab_UpdateAlpha") then hooksecurefunc("FCFTab_UpdateAlpha", applyTabAlpha) end

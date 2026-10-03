@@ -12,7 +12,7 @@ local say = API.Print
 -- (GlassChatCharDB): only what you sent.
 local DEFAULTS = {
     glass = true,          -- the glass panels (off: Blizzard's own background)
-    alpha = 0.45,          -- panel darkness, 0..1
+    alpha = 0.55,          -- panel darkness, 0..1 (charcoal; 0.45 let the scene compete with the text)
     lines = 1000,          -- scrollback per chat window (stock: 128)
     classColors = true,    -- keep chatClassColorOverride at "0"
     plainArrows = true,    -- Up/Down cycle what you sent (stock: Alt+Up/Down)
