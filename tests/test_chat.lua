@@ -52,21 +52,38 @@ check(not ChatFrame1Background:IsShown() and not ChatFrame1ButtonFrameBackground
     "Blizzard's background pieces are hidden")
 eq(ChatFrame1EditBoxMid._alpha, 0, "the edit box border is invisible")
 eq(ChatFrame1EditBoxFocusLeft._alpha, 0, "its focus art too")
-eq(p.g.tint._color[4], 0.55, "the panel is dark at the default alpha")
+eq(p.g.tint._color[4], 0.65, "the panel is dark at the default alpha")
 check(p.g.tint._color[1] <= 0.06 and p.g.tint._color[3] <= 0.06, "a neutral charcoal, not the material's blue tint")
 eq(p.g.wash._alpha, 0, "no milky wash over the header")
-eq(p.g.rim._alpha, GC.Skin.WINDOW_RIM, "the material's thick rim is dimmed on the window")
+eq(p.g.rim._alpha, GC.Skin.LOOK.rim, "the material's thick rim is dimmed on the window")
+eq(p.g.shadow._alpha, GC.Skin.LOOK.shadow, "and its broad drop shadow")
 check(p.edge and p.edge.top._color[4] > p.edge.bottom._color[1], "a fine bright top edge and a dark bottom one")
 
 -- Whole lines only: the clipping container's top comes down to a whole
--- number of lines (200 px, 14 px lines, 2 px gap: 14 lines = 196, 4 px off),
--- refit when the font size changes, and given back with glass off.
+-- number of lines (200 px, 14 px lines, 2 px gap: 14 lines = 196, 4 px off)
+-- plus a 2 px trim into the first line's empty top, so the descenders of the
+-- line above don't show; refit when the font size changes, and given back
+-- with glass off.
 local box = ChatFrame1.FontStringContainer
 local _, _, _, _, y = box:GetPoint(1)
-eq(y, -4, "the line box starts 4 px down: 14 whole lines")
+eq(y, -6, "the line box starts 6 px down: 14 whole lines, trimmed")
 FCF_SetChatWindowFontSize(nil, ChatFrame1, 18)
 _, _, _, _, y = box:GetPoint(1)
-eq(y, -2, "refit at 18 pt: 11 whole lines")
+eq(y, -4, "refit at 18 pt: 11 whole lines, trimmed")
+
+-- /gchat tune: the window surface, live and saved, clamped, and reset.
+SlashCmdList.GLASSCHAT("tune shadow 0.1")
+eq(p.g.shadow._alpha, 0.1, "/gchat tune shadow applies at once")
+eq(GlassChatDB.look.shadow, 0.1, "and is saved")
+SlashCmdList.GLASSCHAT("tune glowh 99")
+eq(p.edge.glow._height, 20, "glow height is capped")
+SlashCmdList.GLASSCHAT("tune rim 3")
+eq(p.g.rim._alpha, 1, "opacities are capped at 1")
+newChat()
+SlashCmdList.GLASSCHAT("tune")
+check(chatHas("/gchat tune shadow"), "/gchat tune lists the keys")
+SlashCmdList.GLASSCHAT("tune reset")
+eq(p.g.shadow._alpha, GC.Skin.LOOK.shadow, "tune reset brings the shipped look back")
 
 ChatFrame1EditBox._scripts.OnEditFocusGained(ChatFrame1EditBox)
 eq(e.g.rim._alpha, GC.Skin.RIM_FOCUS, "focus brightens the edit box rim")
@@ -77,7 +94,7 @@ GC.Settings.SetAlpha(0.7)
 eq(p.g.tint._color[4], 0.7, "the opacity setting reaches every panel")
 GC.Settings.SetAlpha(5)
 eq(db.alpha, 1, "opacity is clamped to 1")
-GC.Settings.SetAlpha(0.55)
+GC.Settings.SetAlpha(0.65)
 
 GC.Settings.SetGlass(false)
 check(not p.panel:IsShown() and not e.panel:IsShown(), "glass off hides the panels")

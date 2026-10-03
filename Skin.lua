@@ -36,10 +36,31 @@ local EDIT_TEXTURES = { "Left", "Right", "Mid", "FocusLeft", "FocusRight", "Focu
 Skin.TINT = { 0.05, 0.05, 0.06 }
 Skin.GRAIN, Skin.WASH = 0.12, 0
 Skin.RIM_IDLE, Skin.RIM_FOCUS = 0.45, 0.9
-Skin.WINDOW_RIM, Skin.WINDOW_DARK = 0.25, 0.45
-Skin.EDGE_TOP, Skin.EDGE_GLOW, Skin.EDGE_BOTTOM = 0.45, 0.10, 0.5
 Skin.EDGE_INSET = 14     -- keep the straight edge lines off the rounded corners
-Skin.EDGE_GLOW_H = 6
+
+-- The window panel's surface, live-tunable (/gchat tune <key> <value>) and
+-- saved account-wide in GlassChatDB.look; these are the shipped values.
+-- Second critique: the grey band on the right and bottom is the material's
+-- drop shadow (shadowPad reaches 22-26 px out) and its dark rim, so both are
+-- turned well down; the header's sheen is a short glow, strongest at the top.
+Skin.LOOK = {
+    shadow = 0.3,   -- the material's drop shadow
+    rim = 0.2,      -- the material's bright rim
+    dark = 0.25,    -- the material's dark rim
+    grain = 0.12,   -- frost over the body
+    top = 0.45,     -- the fine bright line along the top edge
+    glow = 0.12,    -- the sheen under it, at its brightest
+    glowh = 4,      -- and how far down it fades (px)
+    bottom = 0.35,  -- the dark line along the bottom edge
+}
+Skin.LOOK_MAX = { glowh = 20 }   -- the others are opacities, 0..1
+
+function Skin.Look(key)
+    local saved = GC.db.look
+    local v = type(saved) == "table" and saved[key]
+    if type(v) == "number" then return v end
+    return Skin.LOOK[key]
+end
 -- px the panel reaches past Blizzard's background (owner: "a little more
 -- padding" than the 2 px first shipped).
 Skin.PAD_X, Skin.PAD_Y = 8, 5
@@ -58,6 +79,20 @@ Skin.SEPARATOR = { 1, 1, 1, 0.14 }   -- the line between the tabs and the text
 Skin.EDIT_INSET = 4       -- the edit box art is 32 px tall; the box reads smaller
 
 local panels = setmetatable({}, { __mode = "k" })   -- Blizzard frame -> { panel, g }
+
+-- The window panel's surface from Skin.Look (after tune(), which sets the
+-- grain for every panel).
+function Skin.WindowLook(p)
+    local L, g, e = Skin.Look, p.g, p.edge
+    g.shadow:SetAlpha(L("shadow"))
+    g.rim:SetAlpha(L("rim"))
+    g.dark:SetAlpha(L("dark"))
+    g.grain:SetAlpha(L("grain"))
+    e.top:SetColorTexture(1, 1, 1, L("top"))
+    e.glow:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, L("glow")))
+    e.glow:SetHeight(math.max(1, L("glowh")))
+    e.bottom:SetColorTexture(0, 0, 0, L("bottom"))
+end
 
 local function tune(g)
     g.tint:SetColorTexture(Skin.TINT[1], Skin.TINT[2], Skin.TINT[3], GC.db.alpha)
@@ -116,21 +151,15 @@ function Skin.Frame(f)
         sep:SetPoint("TOPRIGHT", bg, "TOPRIGHT", 0, Skin.PAD_Y + Skin.TAB_GAP)
         sep:SetHeight(1)
         -- The directional edge, over the dimmed material rim.
-        g.rim:SetAlpha(Skin.WINDOW_RIM)
-        g.dark:SetAlpha(Skin.WINDOW_DARK)
         local top = g.top:CreateTexture(nil, "OVERLAY", nil, 7)
-        top:SetColorTexture(1, 1, 1, Skin.EDGE_TOP)
         top:SetPoint("TOPLEFT", panel, "TOPLEFT", Skin.EDGE_INSET, -1)
         top:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -Skin.EDGE_INSET, -1)
         top:SetHeight(1)
         local glow = g.top:CreateTexture(nil, "OVERLAY", nil, 5)
         glow:SetColorTexture(1, 1, 1, 1)
-        glow:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, Skin.EDGE_GLOW))
         glow:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, 0)
         glow:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT", 0, 0)
-        glow:SetHeight(Skin.EDGE_GLOW_H)
         local bottom = g.top:CreateTexture(nil, "OVERLAY", nil, 7)
-        bottom:SetColorTexture(0, 0, 0, Skin.EDGE_BOTTOM)
         bottom:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", Skin.EDGE_INSET, 1)
         bottom:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -Skin.EDGE_INSET, 1)
         bottom:SetHeight(1)
@@ -141,7 +170,7 @@ function Skin.Frame(f)
         f:HookScript("OnShow", function() if GC.db.glass then panel:Show() end end)
         f:HookScript("OnHide", function() panel:Hide() end)
     end
-    if p then p.panel:SetShown(on and f:IsShown()); tune(p.g) end
+    if p then p.panel:SetShown(on and f:IsShown()); tune(p.g); Skin.WindowLook(p) end
     setTextures(name, FRAME_TEXTURES, not on)
     Skin.FitLines(f)
 
@@ -171,6 +200,11 @@ end
 -- as in chat). Refit on resize (the panel's OnSizeChanged: Blizzard sets the
 -- chat frame's own OnSizeChanged with SetScript) and on font size changes.
 Skin.TEXT_GAP = 2
+-- A line's descenders can reach a pixel or two below its box, so a boundary
+-- exactly on a line edge still showed a sliver of the line above (measured:
+-- a fragment over the first full line). Cut that far into the first full
+-- line's empty top instead.
+Skin.FIT_TRIM = 2
 local measure
 local function lineHeight(f)
     local file, size, flags = f:GetFont()
@@ -196,7 +230,7 @@ function Skin.FitLines(f)
     end
     local n = math.floor((h - Skin.TEXT_GAP) / lh)
     box:ClearAllPoints()
-    box:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -(h - n * lh))
+    box:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -(h - n * lh + Skin.FIT_TRIM))
     box:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
 end
 

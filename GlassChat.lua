@@ -12,7 +12,7 @@ local say = API.Print
 -- (GlassChatCharDB): only what you sent.
 local DEFAULTS = {
     glass = true,          -- the glass panels (off: Blizzard's own background)
-    alpha = 0.55,          -- panel darkness, 0..1 (charcoal; 0.45 let the scene compete with the text)
+    alpha = 0.65,          -- panel darkness, 0..1 (charcoal; 0.45 and 0.55 let the scene compete with the text)
     lines = 1000,          -- scrollback per chat window (stock: 128)
     classColors = true,    -- keep chatClassColorOverride at "0"
     plainArrows = true,    -- Up/Down cycle what you sent (stock: Alt+Up/Down)
@@ -72,6 +72,19 @@ function Settings.SetTabSize(n)
     GC.Skin.Refresh()
 end
 
+-- The window surface (Skin.LOOK keys). nil value: back to the shipped one.
+function Settings.SetLook(key, v)
+    if type(GC.db.look) ~= "table" then GC.db.look = {} end
+    if v ~= nil then v = clamp(v, 0, GC.Skin.LOOK_MAX[key] or 1) end
+    GC.db.look[key] = v
+    GC.Skin.Refresh()
+end
+
+function Settings.ResetLook()
+    GC.db.look = {}
+    GC.Skin.Refresh()
+end
+
 function Settings.SetShortChannels(on)
     GC.db.shortChannels = on and true or false
 end
@@ -106,6 +119,7 @@ local function help()
     say("/gchat history N - sent lines kept (" .. db.history .. ")")
     say("/gchat channels on|off - drop the zone from channel names (" .. onOff(db.shortChannels) .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
+    say("/gchat tune - adjust the panel's edge, shadow and sheen live")
     say("/gchat failures - what failed to build or register")
     say("/gchat version - client build vs the measured one")
 end
@@ -120,9 +134,35 @@ local TOGGLES = { glass = Settings.SetGlass, colors = Settings.SetClassColors, a
 local NUMBERS = { alpha = Settings.SetAlpha, lines = Settings.SetLines, history = Settings.SetHistory,
     tabsize = Settings.SetTabSize }
 
+local LOOK_ORDER = { "shadow", "rim", "dark", "grain", "top", "glow", "glowh", "bottom" }
+
+local function tuneCmd(arg)
+    local key, value = arg:match("^(%S*)%s*(%S*)$")
+    if key == "reset" then
+        Settings.ResetLook()
+        say("tune: back to the shipped look")
+        return
+    end
+    if GC.Skin.LOOK[key] ~= nil then
+        local v = tonumber(value)
+        if v then
+            Settings.SetLook(key, v)
+            say("tune " .. key .. " " .. GC.Skin.Look(key))
+            return
+        end
+    end
+    for _, k in ipairs(LOOK_ORDER) do
+        say(string.format("/gchat tune %s <0-%s> (%s, shipped %s)", k, tostring(GC.Skin.LOOK_MAX[k] or 1),
+            tostring(GC.Skin.Look(k)), tostring(GC.Skin.LOOK[k])))
+    end
+    say("/gchat tune reset - back to the shipped look")
+end
+
 local function slash(msg)
     local cmd, arg = (msg or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
-    if cmd == "failures" then
+    if cmd == "tune" then
+        tuneCmd(arg)
+    elseif cmd == "failures" then
         failures()
     elseif cmd == "version" then
         say("client " .. API.ClientBuild() .. ", measured on " .. GC.MEASURED_ON_BUILD)
