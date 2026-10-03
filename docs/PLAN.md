@@ -1,6 +1,6 @@
 # GlassChat plan
 
-Status: **draft, milestone 0**, revised with the owner's answers (end of file); not yet approved.
+Status: M0 merged (#2); **M1 in progress** (#3).
 Probe items are numbered as in `Tools/ChatProbe` (`/cprobe help`).
 
 ## What the owner wants

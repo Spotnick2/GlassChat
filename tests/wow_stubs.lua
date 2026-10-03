@@ -88,6 +88,8 @@ function WoW.reset()
     WoW.methodsCalled = {}
     WoW.combat = false
     WoW.timers = {}
+    WoW.cvars = { chatClassColorOverride = "0" }
+    WoW.cvarSets = {}
 end
 
 --------------------------------------------------------------------------------
@@ -155,6 +157,7 @@ function Methods.SetHeight(w, y) w._height = y end
 function Methods.GetWidth(w) return w._width end
 function Methods.GetHeight(w) return w._height end
 function Methods.SetAlpha(w, a) w._alpha = a end
+function Methods.GetAlpha(w) return w._alpha or 1 end
 function Methods.GetParent(w) return w._parent end
 function Methods.SetParent(w, p) w._parent = p end
 function Methods.GetFrameLevel(w) return w._level end
@@ -163,9 +166,18 @@ function Methods.SetFrameStrata(w, s) w._strata = s end
 function Methods.GetFrameStrata(w) return w._strata or "MEDIUM" end
 function Methods.EnableMouse(w, v) w._mouse = v end
 function Methods.IsMouseEnabled(w) return w._mouse == true end
+function Methods.GetName(w) return w._name end
 function Methods.GetDebugName(w) return w._name or ("<" .. w._type .. ">") end
 function Methods.IsForbidden(w) return false end
 
+-- Attributes: recorded; like the client, refused on a protected frame in
+-- combat (the chat edit box isn't one).
+function Methods.SetAttribute(w, k, v)
+    if WoW.combat and w._protected then return end
+    w._attrs = w._attrs or {}
+    w._attrs[k] = v
+end
+function Methods.GetAttribute(w, k) return w._attrs and w._attrs[k] end
 function Methods.SetScript(w, name, fn) w._scripts[name] = fn end
 function Methods.GetScript(w, name) return w._scripts[name] end
 function Methods.HookScript(w, name, fn)
@@ -197,7 +209,13 @@ function Methods.SetTextureSliceMargins(t, l, tp, r, b) t._slice = { l, tp, r, b
 -- FontString: the client formats natively and accepts secrets. With any
 -- secret argument, keep the arguments unformatted instead of calling
 -- string.format (which would throw on the proxy).
-function Methods.SetText(fs, text) fs._text = text end
+-- An EditBox runs its OnTextChanged on SetText, as the client does (the
+-- chat box re-parses its text there).
+function Methods.SetText(fs, text)
+    fs._text = text
+    if fs._type == "EditBox" and fs._scripts.OnTextChanged then fs._scripts.OnTextChanged(fs, false) end
+end
+function Methods.SetTextColor(fs, r, g, b, a) fs._textColor = { r, g, b, a } end
 function Methods.GetText(fs) return fs._text end
 function Methods.SetFormattedText(fs, fmt, ...)
     local n = select("#", ...)
@@ -207,6 +225,34 @@ function Methods.SetFormattedText(fs, fmt, ...)
     fs._text = string.format(fmt, ...)
 end
 function Methods.SetFont(fs, file, size, flags) fs._font = { file, size, flags }; return true end
+function Methods.GetFont(fs)
+    local f = fs._font or { "Fonts\FRIZQT__.TTF", 10, "" }
+    return f[1], f[2], f[3]
+end
+function Methods.GetFontString(b) return b._fontString end
+-- One line of text is as tall as its font size here: enough to check the
+-- line-fitting arithmetic.
+function Methods.GetLineHeight(fs) return (select(2, Methods.GetFont(fs))) end
+
+-- ScrollingMessageFrame: the line limit (stock 128, ChatFrameOverrides.lua:3).
+function Methods.SetMaxLines(f, n) f._maxLines = n end
+function Methods.GetMaxLines(f) return f._maxLines or 128 end
+
+-- EditBox: arrow mode and the sent history, kept like the client: newest
+-- last, capped at the history size (stock 32, ChatFrameEditBox.xml:3).
+function Methods.SetAltArrowKeyMode(e, v) e._altArrows = v end
+function Methods.GetAltArrowKeyMode(e) return e._altArrows ~= false end
+function Methods.SetHistoryLines(e, n)
+    e._historyLines = n
+    e._history = e._history or {}
+    while #e._history > n do table.remove(e._history, 1) end
+end
+function Methods.GetHistoryLines(e) return e._historyLines or 32 end
+function Methods.AddHistoryLine(e, text)
+    e._history = e._history or {}
+    table.insert(e._history, text)
+    while #e._history > Methods.GetHistoryLines(e) do table.remove(e._history, 1) end
+end
 
 -- StatusBar.
 function Methods.SetMinMaxValues(b, lo, hi) b._min, b._max = lo, hi end
@@ -236,6 +282,120 @@ end
 SlashCmdList = {}
 Enum = { UITextureSliceMode = { Stretched = 0, Tiled = 1 } }
 function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
+
+-- FrameXML's background pieces of a chat window (FloatingChatFrame.lua:43).
+CHAT_FRAME_TEXTURES = { "Background", "TopLeftTexture", "BottomLeftTexture", "TopRightTexture",
+    "BottomRightTexture", "LeftTexture", "RightTexture", "BottomTexture", "TopTexture",
+    "ButtonFrameBackground", "ButtonFrameTopLeftTexture", "ButtonFrameBottomLeftTexture",
+    "ButtonFrameTopRightTexture", "ButtonFrameBottomRightTexture", "ButtonFrameLeftTexture",
+    "ButtonFrameRightTexture", "ButtonFrameBottomTexture", "ButtonFrameTopTexture" }
+Constants = { ChatFrameConstants = { MaxChatWindows = 10 } }
+
+-- Blizzard's list of every chat window's name, temporary ones included
+-- (FloatingChatFrame.lua:93, 445).
+CHAT_FRAMES = {}
+
+-- A temporary whisper window: ChatFrame11 and up (FloatingChatFrame.lua:975).
+function WoW.makeTemporaryWindow(i)
+    local saved = rawget(_G, "ChatFrame1")
+    for n = 1, i - 1 do
+        if not rawget(_G, "ChatFrame" .. n) then rawset(_G, "ChatFrame" .. n, false) end
+    end
+    WoW.makeChatFrames(i)
+    for n = 1, i - 1 do
+        if rawget(_G, "ChatFrame" .. n) == false then rawset(_G, "ChatFrame" .. n, nil) end
+    end
+    return rawget(_G, "ChatFrame" .. i), saved
+end
+
+-- Chat windows 1..n as FloatingChatFrameTemplate builds them: ChatFrameN with its
+-- named background textures, and ChatFrameNEditBox with its border art.
+function WoW.makeChatFrames(n)
+    for i = 1, n do
+        local name = "ChatFrame" .. i
+        if not rawget(_G, name) then   -- only the missing ones, as a new tab adds one
+            local f = CreateFrame("ScrollingMessageFrame", name, UIParent)
+            table.insert(CHAT_FRAMES, name)
+            f._level = 5
+            for _, t in ipairs(CHAT_FRAME_TEXTURES) do rawset(_G, name .. t, Methods.CreateTexture(f)) end
+            f.Background = _G[name .. "Background"]
+            -- The lines live in a clipping child that covers the frame
+            -- (ScrollingMessageFrame.xml:10); 200 px tall, 14 pt font.
+            f._height, f._font = 200, { "Fonts\ARIALN.TTF", 14, "" }
+            f.FontStringContainer = CreateFrame("Frame", nil, f)
+            f.FontStringContainer._points = { { "ALL", f } }
+            -- The tab: ChatTabTemplate, its name in a ButtonText 8 px tall
+            -- (FloatingChatFrame.xml:432), its art as parentKeys.
+            local tab = CreateFrame("Button", name .. "Tab", UIParent)
+            tab._fontString = Methods.CreateFontString(tab)
+            tab._fontString._height = 8
+            for _, k in ipairs({ "Left", "Middle", "Right", "ActiveLeft", "ActiveMiddle", "ActiveRight",
+                "HighlightLeft", "HighlightMiddle", "HighlightRight" }) do
+                tab[k] = Methods.CreateTexture(tab)
+            end
+            local e = CreateFrame("EditBox", name .. "EditBox", f)
+            for _, t in ipairs({ "Left", "Right", "Mid", "FocusLeft", "FocusRight", "FocusMid" }) do
+                rawset(_G, name .. "EditBox" .. t, Methods.CreateTexture(e))
+            end
+        end
+    end
+end
+-- Tab opacities, as ChatFrameUtil keeps them (ChatFrameUtil.lua:78-92), and
+-- Blizzard's own per-tab updates the addon hooks.
+WoW.tabAlphas = {}
+WoW.messageFilters = {}
+ChatFrameUtil = {
+    AddMessageEventFilter = function(event, fn)
+        WoW.messageFilters[event] = WoW.messageFilters[event] or {}
+        table.insert(WoW.messageFilters[event], fn)
+    end,
+    SetTabAlphas = function(tab, over, rest) WoW.tabAlphas[tab] = { over, rest } end,
+    GetTabAlphas = function(tab)
+        local a = WoW.tabAlphas[tab]
+        if a then return a[1], a[2] end
+    end,
+}
+function FCFTab_UpdateAlpha(chatFrame)
+    local tab = _G[chatFrame:GetName() .. "Tab"]
+    local selected = chatFrame == ChatFrame1
+    ChatFrameUtil.SetTabAlphas(tab, selected and 1 or 0.6, selected and 0.4 or 0.2)
+    tab:SetAlpha(selected and 0.4 or 0.2)
+end
+function FCFTab_UpdateColors(tab, selected) end
+-- The dock that holds the docked tabs, anchored on its primary window's
+-- Background (FCFDock_SetPrimary, FloatingChatFrame.lua:2263-2266).
+GeneralDockManager = newWidget("Frame", UIParent, "GeneralDockManager")
+GENERAL_CHAT_DOCK = GeneralDockManager
+GeneralDockManager._docked = {}
+function FCFDock_SetPrimary(dock, chatFrame)
+    dock.primary = chatFrame
+    dock:SetPoint("BOTTOMLEFT", chatFrame.Background, "TOPLEFT")
+end
+function FCFDock_GetChatFrames(dock) return dock._docked end
+-- The name-suggestion list under the edit box (Blizzard_AutoComplete).
+AutoCompleteBox = newWidget("Frame", UIParent, "AutoCompleteBox")
+AutoCompleteBox._shown = false
+function FCF_SetChatWindowFontSize(self, chatFrame, fontSize)
+    local file, _, flags = chatFrame:GetFont()
+    chatFrame:SetFont(file, fontSize, flags)
+end
+function FCF_SetTabPosition(chatFrame, x)
+    local tab = _G[chatFrame:GetName() .. "Tab"]
+    tab:ClearAllPoints()
+    tab:SetPoint("BOTTOMLEFT", chatFrame:GetName() .. "Background", "TOPLEFT", x + 2, 0)
+end
+-- Blizzard's chat window functions the addon hooks (both in the dump).
+function FCF_OpenNewWindow(name) WoW.newWindows = (WoW.newWindows or 0) + 1 end
+function FCF_OpenTemporaryWindow() end
+
+-- Chat messaging lockdown (Retail 12.x; never seen on Forever so far).
+C_ChatInfo = { InChatMessagingLockdown = function() return WoW.chatLockdown == true end }
+
+-- CVars: the value and every set, recorded.
+C_CVar = {
+    GetCVar = function(name) return WoW.cvars[name] end,
+    SetCVar = function(name, v) WoW.cvars[name] = tostring(v); table.insert(WoW.cvarSets, name) ; return true end,
+}
 
 C_ClassColor = { GetClassColor = function(classFile)
     local c = ({ MAGE = { 0.25, 0.78, 0.92 }, PRIEST = { 1, 1, 1 }, WARRIOR = { 0.78, 0.61, 0.43 } })[classFile]
@@ -305,7 +465,7 @@ WoW.reset()
 
 -- Strict globals: any read of an undefined global is an error, except the
 -- addon's own globals that are legitimately nil before first assignment.
-local allowNil = { GlassChat = true, GlassChatDB = true, ChatProbeDB = true }
+local allowNil = { GlassChat = true, GlassChatDB = true, GlassChatCharDB = true, ChatProbeDB = true }
 setmetatable(_G, { __index = function(_, k)
     if allowNil[k] then return nil end
     error("read of undefined global '" .. tostring(k) .. "' (not stubbed: is it in the API dump?)", 2)

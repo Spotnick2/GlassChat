@@ -8,6 +8,21 @@ local GC = loadAddon()
 eq(type(GlassChatDB), "table", "missing saved variables become a table")
 eq(GC.db, GlassChatDB, "the addon keeps the saved table")
 check(not chatHas("differs from"), "no build warning on the measured build")
+
+-- Only what the player set is saved; the rest follows the shipped defaults.
+eq(rawget(GlassChatDB, "alpha"), nil, "an untouched setting isn't saved")
+eq(GC.db.alpha, GC._test.DEFAULTS.alpha, "it reads the shipped default")
+GC.Settings.SetAlpha(0.8)
+eq(rawget(GlassChatDB, "alpha"), 0.8, "a setting the player changed is saved")
+-- A saved copy of a default (the first version saved them all) is dropped.
+GlassChatDB = { lines = 1000, alpha = 0.55 }
+GC._test.ensureDefaults()
+eq(rawget(GlassChatDB, "lines"), nil, "a saved value equal to the default is dropped")
+eq(rawget(GlassChatDB, "alpha"), 0.55, "a real choice is kept")
+GlassChatDB = { look = { rim = GC.Skin.LOOK.rim, top = 0.9 } }
+GC._test.ensureDefaults()
+eq(GlassChatDB.look.rim, nil, "a tuned value equal to the shipped look is dropped")
+eq(GlassChatDB.look.top, 0.9, "a real tuning is kept")
 check(GC.Glass ~= nil, "the glass material loaded into the namespace")
 
 -- /gchat

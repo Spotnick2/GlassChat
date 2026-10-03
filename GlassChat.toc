@@ -4,7 +4,11 @@
 ## Author: Spotnick
 ## Version: @project-version@
 ## SavedVariables: GlassChatDB
+## SavedVariablesPerCharacter: GlassChatCharDB
 
 Compat.lua
 Glass.lua
+Chat.lua
+Skin.lua
+History.lua
 GlassChat.lua

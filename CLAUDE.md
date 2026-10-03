@@ -37,18 +37,23 @@ Blizzard's. GlassChat uses only documented hooks:
   `SetTextCopyable`).
 
 **Never** a `RawHook`, a replaced `MessageEventHandler`, a hook on `ItemRefTooltip:SetHyperlink`,
-or a read of private fields (`historyBuffer`, `visibleLines`). That is how Prat works, and on
+or a read of private fields (`historyBuffer`, `visibleLines`). Reading a template's
+**`parentKey`** child (`FontStringContainer`, a tab's `Left`/`ActiveMiddle`) is fine, because the
+XML declares it. Runtime state set by Blizzard's Lua (`isDocked`, `hasBeenFaded`, `dock.primary`)
+is not: use an accessor (`FCFDock_GetChatFrames`), a hook's own arguments, or the widget
+(`tab:GetAlpha()`) instead. The one exception is `AutoCompleteBox.parent`, which is Blizzard's own
+test (AutoComplete.lua:360). That is how Prat works, and on
 this client each one taints chat. The research behind this is in `docs/PLAN.md`.
 
-**Status: milestone 0 (scaffold and ChatProbe).** The draft plan is `docs/PLAN.md`; its open
-questions are mostly answered. Next: run the probe in game and record the results in
-`docs/FOREVER-PROBE.md`, then M1 (readable glass, class colours), M2 (one layout for every character), M3 (smart tabs), M4 (focus
-mode), M5 (URL copy). Work goes through GitHub
-issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
+**Status: milestone 1 (readable glass, class colours, scrollback, sent history).** M0's probe
+results are in `docs/FOREVER-PROBE.md`; the plan is `docs/PLAN.md`. Next: M2 (one chat layout
+for every character), then M3 (smart tabs), M4 (focus mode), M5 (URL copy). Work goes through
+GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
 
 ## Layout
 
-TOC load order: `Compat.lua` → `Glass.lua` → `GlassChat.lua`.
+TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
+`GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -64,9 +69,66 @@ TOC load order: `Compat.lua` → `Glass.lua` → `GlassChat.lua`.
 - **`Glass.lua`**: the material. It is a **copy of GlassUnitFrames `main:Glass.lua`**; only the
   header and namespace lines differ. `tests/test_toc.lua` fails while they differ, and the same
   goes for `Tools/make_textures.py`. Change the material in GlassUnitFrames first, then copy it
-  back. `Media/*.tga` come from that generator.
-- **`GlassChat.lua`**: bootstrap, `GlassChatDB` (defaults filled at `ADDON_LOADED`), the
-  `/gchat` command, and the login warning when the build differs from `MEASURED_ON_BUILD`.
+  back. `Media/*.tga` come from that generator. Chat-specific tuning (darker tint, less grain and
+  wash) is applied **on the regions `Glass.Apply` returns**, in `Skin.lua`, never in the copy.
+- **`Chat.lua`**: the stock windows. `Chat.Frames()` is every `ChatFrameN` that exists (read
+  with `rawget`). `Chat.OnEachFrame(key, fn)` registers an idempotent per-window setup.
+  `Chat.Scan()` runs every setup on every window, each one under `pcall` (failures go to
+  `API.Fail`). Scans run at `ADDON_LOADED` (so login lines get the longer scrollback), at
+  `PLAYER_LOGIN`, on `UPDATE_CHAT_WINDOWS` / `UPDATE_FLOATING_CHAT_WINDOWS`, and after
+  `FCF_OpenNewWindow` / `FCF_OpenTemporaryWindow` (hooksecurefunc). It also holds:
+  - **scrollback**: `SetMaxLines(db.lines)`, which keeps the existing lines (CircularBuffer.lua:29);
+  - **class colours**: `chatClassColorOverride` kept at `"0"` at login. Turning the option off
+    leaves the CVar alone.
+  - **short channel names**: a `CHAT_MSG_CHANNEL` message filter (`Chat.ShortChannel`) rewrites
+    arg4 `"1. General - The Barrens"` to `"1. General"`, for zone channels only (arg7 > 0), by
+    returning `false` plus every argument. Blizzard builds the label from arg4
+    (ChatFrameOverrides.lua:657) and the click link from arg8.
+- **`Skin.lua`**: one dark glass container per window, after the owner's mockup.
+  - **The window panel is a child of `UIParent`, pinned to `BACKGROUND`**. It follows the chat
+    frame through `HookScript("OnShow"/"OnHide")`. As a child of the chat frame it drew over the
+    `MEDIUM`-strata tabs, even with its own strata set (measured): the chat frame's strata change
+    is applied to its children.
+  - It covers `ChatFrameNBackground`'s rectangle plus `PAD_X/PAD_Y`, and reaches `TAB_STRIP` px
+    up over the tabs, with a separator line.
+  - Blizzard's `CHAT_FRAME_TEXTURES` are **hidden**, not faded: the hover fade skips hidden
+    textures (FloatingChatFrame.lua:1336-1340; measured, nothing comes back on hover).
+  - **Edit box:** its panel is a child of the box (`DIALOG` strata). Its border and focus art go
+    to **alpha 0**, because focus toggles them with `SetShown`. Focus shows as a brighter rim.
+  - **The tab strip is raised `TAB_GAP` px** to leave space above the first line: chat lines are
+    clipped to the chat frame, which Edit Mode owns. `GeneralDockManager` is re-anchored after
+    `FCFDock_SetPrimary`, and a floating window's tab after `FCF_SetTabPosition`. Docked tabs
+    are left to the dock.
+  - **Tabs:**
+    - The name is 14 pt with a shadow, set at `ADDON_LOADED`, before Blizzard names and sizes
+      the tabs. The text box is grown from its 8 px.
+    - The stock art (background, selected and highlight pieces) is at alpha 0.
+    - The selected tab gets a faint fill and a gold underline: textures created on the tab, under
+      the name, repainted after `FCFTab_UpdateColors`. The other names are grey.
+    - Resting opacity goes through `ChatFrameUtil.SetTabAlphas` after `FCFTab_UpdateAlpha`. Never
+      write the `CHAT_FRAME_TAB_*_ALPHA` globals (that taints).
+  - `Skin.Refresh()` applies setting changes, and glass off restores the stock look.
+  - No Lua field or global is ever written on a Blizzard frame: state lives in weak-keyed tables.
+    Creating regions on a tab and calling widget methods is fine.
+- **`History.lua`**: plain Up/Down cycle **our own list**, `GlassChatCharDB.sent`. The edit
+  box's native history ignores plain arrows here, even with `SetAltArrowKeyMode(false)`, because
+  the template has `ignoreArrows="true"` (measured).
+  - Alt mode is turned off so `OnArrowPressed` fires, and a `HookScript` on it walks the list
+    with `SetText`. Down past the newest line restores the draft.
+  - **The draft is its text and its destination.** `SetText` re-parses the box (OnTextChanged →
+    ParseText), so recalling `/s …` switches it to SAY. The `chatType` / `tellTarget` /
+    `channelTarget` / `stickyType` attributes are saved when browsing starts, restored after the
+    draft's text, and the header is redrawn (Codex review of #4: an unfinished whisper was sent
+    publicly).
+  - Browsing resets on a send and on focus loss. There's no `SetText` during chat messaging
+    lockdown.
+  - Sends are recorded from `hooksecurefunc(edit, "AddHistoryLine")`, installed **after** the
+    login replay into the native history, so replayed lines aren't recorded again.
+  - `record` skips secrets, empty lines and a repeat of the last line, and trims to the cap.
+- **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
+  per-character setup); only the sent history is per character, in `GlassChatCharDB`.
+  `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It
+  also holds `/gchat` and the login warning when the build differs from `MEASURED_ON_BUILD`.
   There's no combat queue: chat frames aren't protected. If a feature ever needs one, lift
   GlassRaidFrames' `WhenOutOfCombat` (one queue only).
 - **`Tools/ChatProbe/`**: the throwaway measurement addon (`/cprobe help`). It logs every line to
