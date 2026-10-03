@@ -40,9 +40,13 @@ local P = GC.Skin._test.panels
 local p, e = P[ChatFrame1], P[ChatFrame1EditBox]
 check(p and p.panel:IsShown(), "ChatFrame1 has a shown glass panel")
 check(e and e.panel:IsShown(), "its edit box has one too")
-eq(p.panel:GetParent(), ChatFrame1, "the panel is our own child frame")
-check(p.panel:GetFrameLevel() < ChatFrame1:GetFrameLevel(), "the panel sits under the chat text")
-eq(p.panel:GetFrameStrata(), "BACKGROUND", "and in BACKGROUND strata, under the MEDIUM-strata tabs too")
+eq(p.panel:GetParent(), UIParent, "the window panel is our own frame, not a child of the chat frame")
+eq(p.panel:GetFrameStrata(), "BACKGROUND", "in BACKGROUND strata, under the chat text and the MEDIUM-strata tabs")
+ChatFrame1:Hide()
+check(not p.panel:IsShown(), "it hides with its chat window (another tab selected)")
+ChatFrame1:Show()
+check(p.panel:IsShown(), "and shows with it")
+eq(e.panel:GetParent(), ChatFrame1EditBox, "the edit box panel stays a child of its box")
 eq(select(2, p.panel:GetPoint(1)), ChatFrame1Background, "the panel covers Blizzard's background rectangle")
 check(not ChatFrame1Background:IsShown() and not ChatFrame1ButtonFrameBackground:IsShown(),
     "Blizzard's background pieces are hidden")

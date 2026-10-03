@@ -48,13 +48,21 @@ local function tune(g)
     g.wash:SetAlpha(Skin.WASH)
 end
 
--- strata: the chat panel goes in BACKGROUND. It reaches up behind the tabs,
--- which are MEDIUM strata at low frame levels (ChatTabTemplate): one level
--- under the chat frame still drew OVER them (measured: tab names washed out).
+-- The chat window's panel reaches up behind the tabs, so it must sit under
+-- them. As a child of the chat frame it drew OVER the MEDIUM-strata tabs,
+-- even after its own SetFrameStrata("BACKGROUND") (measured: names washed
+-- out, the tab itself at alpha 1). A strata set on a parent is applied to
+-- its children, and something sets the chat frame's. So the window panel
+-- is a child of UIParent, pinned to BACKGROUND, and follows the chat
+-- frame's OnShow/OnHide. The edit box panel stays a child of its box.
 local function newPanel(parent, size, strata)
-    local panel = CreateFrame("Frame", nil, parent)
-    if strata then panel:SetFrameStrata(strata) end
-    panel:SetFrameLevel(math.max(0, parent:GetFrameLevel() - 1))
+    local panel = CreateFrame("Frame", nil, strata and UIParent or parent)
+    if strata then
+        panel:SetFrameStrata(strata)
+        panel:SetFrameLevel(1)
+    else
+        panel:SetFrameLevel(math.max(0, parent:GetFrameLevel() - 1))
+    end
     local g = Glass.Apply(panel, size)
     g.rim:SetAlpha(Skin.RIM_IDLE)
     tune(g)
@@ -92,8 +100,10 @@ function Skin.Frame(f)
         sep:SetHeight(1)
         p = { panel = panel, g = g, separator = sep }
         panels[f] = p
+        f:HookScript("OnShow", function() if GC.db.glass then panel:Show() end end)
+        f:HookScript("OnHide", function() panel:Hide() end)
     end
-    if p then p.panel:SetShown(on); tune(p.g) end
+    if p then p.panel:SetShown(on and f:IsShown()); tune(p.g) end
     setTextures(name, FRAME_TEXTURES, not on)
 
     local edit = rawget(_G, name .. "EditBox")
