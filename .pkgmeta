@@ -1,0 +1,18 @@
+package-as: GlassChat
+
+enable-nolib-creation: no
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+# YAML list, not markdown bullets.
+ignore:
+  - .github
+  - .claude
+  - docs
+  - tests
+  - Tools
+  - CLAUDE.md
+  - README.md
+  - CHANGELOG.md
