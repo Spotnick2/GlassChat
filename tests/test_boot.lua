@@ -19,6 +19,10 @@ GlassChatDB = { lines = 1000, alpha = 0.55 }
 GC._test.ensureDefaults()
 eq(rawget(GlassChatDB, "lines"), nil, "a saved value equal to the default is dropped")
 eq(rawget(GlassChatDB, "alpha"), 0.55, "a real choice is kept")
+GlassChatDB = { look = { rim = GC.Skin.LOOK.rim, top = 0.9 } }
+GC._test.ensureDefaults()
+eq(GlassChatDB.look.rim, nil, "a tuned value equal to the shipped look is dropped")
+eq(GlassChatDB.look.top, 0.9, "a real tuning is kept")
 check(GC.Glass ~= nil, "the glass material loaded into the namespace")
 
 -- /gchat

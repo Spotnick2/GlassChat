@@ -12,7 +12,7 @@ local say = API.Print
 -- (GlassChatCharDB): only what you sent.
 local DEFAULTS = {
     glass = true,          -- the glass panels (off: Blizzard's own background)
-    alpha = 0.65,          -- panel darkness, 0..1 (charcoal; 0.45 and 0.55 let the scene compete with the text)
+    alpha = 0.7,           -- panel darkness, 0..1 (charcoal; owner's pick, 0.45-0.55 let the scene compete)
     lines = 1000,          -- scrollback per chat window (stock: 128)
     classColors = true,    -- keep chatClassColorOverride at "0"
     plainArrows = true,    -- Up/Down cycle what you sent (stock: Alt+Up/Down)
@@ -33,6 +33,11 @@ local function ensureDefaults()
     local db = GlassChatDB
     for k, v in pairs(DEFAULTS) do
         if db[k] == v then db[k] = nil end
+    end
+    if type(db.look) == "table" then
+        for k, v in pairs(db.look) do
+            if GC.Skin.LOOK[k] == v then db.look[k] = nil end
+        end
     end
     setmetatable(db, { __index = DEFAULTS })
     if type(GlassChatCharDB) ~= "table" then GlassChatCharDB = {} end

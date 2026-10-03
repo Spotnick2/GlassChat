@@ -43,11 +43,13 @@ Skin.EDGE_INSET = 14     -- keep the straight edge lines off the rounded corners
 -- Second critique: the grey band on the right and bottom is the material's
 -- drop shadow (shadowPad reaches 22-26 px out) and its dark rim, so both are
 -- turned well down; the header's sheen is a short glow, strongest at the top.
+-- Shipped values: the owner's in-game pick (2026-10-03) after the
+-- critique rounds; the edge lines below it unchanged.
 Skin.LOOK = {
-    shadow = 0.3,   -- the material's drop shadow
-    rim = 0.2,      -- the material's bright rim
-    dark = 0.25,    -- the material's dark rim
-    grain = 0.12,   -- frost over the body
+    shadow = 0,     -- the material's drop shadow
+    rim = 0.1,      -- the material's bright rim
+    dark = 0.1,     -- the material's dark rim
+    grain = 0,      -- frost over the body
     top = 0.45,     -- the fine bright line along the top edge
     glow = 0.12,    -- the sheen under it, at its brightest
     glowh = 4,      -- and how far down it fades (px)
