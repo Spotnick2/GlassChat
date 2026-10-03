@@ -42,6 +42,7 @@ check(p and p.panel:IsShown(), "ChatFrame1 has a shown glass panel")
 check(e and e.panel:IsShown(), "its edit box has one too")
 eq(p.panel:GetParent(), ChatFrame1, "the panel is our own child frame")
 check(p.panel:GetFrameLevel() < ChatFrame1:GetFrameLevel(), "the panel sits under the chat text")
+eq(p.panel:GetFrameStrata(), "BACKGROUND", "and in BACKGROUND strata, under the MEDIUM-strata tabs too")
 eq(select(2, p.panel:GetPoint(1)), ChatFrame1Background, "the panel covers Blizzard's background rectangle")
 check(not ChatFrame1Background:IsShown() and not ChatFrame1ButtonFrameBackground:IsShown(),
     "Blizzard's background pieces are hidden")

@@ -48,8 +48,12 @@ local function tune(g)
     g.wash:SetAlpha(Skin.WASH)
 end
 
-local function newPanel(parent, size)
+-- strata: the chat panel goes in BACKGROUND. It reaches up behind the tabs,
+-- which are MEDIUM strata at low frame levels (ChatTabTemplate): one level
+-- under the chat frame still drew OVER them (measured: tab names washed out).
+local function newPanel(parent, size, strata)
     local panel = CreateFrame("Frame", nil, parent)
+    if strata then panel:SetFrameStrata(strata) end
     panel:SetFrameLevel(math.max(0, parent:GetFrameLevel() - 1))
     local g = Glass.Apply(panel, size)
     g.rim:SetAlpha(Skin.RIM_IDLE)
@@ -78,7 +82,7 @@ function Skin.Frame(f)
     if on and not p then
         -- Exactly over Blizzard's background rectangle (FloatingChatFrame.xml:6-12).
         local bg = rawget(_G, name .. "Background") or f
-        local panel, g = newPanel(f, "large")
+        local panel, g = newPanel(f, "large", "BACKGROUND")
         panel:SetPoint("TOPLEFT", bg, "TOPLEFT", -Skin.PAD_X, Skin.PAD_Y + Skin.TAB_STRIP)
         panel:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", Skin.PAD_X, -Skin.PAD_Y)
         local sep = panel:CreateTexture(nil, "ARTWORK")
