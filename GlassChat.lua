@@ -131,6 +131,7 @@ local function help()
     say("/gchat history N - sent lines kept (" .. db.history .. ")")
     say("/gchat channels on|off - drop the zone from channel names (" .. onOff(db.shortChannels) .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
+    say("/gchat copy - this window's lines, selected for Ctrl+C (or the Copy button)")
     say("/gchat tune - adjust the panel's edge, shadow and sheen live")
     say("/gchat failures - what failed to build or register")
     say("/gchat version - client build vs the measured one")
@@ -174,6 +175,8 @@ local function slash(msg)
     local cmd, arg = (msg or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
     if cmd == "tune" then
         tuneCmd(arg)
+    elseif cmd == "copy" then
+        GC.Copy.Open()
     elseif cmd == "failures" then
         failures()
     elseif cmd == "version" then

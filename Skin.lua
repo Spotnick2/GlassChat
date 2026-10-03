@@ -366,6 +366,12 @@ function Skin.Tab(f)
     applyTabAlpha(f)
 end
 
+-- The window panel of a chat frame (nil before it's built or with glass off
+-- from the start): other modules put their controls on it.
+function Skin.Panel(f)
+    return panels[f]
+end
+
 -- Re-apply after a setting change (glass on/off, opacity, tab size).
 function Skin.Refresh()
     for _, f in ipairs(GC.Chat.Frames()) do

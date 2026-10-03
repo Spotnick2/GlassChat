@@ -126,6 +126,8 @@ function CreateFrame(ftype, name, parent, template)
     local w = newWidget(ftype, parent, name)
     w._template = template
     if ftype == "StatusBar" then w._min, w._max, w._value = 0, 1, 0 end
+    -- The template's bar, shown by default as on the client.
+    if template == "UIPanelScrollFrameTemplate" then w.ScrollBar = newWidget("Slider", w) end
     table.insert(WoW.frames, w)
     if name then rawset(_G, name, w) end
     return w
@@ -234,6 +236,18 @@ function Methods.GetFontString(b) return b._fontString end
 -- line-fitting arithmetic.
 function Methods.GetLineHeight(fs) return (select(2, Methods.GetFont(fs))) end
 
+-- ScrollingMessageFrame: its lines, oldest first, as GetMessageInfo
+-- numbers them (ScrollingMessageFrame.lua:30-31). f._messages = { text, ... }.
+function Methods.GetNumMessages(f) return #(f._messages or {}) end
+function Methods.GetMessageInfo(f, i)
+    local m = f._messages and f._messages[i]
+    if m ~= nil then return m, 1, 1, 1 end
+end
+function Methods.GetID(w) return w._id or 0 end
+function Methods.SetFocus(e) e._focused = true end
+function Methods.ClearFocus(e) e._focused = false end
+function Methods.HighlightText(e) e._highlighted = true end
+function Methods.GetVerticalScrollRange(w) return w._yrange or 0 end
 -- ScrollingMessageFrame: the line limit (stock 128, ChatFrameOverrides.lua:3).
 function Methods.SetMaxLines(f, n) f._maxLines = n end
 function Methods.GetMaxLines(f) return f._maxLines or 128 end
@@ -315,6 +329,7 @@ function WoW.makeChatFrames(n)
         local name = "ChatFrame" .. i
         if not rawget(_G, name) then   -- only the missing ones, as a new tab adds one
             local f = CreateFrame("ScrollingMessageFrame", name, UIParent)
+            f._id = i
             table.insert(CHAT_FRAMES, name)
             f._level = 5
             for _, t in ipairs(CHAT_FRAME_TEXTURES) do rawset(_G, name .. t, Methods.CreateTexture(f)) end
@@ -372,6 +387,12 @@ function FCFDock_SetPrimary(dock, chatFrame)
     dock:SetPoint("BOTTOMLEFT", chatFrame.Background, "TOPLEFT")
 end
 function FCFDock_GetChatFrames(dock) return dock._docked end
+function FCFDock_GetSelectedWindow(dock) return dock._selected or ChatFrame1 end
+-- Window names by index (GetChatWindowInfo's first return).
+WoW.windowNames = { "General", "Combat Log", "Whispers" }
+function GetChatWindowInfo(i) return WoW.windowNames[i] or "", 14, 1, 1, 1, 1, true, false, true end
+-- FrameXML's list of frames Escape closes.
+UISpecialFrames = {}
 -- The name-suggestion list under the edit box (Blizzard_AutoComplete).
 AutoCompleteBox = newWidget("Frame", UIParent, "AutoCompleteBox")
 AutoCompleteBox._shown = false

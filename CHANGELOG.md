@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Copy:** a Copy button in each chat window's tab strip (or `/gchat copy`) opens that window's
+  text, without colours or link codes and already selected. Press Ctrl+C. The game doesn't let
+  addons copy for you.
 - A dark, see-through glass panel behind every chat window, its tabs and its input box, replacing
   Blizzard's background. Adjust it with `/gchat alpha 0-1` and `/gchat tune`, or turn it off with `/gchat glass off`.
 - Readable tabs: bigger names, the selected tab in gold with an underline, and no fading to near

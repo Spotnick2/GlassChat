@@ -53,7 +53,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 ## Layout
 
 TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`GlassChat.lua`.
+`Copy.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -125,6 +125,16 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   - Sends are recorded from `hooksecurefunc(edit, "AddHistoryLine")`, installed **after** the
     login replay into the native history, so replayed lines aren't recorded again.
   - `record` skips secrets, empty lines and a repeat of the last line, and trims to the cap.
+- **`Copy.lua`** (#5): a window's lines as plain text, in a read-only glass window (`API.Window`,
+  lifted from GlassPanel), **selected for Ctrl+C**. Addons can't write the clipboard here.
+  - `Copy.Lines(f)` reads `GetMessageInfo` 1..N (1 = oldest). A secret line is never read: it
+    becomes `Copy.HIDDEN` and is counted.
+  - `Copy.Plain` strips colours, links (keeping their text), textures, atlases and `|K` names:
+    the client's `StripHyperlinks` first, then our patterns.
+  - A grey **Copy** button sits at the right end of each window's tab strip, on its glass panel
+    (`Skin.Panel(f)`), in `MEDIUM` strata. `/gchat copy` copies the selected window
+    (`FCFDock_GetSelectedWindow`).
+  - Focus mode (M4) builds on this window.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It
