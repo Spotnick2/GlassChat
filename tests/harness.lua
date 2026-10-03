@@ -32,12 +32,14 @@ end
 -- then ADDON_LOADED, PLAYER_LOGIN, PLAYER_ENTERING_WORLD (initial login).
 function loadAddon(opts)
     opts = opts or {}
+    if not rawget(_G, "ChatFrame1") then WoW.makeChatFrames(opts.windows or 3) end
     local ns = {}
     for _, file in ipairs(tocFiles()) do
         local chunk = assert(loadfile(file))
         chunk("GlassChat", ns)
     end
     if opts.db then GlassChatDB = opts.db end
+    if opts.charDB then GlassChatCharDB = opts.charDB end
     WoW.fire("ADDON_LOADED", "GlassChat")
     WoW.fire("PLAYER_LOGIN")
     WoW.fire("PLAYER_ENTERING_WORLD", opts.initialLogin ~= false, false)

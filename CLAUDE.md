@@ -40,15 +40,15 @@ Blizzard's. GlassChat uses only documented hooks:
 or a read of private fields (`historyBuffer`, `visibleLines`). That is how Prat works, and on
 this client each one taints chat. The research behind this is in `docs/PLAN.md`.
 
-**Status: milestone 0 (scaffold and ChatProbe).** The draft plan is `docs/PLAN.md`; its open
-questions are mostly answered. Next: run the probe in game and record the results in
-`docs/FOREVER-PROBE.md`, then M1 (readable glass, class colours), M2 (one layout for every character), M3 (smart tabs), M4 (focus
-mode), M5 (URL copy). Work goes through GitHub
-issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
+**Status: milestone 1 (readable glass, class colours, scrollback, sent history).** M0's probe
+results are in `docs/FOREVER-PROBE.md`; the plan is `docs/PLAN.md`. Next: M2 (one chat layout
+for every character), then M3 (smart tabs), M4 (focus mode), M5 (URL copy). Work goes through
+GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
 
 ## Layout
 
-TOC load order: `Compat.lua` → `Glass.lua` → `GlassChat.lua`.
+TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
+`GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -64,9 +64,33 @@ TOC load order: `Compat.lua` → `Glass.lua` → `GlassChat.lua`.
 - **`Glass.lua`**: the material. It is a **copy of GlassUnitFrames `main:Glass.lua`**; only the
   header and namespace lines differ. `tests/test_toc.lua` fails while they differ, and the same
   goes for `Tools/make_textures.py`. Change the material in GlassUnitFrames first, then copy it
-  back. `Media/*.tga` come from that generator.
-- **`GlassChat.lua`**: bootstrap, `GlassChatDB` (defaults filled at `ADDON_LOADED`), the
-  `/gchat` command, and the login warning when the build differs from `MEASURED_ON_BUILD`.
+  back. `Media/*.tga` come from that generator. Chat-specific tuning (darker tint, less grain and
+  wash) is applied **on the regions `Glass.Apply` returns**, in `Skin.lua`, never in the copy.
+- **`Chat.lua`**: the stock windows. `Chat.Frames()` is every `ChatFrameN` that exists (read
+  with `rawget`). `Chat.OnEachFrame(key, fn)` registers an idempotent per-window setup.
+  `Chat.Scan()` runs every setup on every window, each one under `pcall` (failures go to
+  `API.Fail`). Scans run at `ADDON_LOADED` (so login lines get the longer scrollback), at
+  `PLAYER_LOGIN`, on `UPDATE_CHAT_WINDOWS` / `UPDATE_FLOATING_CHAT_WINDOWS`, and after
+  `FCF_OpenNewWindow` / `FCF_OpenTemporaryWindow` (hooksecurefunc). It also holds:
+  - **scrollback**: `SetMaxLines(db.lines)`, which keeps the existing lines (CircularBuffer.lua:29);
+  - **class colours**: `chatClassColorOverride` kept at `"0"` at login. Turning the option off
+    leaves the CVar alone.
+- **`Skin.lua`**: a dark glass panel per window and per edit box. Each panel is **our own child
+  frame**, one level under the Blizzard frame, covering `ChatFrameNBackground`'s rectangle.
+  - Blizzard's `CHAT_FRAME_TEXTURES` are **hidden**, not faded: the hover fade skips hidden
+    textures (FloatingChatFrame.lua:1336-1340).
+  - The edit box border and focus art go to **alpha 0**, because focus toggles them with
+    `SetShown`. Focus shows as a brighter rim instead.
+  - `Skin.Refresh()` applies setting changes, and glass off restores both.
+  - No field is ever written on a Blizzard frame: state lives in a weak-keyed table.
+- **`History.lua`**: on each edit box, `SetAltArrowKeyMode(not db.plainArrows)` (plain Up/Down)
+  and `SetHistoryLines(db.history)`. `GlassChatCharDB.sent` is replayed into the box, **then**
+  `hooksecurefunc(edit, "AddHistoryLine", record)` is installed, so replayed lines aren't recorded
+  again. `record` skips secrets, empty lines and a repeat of the last line, and trims to the cap.
+- **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
+  per-character setup); only the sent history is per character, in `GlassChatCharDB`.
+  `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It
+  also holds `/gchat` and the login warning when the build differs from `MEASURED_ON_BUILD`.
   There's no combat queue: chat frames aren't protected. If a feature ever needs one, lift
   GlassRaidFrames' `WhenOutOfCombat` (one queue only).
 - **`Tools/ChatProbe/`**: the throwaway measurement addon (`/cprobe help`). It logs every line to

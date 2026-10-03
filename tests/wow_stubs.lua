@@ -88,6 +88,8 @@ function WoW.reset()
     WoW.methodsCalled = {}
     WoW.combat = false
     WoW.timers = {}
+    WoW.cvars = { chatClassColorOverride = "0" }
+    WoW.cvarSets = {}
 end
 
 --------------------------------------------------------------------------------
@@ -163,6 +165,7 @@ function Methods.SetFrameStrata(w, s) w._strata = s end
 function Methods.GetFrameStrata(w) return w._strata or "MEDIUM" end
 function Methods.EnableMouse(w, v) w._mouse = v end
 function Methods.IsMouseEnabled(w) return w._mouse == true end
+function Methods.GetName(w) return w._name end
 function Methods.GetDebugName(w) return w._name or ("<" .. w._type .. ">") end
 function Methods.IsForbidden(w) return false end
 
@@ -208,6 +211,26 @@ function Methods.SetFormattedText(fs, fmt, ...)
 end
 function Methods.SetFont(fs, file, size, flags) fs._font = { file, size, flags }; return true end
 
+-- ScrollingMessageFrame: the line limit (stock 128, ChatFrameOverrides.lua:3).
+function Methods.SetMaxLines(f, n) f._maxLines = n end
+function Methods.GetMaxLines(f) return f._maxLines or 128 end
+
+-- EditBox: arrow mode and the sent history, kept like the client: newest
+-- last, capped at the history size (stock 32, ChatFrameEditBox.xml:3).
+function Methods.SetAltArrowKeyMode(e, v) e._altArrows = v end
+function Methods.GetAltArrowKeyMode(e) return e._altArrows ~= false end
+function Methods.SetHistoryLines(e, n)
+    e._historyLines = n
+    e._history = e._history or {}
+    while #e._history > n do table.remove(e._history, 1) end
+end
+function Methods.GetHistoryLines(e) return e._historyLines or 32 end
+function Methods.AddHistoryLine(e, text)
+    e._history = e._history or {}
+    table.insert(e._history, text)
+    while #e._history > Methods.GetHistoryLines(e) do table.remove(e._history, 1) end
+end
+
 -- StatusBar.
 function Methods.SetMinMaxValues(b, lo, hi) b._min, b._max = lo, hi end
 function Methods.SetStatusBarColor(b, r, g, bl, a) b._color = { r, g, bl, a } end
@@ -236,6 +259,40 @@ end
 SlashCmdList = {}
 Enum = { UITextureSliceMode = { Stretched = 0, Tiled = 1 } }
 function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
+
+-- FrameXML's background pieces of a chat window (FloatingChatFrame.lua:43).
+CHAT_FRAME_TEXTURES = { "Background", "TopLeftTexture", "BottomLeftTexture", "TopRightTexture",
+    "BottomRightTexture", "LeftTexture", "RightTexture", "BottomTexture", "TopTexture",
+    "ButtonFrameBackground", "ButtonFrameTopLeftTexture", "ButtonFrameBottomLeftTexture",
+    "ButtonFrameTopRightTexture", "ButtonFrameBottomRightTexture", "ButtonFrameLeftTexture",
+    "ButtonFrameRightTexture", "ButtonFrameBottomTexture", "ButtonFrameTopTexture" }
+Constants = { ChatFrameConstants = { MaxChatWindows = 10 } }
+
+-- Chat windows 1..n as FloatingChatFrameTemplate builds them: ChatFrameN with its
+-- named background textures, and ChatFrameNEditBox with its border art.
+function WoW.makeChatFrames(n)
+    for i = 1, n do
+        local name = "ChatFrame" .. i
+        if not rawget(_G, name) then   -- only the missing ones, as a new tab adds one
+            local f = CreateFrame("ScrollingMessageFrame", name, UIParent)
+            f._level = 5
+            for _, t in ipairs(CHAT_FRAME_TEXTURES) do rawset(_G, name .. t, Methods.CreateTexture(f)) end
+            local e = CreateFrame("EditBox", name .. "EditBox", f)
+            for _, t in ipairs({ "Left", "Right", "Mid", "FocusLeft", "FocusRight", "FocusMid" }) do
+                rawset(_G, name .. "EditBox" .. t, Methods.CreateTexture(e))
+            end
+        end
+    end
+end
+-- Blizzard's chat window functions the addon hooks (both in the dump).
+function FCF_OpenNewWindow(name) WoW.newWindows = (WoW.newWindows or 0) + 1 end
+function FCF_OpenTemporaryWindow() end
+
+-- CVars: the value and every set, recorded.
+C_CVar = {
+    GetCVar = function(name) return WoW.cvars[name] end,
+    SetCVar = function(name, v) WoW.cvars[name] = tostring(v); table.insert(WoW.cvarSets, name) ; return true end,
+}
 
 C_ClassColor = { GetClassColor = function(classFile)
     local c = ({ MAGE = { 0.25, 0.78, 0.92 }, PRIEST = { 1, 1, 1 }, WARRIOR = { 0.78, 0.61, 0.43 } })[classFile]
@@ -305,7 +362,7 @@ WoW.reset()
 
 -- Strict globals: any read of an undefined global is an error, except the
 -- addon's own globals that are legitimately nil before first assignment.
-local allowNil = { GlassChat = true, GlassChatDB = true, ChatProbeDB = true }
+local allowNil = { GlassChat = true, GlassChatDB = true, GlassChatCharDB = true, ChatProbeDB = true }
 setmetatable(_G, { __index = function(_, k)
     if allowNil[k] then return nil end
     error("read of undefined global '" .. tostring(k) .. "' (not stubbed: is it in the API dump?)", 2)
