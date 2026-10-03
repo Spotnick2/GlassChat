@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The voice buttons beside the chat are compact glass buttons with their gold symbols, instead of
+  metal frames.
 - **Copy:** a Copy button in each chat window's tab strip (or `/gchat copy`) opens that window's
   text, without colours or link codes and already selected. Press Ctrl+C. The game doesn't let
   addons copy for you.

@@ -53,7 +53,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 ## Layout
 
 TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `GlassChat.lua`.
+`Copy.lua` → `Buttons.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -143,6 +143,13 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
     (review of #6). `||` is set aside before stripping, so `a||rb` stays `a|rb`.
     `StripHyperlinks` keeps brackets, and `|K` names are replaced before it runs.
   - Focus mode (M4) builds on this window.
+- **`Buttons.lua`** (#7): the buttons beside the chat as compact glass buttons.
+  - **Voice-style buttons** (`VoiceToggleButtonTemplate`: channel, TTS, deafen, mute): the metal
+    frame is the button's normal and pushed art, set to alpha 0, over a small glass pill, our own
+    child one level under. The gold `Icon` stays, and the highlight is softened.
+  - The chat-menu bubble (frame baked into one texture) and the friends button (animated
+    atlases) wait for an in-game atlas check.
+  - Run after every scan through `Chat.AfterScan`.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It
