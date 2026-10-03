@@ -62,12 +62,36 @@ function Chat.ApplyClassColors()
     if C_CVar.GetCVar(CVAR) ~= "0" then C_CVar.SetCVar(CVAR, "0") end
 end
 
+-- "[1. General - The Barrens]" -> "[1. General]" (owner: Prat did this;
+-- on by default). Blizzard builds the prefix from arg4 through
+-- ResolvePrefixedChannelName (ChatFrameOverrides.lua:657), and the click link
+-- from arg8, so rewriting arg4 in a message filter changes the label only.
+-- A filter replaces the arguments by returning false followed by the new
+-- ones (ChatFrameFilters.lua:145-160); Blizzard only calls it when the
+-- arguments are accessible (canaccessvalue). Zone channels only (arg7, the
+-- zone channel ID, > 0): a custom channel's name is left alone, even with
+-- " - " in it. The join/leave notices keep the zone, which says where you are.
+function Chat.ShortChannel(_, _, ...)
+    if not GC.db.shortChannels then return false end
+    local arg4, arg7 = select(4, ...), select(7, ...)
+    if type(arg4) ~= "string" or API.IsSecret(arg4) or API.IsSecret(arg7) then return false end
+    if type(arg7) ~= "number" or arg7 <= 0 then return false end
+    local short = arg4:match("^(.-) %- .+$")
+    if not short then return false end
+    local args, n = { ... }, select("#", ...)
+    args[4] = short
+    return false, unpack(args, 1, n)
+end
+
 local started = false
 function Chat.Start()
     if started then return end
     started = true
     Chat.Scan()
     GC.Skin.HookTabs()
+    if ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter then
+        ChatFrameUtil.AddMessageEventFilter("CHAT_MSG_CHANNEL", Chat.ShortChannel)
+    end
     -- New tabs, and the temporary whisper windows, get the same setup.
     for _, name in ipairs({ "FCF_OpenNewWindow", "FCF_OpenTemporaryWindow" }) do
         if rawget(_G, name) then hooksecurefunc(name, function() Chat.Scan() end) end

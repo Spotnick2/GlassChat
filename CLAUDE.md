@@ -75,6 +75,10 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   - **scrollback**: `SetMaxLines(db.lines)`, which keeps the existing lines (CircularBuffer.lua:29);
   - **class colours**: `chatClassColorOverride` kept at `"0"` at login. Turning the option off
     leaves the CVar alone.
+  - **short channel names**: a `CHAT_MSG_CHANNEL` message filter (`Chat.ShortChannel`) rewrites
+    arg4 `"1. General - The Barrens"` to `"1. General"`, for zone channels only (arg7 > 0), by
+    returning `false` plus every argument. Blizzard builds the label from arg4
+    (ChatFrameOverrides.lua:657) and the click link from arg8.
 - **`Skin.lua`**: one dark glass container per window, after the owner's mockup.
   - **The window panel is a child of `UIParent`, pinned to `BACKGROUND`**. It follows the chat
     frame through `HookScript("OnShow"/"OnHide")`. As a child of the chat frame it drew over the
@@ -86,6 +90,10 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
     textures (FloatingChatFrame.lua:1336-1340; measured, nothing comes back on hover).
   - **Edit box:** its panel is a child of the box (`DIALOG` strata). Its border and focus art go
     to **alpha 0**, because focus toggles them with `SetShown`. Focus shows as a brighter rim.
+  - **The tab strip is raised `TAB_GAP` px** to leave space above the first line: chat lines are
+    clipped to the chat frame, which Edit Mode owns. `GeneralDockManager` is re-anchored after
+    `FCFDock_SetPrimary`, and a floating window's tab after `FCF_SetTabPosition`. Docked tabs
+    are left to the dock.
   - **Tabs:**
     - The name is 14 pt with a shadow, set at `ADDON_LOADED`, before Blizzard names and sizes
       the tabs. The text box is grown from its 8 px.

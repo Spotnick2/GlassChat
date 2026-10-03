@@ -32,7 +32,10 @@ end
 -- then ADDON_LOADED, PLAYER_LOGIN, PLAYER_ENTERING_WORLD (initial login).
 function loadAddon(opts)
     opts = opts or {}
-    if not rawget(_G, "ChatFrame1") then WoW.makeChatFrames(opts.windows or 3) end
+    if not rawget(_G, "ChatFrame1") then
+        WoW.makeChatFrames(opts.windows or 3)
+        FCFDock_SetPrimary(GeneralDockManager, ChatFrame1)   -- as FrameXML does before addons load
+    end
     local ns = {}
     for _, file in ipairs(tocFiles()) do
         local chunk = assert(loadfile(file))

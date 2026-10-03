@@ -37,6 +37,13 @@ Skin.PAD_X, Skin.PAD_Y = 8, 5
 -- container (owner's mockup). Tabs sit on Background's TOPLEFT
 -- (FCF_SetTabPosition, FloatingChatFrame.lua:1835), their name ~11 px up.
 Skin.TAB_STRIP = 26
+-- Space between the tabs and the first chat line (owner, after the mockup).
+-- The lines are clipped to the chat frame (FontStringContainer,
+-- ScrollingMessageFrame.xml:10), which Edit Mode owns, so the TABS move up:
+-- the dock is re-anchored GAP px higher (Blizzard anchors it in
+-- FCFDock_SetPrimary, FloatingChatFrame.lua:2265), and so is a floating
+-- window's own tab (FCF_SetTabPosition, line 1835).
+Skin.TAB_GAP = 8
 Skin.SEPARATOR = { 1, 1, 1, 0.14 }   -- the line between the tabs and the text
 Skin.EDIT_INSET = 4       -- the edit box art is 32 px tall; the box reads smaller
 
@@ -91,12 +98,12 @@ function Skin.Frame(f)
         -- Exactly over Blizzard's background rectangle (FloatingChatFrame.xml:6-12).
         local bg = rawget(_G, name .. "Background") or f
         local panel, g = newPanel(f, "large", "BACKGROUND")
-        panel:SetPoint("TOPLEFT", bg, "TOPLEFT", -Skin.PAD_X, Skin.PAD_Y + Skin.TAB_STRIP)
+        panel:SetPoint("TOPLEFT", bg, "TOPLEFT", -Skin.PAD_X, Skin.PAD_Y + Skin.TAB_STRIP + Skin.TAB_GAP)
         panel:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", Skin.PAD_X, -Skin.PAD_Y)
         local sep = panel:CreateTexture(nil, "ARTWORK")
         sep:SetColorTexture(Skin.SEPARATOR[1], Skin.SEPARATOR[2], Skin.SEPARATOR[3], Skin.SEPARATOR[4])
-        sep:SetPoint("TOPLEFT", bg, "TOPLEFT", 0, Skin.PAD_Y)
-        sep:SetPoint("TOPRIGHT", bg, "TOPRIGHT", 0, Skin.PAD_Y)
+        sep:SetPoint("TOPLEFT", bg, "TOPLEFT", 0, Skin.PAD_Y + Skin.TAB_GAP)
+        sep:SetPoint("TOPRIGHT", bg, "TOPRIGHT", 0, Skin.PAD_Y + Skin.TAB_GAP)
         sep:SetHeight(1)
         p = { panel = panel, g = g, separator = sep }
         panels[f] = p
@@ -223,17 +230,46 @@ end
 -- Re-apply after a setting change (glass on/off, opacity, tab size).
 function Skin.Refresh()
     for _, f in ipairs(GC.Chat.Frames()) do Skin.Frame(f); Skin.Tab(f) end
+    Skin.LiftDock()
 end
 
 GC.Chat.OnEachFrame("skin", Skin.Frame)
 GC.Chat.OnEachFrame("tabs", Skin.Tab)
 
+-- The tab strip, GAP px up with glass on, where Blizzard put it with glass off.
+local function gap() return GC.db.glass and Skin.TAB_GAP or 0 end
+
+function Skin.LiftDock()
+    local dock = rawget(_G, "GeneralDockManager")
+    local bg = dock and dock.primary and dock.primary.Background
+    if not bg then return end
+    dock:ClearAllPoints()
+    dock:SetPoint("BOTTOMLEFT", bg, "TOPLEFT", 0, gap())
+    dock:SetPoint("BOTTOMRIGHT", bg, "TOPRIGHT", 0, gap())
+end
+
+-- A floating (undocked) window's tab: the same point FCF_SetTabPosition
+-- sets, raised.
+local function liftTab(chatFrame, x)
+    -- Docked tabs are laid out by the dock (FCFDock_UpdateTabs); Blizzard
+    -- also calls this on docked frames (FloatingChatFrame_Update, line 609).
+    if chatFrame.isDocked then return end
+    local tab = tabOf(chatFrame)
+    local bg = rawget(_G, chatFrame:GetName() .. "Background")
+    if not (tab and bg) then return end
+    tab:ClearAllPoints()
+    tab:SetPoint("BOTTOMLEFT", bg, "TOPLEFT", (x or 0) + 2, gap())
+end
+
 -- After Blizzard's own tab updates (selection, docking, alerts).
 function Skin.HookTabs()
+    if rawget(_G, "FCFDock_SetPrimary") then hooksecurefunc("FCFDock_SetPrimary", Skin.LiftDock) end
+    if rawget(_G, "FCF_SetTabPosition") then hooksecurefunc("FCF_SetTabPosition", liftTab) end
+    Skin.LiftDock()
     if rawget(_G, "FCFTab_UpdateAlpha") then hooksecurefunc("FCFTab_UpdateAlpha", applyTabAlpha) end
     if rawget(_G, "FCFTab_UpdateColors") then
         hooksecurefunc("FCFTab_UpdateColors", paintTab)
     end
 end
 
-Skin._test = { panels = panels, tabFont = tabFont, tabLit = tabLit, applyTabAlpha = applyTabAlpha }
+Skin._test = { panels = panels, tabFont = tabFont, tabLit = tabLit, applyTabAlpha = applyTabAlpha, liftTab = liftTab }

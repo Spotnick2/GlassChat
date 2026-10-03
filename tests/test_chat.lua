@@ -68,6 +68,7 @@ GC.Settings.SetAlpha(0.45)
 
 GC.Settings.SetGlass(false)
 check(not p.panel:IsShown() and not e.panel:IsShown(), "glass off hides the panels")
+eq(select(5, GeneralDockManager:GetPoint(1)), 0, "glass off puts the tabs back where Blizzard had them")
 check(ChatFrame1Background:IsShown(), "and gives Blizzard's background back")
 eq(ChatFrame1EditBoxMid._alpha, 1, "and the edit box border")
 GC.Settings.SetGlass(true)
@@ -77,8 +78,21 @@ check(p.panel:IsShown() and not ChatFrame1Background:IsShown(), "glass on again"
 -- with a separator line; the stock tab art is invisible; the selected tab
 -- gets a faint fill and a gold underline, the others plain grey names.
 local tab, text = ChatFrame1Tab, ChatFrame1Tab:GetFontString()
-eq(select(5, p.panel:GetPoint(1)), GC.Skin.PAD_Y + GC.Skin.TAB_STRIP, "the panel reaches up over the tabs")
+eq(select(5, p.panel:GetPoint(1)), GC.Skin.PAD_Y + GC.Skin.TAB_STRIP + GC.Skin.TAB_GAP, "the panel reaches up over the raised tabs")
 check(p.separator ~= nil, "a separator line runs under the tabs")
+-- Space between the tabs and the text: the dock is raised by the gap, also
+-- when Blizzard re-anchors it; a floating window's own tab too; a docked
+-- one is left to the dock.
+local gapY = GC.Skin.TAB_GAP
+eq(select(5, GeneralDockManager:GetPoint(1)), gapY, "the tab dock sits TAB_GAP px higher")
+FCFDock_SetPrimary(GeneralDockManager, ChatFrame1)
+eq(select(5, GeneralDockManager:GetPoint(1)), gapY, "and stays there when Blizzard re-anchors it")
+ChatFrame3.isDocked = false
+FCF_SetTabPosition(ChatFrame3, 0)
+eq(select(5, ChatFrame3Tab:GetPoint(1)), gapY, "a floating window's tab is raised too")
+ChatFrame3.isDocked = true
+FCF_SetTabPosition(ChatFrame3, 0)
+eq(select(5, ChatFrame3Tab:GetPoint(1)), 0, "a docked tab is left to the dock")
 eq(select(2, text:GetFont()), 14, "the tab name is 14 pt")
 eq(text:GetHeight(), 18, "and its 8 px box is grown so it isn't clipped")
 eq(tab.Middle._alpha, 0, "the stock tab art is invisible")
@@ -162,6 +176,28 @@ eq(edit:GetAltArrowKeyMode(), true, "arrows off gives back Alt+Up/Down")
 edit:SetText("y")
 arrow("UP")
 eq(edit:GetText(), "y", "and our Up/Down stand down")
+
+-- Channel names lose the zone: CHAT_MSG_CHANNEL's arg4 is rewritten by a
+-- message filter, every other argument passed through; custom channels
+-- (zone channel ID 0) and secrets are left alone.
+local filter = WoW.messageFilters.CHAT_MSG_CHANNEL and WoW.messageFilters.CHAT_MSG_CHANNEL[1]
+check(filter ~= nil, "a CHAT_MSG_CHANNEL filter is installed")
+local function run(...) return { filter(ChatFrame1, "CHAT_MSG_CHANNEL", ...) } end
+local r = run("LFM", "Rat War", "", "1. General - The Barrens", "Rat War", "", 1, 1, "General", 0, 77, "Player-1-AB")
+eq(r[1], false, "the message is kept")
+eq(r[5], "1. General", "the zone is dropped from the channel label")
+eq(r[2], "LFM", "the text is passed through")
+eq(r[9], 1, "the channel number (the click link) is untouched")
+eq(r[13], "Player-1-AB", "and so is everything after it")
+eq(#r, 13, "no argument is lost or added")
+r = run("hi", "Bob", "", "5. MyGuildAlts - Raid", "Bob", "", 0, 5, "MyGuildAlts - Raid", 0, 78, "Player-1-CD")
+eq(#r, 1, "a custom channel (zone ID 0) is left alone")
+r = run("hi", "Bob", "", WoW.Secret("chan"), "Bob", "", 1, 1, "General", 0, 79, "x")
+eq(#r, 1, "a secret channel name is left alone")
+GC.Settings.SetShortChannels(false)
+r = run("LFM", "Rat War", "", "1. General - The Barrens", "Rat War", "", 1, 1, "General", 0, 80, "x")
+eq(#r, 1, "channels off: nothing is rewritten")
+GC.Settings.SetShortChannels(true)
 
 -- /gchat drives the same settings.
 newChat()

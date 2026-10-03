@@ -18,6 +18,7 @@ local DEFAULTS = {
     plainArrows = true,    -- Up/Down cycle what you sent (stock: Alt+Up/Down)
     history = 100,         -- sent lines kept (stock: 32)
     tabSize = 14,          -- tab name font size (stock GameFontNormalSmall, ~10)
+    shortChannels = true,  -- "[1. General - The Barrens]" -> "[1. General]"
 }
 
 -- Read settings, fill missing keys. Nothing may REQUIRE a value to have
@@ -71,6 +72,10 @@ function Settings.SetTabSize(n)
     GC.Skin.Refresh()
 end
 
+function Settings.SetShortChannels(on)
+    GC.db.shortChannels = on and true or false
+end
+
 function Settings.SetHistory(n)
     GC.db.history = clamp(math.floor(n), GC.History.MIN, GC.History.MAX)
     GC.Chat.Scan()
@@ -99,6 +104,7 @@ local function help()
     say("/gchat colors on|off - class-coloured names (" .. onOff(db.classColors) .. ")")
     say("/gchat arrows on|off - Up/Down recall what you sent (" .. onOff(db.plainArrows) .. ")")
     say("/gchat history N - sent lines kept (" .. db.history .. ")")
+    say("/gchat channels on|off - drop the zone from channel names (" .. onOff(db.shortChannels) .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
     say("/gchat failures - what failed to build or register")
     say("/gchat version - client build vs the measured one")
@@ -109,7 +115,8 @@ local function flag(arg)
     if arg == "on" then return true elseif arg == "off" then return false end
 end
 
-local TOGGLES = { glass = Settings.SetGlass, colors = Settings.SetClassColors, arrows = Settings.SetPlainArrows }
+local TOGGLES = { glass = Settings.SetGlass, colors = Settings.SetClassColors, arrows = Settings.SetPlainArrows,
+    channels = Settings.SetShortChannels }
 local NUMBERS = { alpha = Settings.SetAlpha, lines = Settings.SetLines, history = Settings.SetHistory,
     tabsize = Settings.SetTabSize }
 

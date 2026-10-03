@@ -283,6 +283,7 @@ function WoW.makeChatFrames(n)
             local f = CreateFrame("ScrollingMessageFrame", name, UIParent)
             f._level = 5
             for _, t in ipairs(CHAT_FRAME_TEXTURES) do rawset(_G, name .. t, Methods.CreateTexture(f)) end
+            f.Background = _G[name .. "Background"]
             -- The tab: ChatTabTemplate, its name in a ButtonText 8 px tall
             -- (FloatingChatFrame.xml:432), its art as parentKeys.
             local tab = CreateFrame("Button", name .. "Tab", UIParent)
@@ -302,7 +303,12 @@ end
 -- Tab opacities, as ChatFrameUtil keeps them (ChatFrameUtil.lua:78-92), and
 -- Blizzard's own per-tab updates the addon hooks.
 WoW.tabAlphas = {}
+WoW.messageFilters = {}
 ChatFrameUtil = {
+    AddMessageEventFilter = function(event, fn)
+        WoW.messageFilters[event] = WoW.messageFilters[event] or {}
+        table.insert(WoW.messageFilters[event], fn)
+    end,
     SetTabAlphas = function(tab, over, rest) WoW.tabAlphas[tab] = { over, rest } end,
     GetTabAlphas = function(tab)
         local a = WoW.tabAlphas[tab]
@@ -316,6 +322,18 @@ function FCFTab_UpdateAlpha(chatFrame)
     tab:SetAlpha(selected and 0.4 or 0.2)
 end
 function FCFTab_UpdateColors(tab, selected) end
+-- The dock that holds the docked tabs, anchored on its primary window's
+-- Background (FCFDock_SetPrimary, FloatingChatFrame.lua:2263-2266).
+GeneralDockManager = newWidget("Frame", UIParent, "GeneralDockManager")
+function FCFDock_SetPrimary(dock, chatFrame)
+    dock.primary = chatFrame
+    dock:SetPoint("BOTTOMLEFT", chatFrame.Background, "TOPLEFT")
+end
+function FCF_SetTabPosition(chatFrame, x)
+    local tab = _G[chatFrame:GetName() .. "Tab"]
+    tab:ClearAllPoints()
+    tab:SetPoint("BOTTOMLEFT", chatFrame:GetName() .. "Background", "TOPLEFT", x + 2, 0)
+end
 -- Blizzard's chat window functions the addon hooks (both in the dump).
 function FCF_OpenNewWindow(name) WoW.newWindows = (WoW.newWindows or 0) + 1 end
 function FCF_OpenTemporaryWindow() end
