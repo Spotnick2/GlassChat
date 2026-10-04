@@ -186,8 +186,17 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - The highlight is softened, and softened again after Blizzard's `UpdateHighlight`.
   - A button never styled (glass off from login) is never touched.
   - Parent keys and mixin methods are read with `rawget`: they are plain fields on the frame.
-  - The chat-menu bubble (frame baked into one texture) and the friends button (animated
-    atlases) wait for an in-game atlas check.
+  - **The chat menu and the friends button** (#7) have their frame baked into one texture. Probe
+    13 checked which frameless symbols the client has:
+    - **friends:** `socialqueuing-icon-group` (owner's pick) is set on the button's own
+      `FriendsButton` texture, and set again after Blizzard's `OnMouseDown` / `OnMouseUp` (which
+      swap in the framed art). The friend count stays.
+    - **chat menu:** no frameless bubble exists, so a small gold bubble is drawn from fills, like
+      the copy icon. The file art (normal, pushed, disabled) goes to alpha 0.
+    - The queue toast (`QueueButton`) is left as it is.
+    - **Every button runs the shared steps** (pill, frame art, softened highlight), then its own
+      `symbol[name]` step: the bubble, pressed (1 px down) and disabled (dimmed); or the friends
+      symbol, applied once per glass change so a scan never overrides Blizzard's pressed art.
   - Run after every scan through `Chat.AfterScan`.
 - **`Layout.lua`** (M2, #9): one chat layout for every character. Chat windows are saved per
   character (measured).
