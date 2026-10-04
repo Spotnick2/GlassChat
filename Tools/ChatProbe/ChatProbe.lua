@@ -509,7 +509,19 @@ local IDENTITY_EVENTS = { "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_YELL", "
     "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER", "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID",
     "CHAT_MSG_RAID_LEADER", "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" }
 
+-- The trace lives in ChatProbeDB.ids (SavedVariables), so a /reload between
+-- starting and reporting never loses it: it keeps counting after a reload
+-- (measured: the first in-game run was lost that way). The per-line
+-- fingerprints stay session-only (they'd grow the file); a collision check
+-- therefore spans one session at a time.
 P.ids = { on = false, stats = {}, seen = {}, collisions = 0, shapes = {} }
+local function savedIds()
+    if type(ChatProbeDB) ~= "table" then return nil end
+    if type(ChatProbeDB.ids) ~= "table" then
+        ChatProbeDB.ids = { on = false, stats = {}, collisions = 0, shapes = {} }
+    end
+    return ChatProbeDB.ids
+end
 
 -- A short, content-free fingerprint of a line: its length and a checksum.
 -- Enough to tell "same line" from "different line"; never logged.
@@ -531,9 +543,10 @@ end
 local function identityFilter(_, event, text, sender, ...)
     local I = P.ids
     if not I.on then return false end
+    local S = savedIds()
     local lineID, guid = select(9, ...)   -- arg11, arg12 (text, sender are arg1, arg2)
-    local st = I.stats[event] or { lines = 0, calls = 0, badID = 0, badGUID = 0, secret = 0 }
-    I.stats[event] = st
+    local st = S.stats[event] or { lines = 0, calls = 0, badID = 0, badGUID = 0, secret = 0 }
+    S.stats[event] = st
     st.calls = st.calls + 1
     if (issecretvalue and (issecretvalue(lineID) or issecretvalue(guid) or issecretvalue(text))) then
         st.secret = st.secret + 1
@@ -547,36 +560,56 @@ local function identityFilter(_, event, text, sender, ...)
     if prev == nil then
         st.lines = st.lines + 1
         I.seen[key] = fp
-        I.shapes[event .. " " .. senderShape(sender)] = true
+        S.shapes[event .. " " .. senderShape(sender)] = true
     elseif prev ~= fp then
-        I.collisions = I.collisions + 1
+        S.collisions = S.collisions + 1
     end
     return false
 end
 
 local identityAdded = false
-local function identity()
-    local I = P.ids
-    if not I.on then
-        if not identityAdded and ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter then
-            for _, e in ipairs(IDENTITY_EVENTS) do
-                try("filter " .. e, ChatFrameUtil.AddMessageEventFilter, e, identityFilter)
-            end
-            identityAdded = true
-        end
-        I.on, I.stats, I.seen, I.collisions, I.shapes = true, {}, {}, 0, {}
-        say("10 tracing line identity: chat in as many channels as you can (say, trade, guild, party,"
-            .. " a whisper, /e, an emote like /wave, /afk), with chat shown in two tabs, then /cprobe lines again")
-        return
+local function addIdentityFilters()
+    if identityAdded or not (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter) then return end
+    for _, e in ipairs(IDENTITY_EVENTS) do
+        try("filter " .. e, ChatFrameUtil.AddMessageEventFilter, e, identityFilter)
     end
-    I.on = false
-    for event, st in pairs(I.stats) do
+    identityAdded = true
+end
+
+local function identityReport(S)
+    for event, st in pairs(S.stats) do
         say(string.format("10 %s: %d lines, %d filter calls (%.1f per line), badID=%d badGUID=%d secret=%d",
             event, st.lines, st.calls, st.lines > 0 and st.calls / st.lines or 0, st.badID, st.badGUID, st.secret))
     end
-    say("10 lineID collisions (same id, different text) = " .. I.collisions)
-    for shape in pairs(I.shapes) do say("11 sender shape: " .. shape) end
+    say("10 lineID collisions (same id, different text) = " .. S.collisions)
+    for shape in pairs(S.shapes) do say("11 sender shape: " .. shape) end
+end
+
+local function identity()
+    local S = savedIds()
+    if not S then return end
+    if not S.on then
+        addIdentityFilters()
+        S.on, S.stats, S.collisions, S.shapes = true, {}, 0, {}
+        P.ids.on, P.ids.seen = true, {}
+        say("10 tracing line identity: chat in as many channels as you can (say, trade, guild, party,"
+            .. " a whisper, /e, an emote like /wave, /afk), with chat shown in two tabs, then /cprobe lines again"
+            .. " (a /reload in between is fine)")
+        return
+    end
+    S.on, P.ids.on = false, false
+    identityReport(S)
     say("10 tracing off.")
+end
+
+-- After a reload: a trace that was on keeps going.
+local function resumeIdentity()
+    local S = savedIds()
+    if S and S.on then
+        addIdentityFilters()
+        P.ids.on, P.ids.seen = true, {}
+        say("10 line-identity trace resumed after the reload (/cprobe lines to report)")
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -724,6 +757,7 @@ boot:SetScript("OnEvent", function(_, event, name)
     ChatProbeDB.loads = (ChatProbeDB.loads or 0) + 1
     say("loaded (" .. ChatProbeDB.loads .. " loads). /cprobe help")
     countAt("ADDON_LOADED")
+    resumeIdentity()
 end)
 
 -- The test seam lives on the addon namespace, not in _G.

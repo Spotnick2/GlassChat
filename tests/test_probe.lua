@@ -274,6 +274,21 @@ check(logHas("badGUID=1"), "10 a non-player GUID is counted")
 check(logHas("11 sender shape: CHAT_MSG_SAY words=2 dash=false"), "11 the sender's shape is logged")
 check(not logHas("Kaleid") and not logHas("hello") and not logHas("Bob"), "10/11 no name or text is logged")
 
+-- 10 survives a /reload: the trace is in ChatProbeDB, resumes after the
+-- reload, and the report covers lines from both sides of it.
+SlashCmdList.CHATPROBE("lines")
+line("CHAT_MSG_YELL", "before reload", "Kaleid Sumner", 201, "Player-1-AB")
+check(ChatProbeDB.ids.on, "10 the trace state is saved")
+local ns2 = {}
+assert(loadfile("Tools/ChatProbe/ChatProbe.lua"))("ChatProbe", ns2)   -- the reload
+WoW.fire("ADDON_LOADED", "ChatProbe")
+check(logHas("10 line-identity trace resumed after the reload"), "10 the trace resumes after a reload")
+T10 = ns2._test
+line("CHAT_MSG_YELL", "after reload", "Kaleid Sumner", 202, "Player-1-AB")
+SlashCmdList.CHATPROBE("lines")
+check(logHas("10 CHAT_MSG_YELL: 2 lines"), "10 the report counts lines from both sides of the reload")
+check(not ChatProbeDB.ids.on, "10 and the trace is off after the report")
+
 -- 11: the server ignore test on the target: added as "First Surname", read
 -- back, checked by GUID, removed again; only the target's entry is logged.
 SlashCmdList.CHATPROBE("ignoretest")
