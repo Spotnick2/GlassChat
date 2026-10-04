@@ -175,6 +175,22 @@ this. Chat windows are **per character** (probe item 8).
 
 The owner's picture: freeze and maximise the current tab, which reveals search and filters.
 
+**As built (#27):** `Focus.lua`.
+- **Opening it:** `/gchat focus [text]` (the window it was typed in), or the magnifier left of
+  the copy icon.
+- **The view** is a frozen snapshot in a read-only EditBox, like the copy window, so what's shown
+  is already copyable: **Select all**, then Ctrl+C.
+- **Filters:**
+  - search: plain text, any case, with matches only or with two lines of context;
+  - kind chips: none selected means all;
+  - **From**, which cycles through the addons in view. M3's attribution remembers who wrote
+    each recent addon line (`Tabs.SourceFor`).
+- **"N new lines"** refreshes the snapshot.
+- **Export** writes the view to `GlassChatDB.export`.
+- **Left for later, since nobody needs them yet:** double-click on a tab, click / shift-click line
+  selection, the time filter, and a timestamps option. With `/gchat stamps on`, the lines carry
+  their time anyway.
+
 - **Open** it from a button on the chat frame, a double-click on a tab, or `/gchat focus [text]`.
   It opens a large glass window (most of the screen) over the chat. Blizzard's chat frame isn't
   moved or resized: Edit Mode owns it.

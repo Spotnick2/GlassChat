@@ -155,6 +155,30 @@ end
 
 local moving = false
 
+-- Which addon wrote each recent line, by its text (focus mode's "From"
+-- filter). Two generations of SOURCE_CAP texts each: a full current one
+-- becomes the previous one, so a write is O(1) in this hot hook, and a text
+-- written again moves to the current one (review of #28). Identical text
+-- from two addons is credited to the last writer.
+Tabs.SOURCE_CAP = 2000
+local current, previous, size = {}, {}, 0
+local function remember(msg, src)
+    if current[msg] == nil then
+        size = size + 1
+        if size > Tabs.SOURCE_CAP then previous, current, size = current, {}, 1 end
+    end
+    current[msg] = src
+end
+function Tabs.SourceFor(msg)
+    if API.IsSecret(msg) or type(msg) ~= "string" then return nil end
+    return current[msg] or previous[msg]
+end
+-- A line stamped after it was added (Chat.lua): its writer follows the new text.
+function Tabs.Restamped(old, new)
+    local src = Tabs.SourceFor(old)
+    if src and not API.IsSecret(new) and type(new) == "string" then remember(new, src) end
+end
+
 -- One pass: RemoveIf walks oldest to newest, so the line just added is the
 -- last entry (each pass rebuilds the buffer, so not two; review of #26).
 local function removeNewest(f, msg)
@@ -201,6 +225,7 @@ function Tabs.Route(f, msg, r, g, b)
     if API.IsSecret(msg) or type(msg) ~= "string" or msg == "" then return false end
     local src = Tabs.SourceOf()
     if not src or src == "Blizzard" or ours(src) then return false end
+    remember(msg, src)
     if not Tabs.IsRouted(src) then
         noteChatty(src)
         return false
@@ -271,6 +296,7 @@ function Tabs.Start()
     if started then return end
     started = true
     GC.Chat.Route = Tabs.Route
+    GC.Chat.Restamped = Tabs.Restamped
     if EventRegistry and EventRegistry.RegisterCallback then
         EventRegistry:RegisterCallback("SetItemRef", Tabs.OnLink, Tabs)
     end
@@ -278,4 +304,5 @@ end
 
 Tabs._test = {
     reset = function() session, closed, tabs, offered, recent, moving = {}, {}, {}, {}, {}, false end,
+    sources = function() return current, previous end,
 }

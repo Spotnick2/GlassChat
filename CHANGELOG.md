@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Focus mode:** `/gchat focus` (or the magnifier next to the copy icon) freezes the chat window
+  in a large glass window so nothing scrolls away while you read.
+  - **Search:** as you type, in plain text, with two lines of context around each match if you
+    want them.
+  - **Filters:** by kind (Say, Party, Guild, Whisper, Channel, System, Addons...) and by the
+    addon that wrote a line.
+  - **Copy:** Select all, then Ctrl+C.
+  - **Export:** writes what's shown to SavedVariables.
+  - "N new lines" brings in what arrived since.
 - **Smart tabs:** when an addon floods the chat (20 lines in a minute), GlassChat offers it its
   own tab, with clickable choices: for this session, always, or no. Its lines then go to that
   tab instead of the main chat. `/gchat tabs` lists your choices, and `/gchat tabs forget <Addon>`

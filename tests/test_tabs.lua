@@ -206,5 +206,17 @@ check(last:find("^%[%d%d:%d%d:%d%d%] stamped move$"), "a moved line is stamped i
 check(not has(main, "stamped move"), "and gone from the main chat")
 SlashCmdList.GLASSCHAT("stamps off")
 
+-- Who wrote a line is remembered in two generations: a full one becomes the
+-- previous one, still answered from, and older ones are forgotten.
+local cap = Tabs.SOURCE_CAP
+Tabs.SOURCE_CAP = 3
+SlashCmdList.GLASSCHAT("tabs forget ASProbe")
+for i = 1, 5 do emit(direct("GenAddon"), "gen " .. i) end
+eq(Tabs.SourceFor("gen 2"), "GenAddon", "a line in the previous generation is still known")
+eq(Tabs.SourceFor("gen 5"), "GenAddon", "and the newest")
+for i = 6, 9 do emit(direct("GenAddon"), "gen " .. i) end
+eq(Tabs.SourceFor("gen 1"), nil, "two generations back is forgotten")
+Tabs.SOURCE_CAP = cap
+
 eq(next(GC.failures), nil, "nothing failed")
 done("test_tabs")

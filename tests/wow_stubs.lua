@@ -250,6 +250,7 @@ function Methods.GetNumMessages(f) return #(f._messages or f._lines or {}) end
 function Methods.GetMessageInfo(f, i)
     if not f._messages then
         local e = f._lines and f._lines[i]
+        if e and e.extra and e.extra.n > 0 then return e.m, unpack(e.extra, 1, e.extra.n) end
         if e then return e.m, 1, 1, 1 end
         return
     end
