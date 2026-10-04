@@ -38,7 +38,7 @@ local function printed(addon)
 end
 
 WoW.now = 1000
-local GC = loadAddon()
+local GC = loadAddon({ db = { devMode = false } })   -- developer mode has its own section below
 local Tabs = GC.Tabs
 local main = ChatFrame1
 
@@ -217,6 +217,72 @@ eq(Tabs.SourceFor("gen 5"), "GenAddon", "and the newest")
 for i = 6, 9 do emit(direct("GenAddon"), "gen " .. i) end
 eq(Tabs.SourceFor("gen 1"), nil, "two generations back is forgotten")
 Tabs.SOURCE_CAP = cap
+
+-- #35: an addon's coloured prefix becomes a link; right-click it for a tab.
+SlashCmdList.GLASSCHAT("tabs forget AltStable")
+emit(direct("AltStable"), "|cff33bbff[AltStable]|r Sync with Karuzo Memphisto complete.")
+local line = main._lines[#main._lines].m
+eq(line, "|cff33bbff|Haddon:GlassChat:src:AltStable|h[AltStable]|h|r Sync with Karuzo Memphisto complete.",
+    "the prefix is a link, its colour and text kept")
+eq(GC.Copy.Plain(line), "[AltStable] Sync with Karuzo Memphisto complete.", "copied text is unchanged")
+emit(direct("RestedXP"), "RestedXP Guides: Targeting macro updated")
+eq(main._lines[#main._lines].m, "RestedXP Guides: Targeting macro updated", "a line without a coloured prefix: no link")
+emit(table.concat({ OURS[1], OURS[2], frame("Interface/AddOns/Blizzard_ChatFrameBase/ChatFrame.lua", 300) }, string.char(10)),
+    "|cffffff00Looting set to Free for All.|r")
+eq(main._lines[#main._lines].m, "|cffffff00Looting set to Free for All.|r", "never Blizzard's own lines")
+emit(direct("AltStable"), "|cff33bbff[AltStable]|r one")
+COMBATLOG = ChatFrame2
+emit(direct("AltStable"), "|cff00ff00[Combat]|r hit", ChatFrame2)
+eq(ChatFrame2._lines[#ChatFrame2._lines].m, "|cff00ff00[Combat]|r hit", "a combat log line never gets the previous line's link")
+COMBATLOG = nil
+emit(direct("AltStable"), "|cffa335ee|Hitem:1|h[Sword]|h|r for sale")
+eq(main._lines[#main._lines].m, "|cffa335ee|Hitem:1|h[Sword]|h|r for sale", "a prefix that is already a link isn't wrapped again")
+SlashCmdList.GLASSCHAT("stamps on")
+emit(direct("AltStable"), "|cff33bbff[AltStable]|r stamped too")
+check(main._lines[#main._lines].m:find("^%[%d%d:%d%d:%d%d%] |cff33bbff|Haddon:GlassChat:src:AltStable|h"),
+    "with timestamps on: stamp, then the linked prefix, in one rewrite")
+SlashCmdList.GLASSCHAT("stamps off")
+
+WoW.menu = nil
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:AltStable", "[AltStable]", "LeftButton")
+eq(WoW.menu, nil, "a left-click opens nothing")
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:AltStable", "[AltStable]", "RightButton")
+check(WoW.menu and WoW.menu.title == "AltStable", "a right-click opens its menu")
+eq(#WoW.menu.buttons, 2, "two choices while it has no tab")
+WoW.menu.buttons[1].fn()
+check(Tabs.IsRouted("AltStable"), "'Own tab for this session' routes it")
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:AltStable", "[AltStable]", "RightButton")
+eq(WoW.menu.buttons[#WoW.menu.buttons].text, "Back to the main chat", "now it offers the way back")
+WoW.menu.buttons[#WoW.menu.buttons].fn()
+check(not Tabs.IsRouted("AltStable"), "which drops the rule")
+SlashCmdList.GLASSCHAT("tabs route RestedXP always")
+eq(GC.db.routes.RestedXP, true, "/gchat tabs route <Addon> always: the same without the mouse")
+SlashCmdList.GLASSCHAT("tabs forget RestedXP")
+
+-- Developer mode: probes by name, and any addon asking (owner: "we could do both").
+GC.db.devMode = true
+Tabs._test.reset()
+newChat()
+emit(direct("GlassProbe"), "probe says hi")
+check(Tabs.IsRouted("GlassProbe") and chatHas("developer mode: GlassProbe"), "dev mode: a *Probe addon gets its tab at once")
+emit(direct("NormalAddon"), "hello")
+check(not Tabs.IsRouted("NormalAddon"), "an addon not named *Probe isn't")
+SlashCmdList.GLASSCHAT("tabs forget GlassProbe")
+emit(direct("GlassProbe"), "probe again")
+check(not Tabs.IsRouted("GlassProbe"), "and once forgotten, stays in the main chat this session")
+check(GC.RequestTab("MyTool"), "an addon can ask for its tab: granted in dev mode")
+check(Tabs.IsRouted("MyTool"), "and routed")
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:never:Pushy")
+check(not GC.RequestTab("Pushy"), "a player's No wins over a request")
+check(not GC.RequestTab("GlassChatSpamIgnore"), "never for GlassChat's own")
+GC.db.devMode = false
+Tabs._test.reset()
+newChat()
+check(not GC.RequestTab("OtherTool"), "outside dev mode a request isn't granted")
+check(chatHas("OtherTool asks for its own chat tab") and chatHas("|Haddon:GlassChat:tabs:session:OtherTool|h"),
+    "the player is offered the tab instead, saying why")
+emit(direct("GlassProbe"), "not dev")
+check(not Tabs.IsRouted("GlassProbe"), "and probe names aren't special")
 
 eq(next(GC.failures), nil, "nothing failed")
 done("test_tabs")

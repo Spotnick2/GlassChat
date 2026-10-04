@@ -25,6 +25,9 @@ local Tabs = {}
 GC.Tabs = Tabs
 
 Tabs.LINK = "addon:GlassChat:tabs:"
+Tabs.SRC_LINK = "addon:GlassChat:src:"   -- an addon line's prefix: right-click for a tab (#35)
+-- Our own probes (owner): routed at once in developer mode (GC.IsDev).
+Tabs.PROBE = "Probe$"
 Tabs.CHATTY, Tabs.WINDOW = 20, 60   -- lines within seconds that make an addon "chatty"
 
 local function say(msg) API.Print(msg) end
@@ -71,6 +74,7 @@ local session = {}      -- addon -> true: routed this session
 local closed = {}       -- addon -> true: its tab was closed this session
 local tabs = {}         -- addon -> chat frame
 local offered = {}      -- addon -> true: asked this session
+local devDone = {}      -- addon -> true: developer mode already routed or released it
 local recent = {}       -- addon -> { times }
 
 local function rules()
@@ -193,12 +197,12 @@ local function removeNewest(f, msg)
     return removed
 end
 
-local function offer(src)
+local function offer(src, why)
     offered[src] = true
     local function link(kind, text)
         return "|H" .. Tabs.LINK .. kind .. ":" .. src .. "|h|cff7fd4ff[" .. text .. "]|r|h"
     end
-    say(src .. " printed " .. Tabs.CHATTY .. " lines in a minute. " .. link("session", "Own tab for this session")
+    say((why or (src .. " printed " .. Tabs.CHATTY .. " lines in a minute.")) .. " " .. link("session", "Own tab for this session")
         .. " " .. link("always", "Always") .. " " .. link("never", "No"))
 end
 
@@ -215,10 +219,24 @@ local function noteChatty(src)
     end
 end
 
+-- The last line Route saw, and its writer: Chat.lua's rewrite of that same
+-- line asks Linkify for its prefix link next.
+local lastMsg, lastSrc
+
+-- The line with its leading coloured prefix ("|cff..[AltStable]|r") made our
+-- link, its colour kept; nil when it has none, or for any other line.
+function Tabs.Linkify(msg)
+    if msg ~= lastMsg or not lastSrc or not lastSrc:find("^[%w_%-]+$") then return nil end
+    local color, inner, rest = msg:match("^(|c%x%x%x%x%x%x%x%x)(.-)|r(.*)$")
+    if not color or inner == "" or inner:find("|", 1, true) then return nil end
+    return color .. "|H" .. Tabs.SRC_LINK .. lastSrc .. "|h" .. inner .. "|h|r" .. rest
+end
+
 -- From Chat.lua's AddMessage post-hook, for a line with no chat event.
 -- Returns true when the line was moved to its addon's tab.
 function Tabs.Route(f, msg, r, g, b)
-    if moving then return false end
+    if moving then return false end   -- (a copy into its tab: lastMsg/lastSrc still describe it)
+    lastMsg, lastSrc = nil, nil
     -- The combat log writes every entry this way (Blizzard_CombatLog.lua:1699):
     -- never walk the stack for it.
     if f == rawget(_G, "COMBATLOG") then return false end
@@ -226,6 +244,16 @@ function Tabs.Route(f, msg, r, g, b)
     local src = Tabs.SourceOf()
     if not src or src == "Blizzard" or ours(src) then return false end
     remember(msg, src)
+    lastMsg, lastSrc = msg, src
+    -- Developer mode: our own probes get their tab at once, once a session.
+    if not Tabs.IsRouted(src) and not devDone[src] and src:find(Tabs.PROBE) and GC.IsDev() then
+        local _, never = rules()
+        devDone[src] = true
+        if not never[src] and not closed[src] then
+            session[src] = true
+            say("developer mode: " .. src .. " gets its own tab (right-click its name, or /gchat tabs forget " .. src .. ")")
+        end
+    end
     if not Tabs.IsRouted(src) then
         noteChatty(src)
         return false
@@ -245,21 +273,75 @@ end
 -- The offer's links, and /gchat tabs
 --------------------------------------------------------------------------------
 
-function Tabs.OnLink(_, link)
-    if API.IsSecret(link) or type(link) ~= "string" then return end
-    local kind, src = link:match("^addon:GlassChat:tabs:(%a+):(.+)$")
-    if not kind then return end
+-- The one place a rule changes: the offer's links, the right-click menu and
+-- /gchat tabs route all come here. kind: session, always, never, main
+-- (back to the main chat; may be offered again).
+function Tabs.SetRule(src, kind)
     local always, never = rules()
+    devDone[src] = true   -- a choice made: developer mode leaves it alone
     if kind == "session" then
-        session[src], closed[src] = true, nil
+        session[src], closed[src], never[src] = true, nil, nil
         say(src .. " gets its own tab for this session (/gchat tabs)")
     elseif kind == "always" then
-        always[src], closed[src] = true, nil
+        always[src], closed[src], never[src] = true, nil, nil
         say(src .. " gets its own tab on all your characters (/gchat tabs forget " .. src .. " to stop)")
     elseif kind == "never" then
         never[src], always[src], session[src] = true, nil, nil
         say("ok, " .. src .. " stays in the main chat; GlassChat won't ask again (/gchat tabs forget " .. src .. ")")
+    elseif kind == "main" then
+        always[src], session[src] = nil, nil
+        say(src .. "'s lines go back to the main chat (its tab stays until you close it)")
     end
+end
+
+-- An addon asking for its own tab (owner: "the probes could send a
+-- message"): GlassChat.RequestTab("MyProbe"). In developer mode it's routed
+-- at once; otherwise the player gets the one-time offer, so no addon takes a
+-- tab on its own. A player's No always wins.
+function Tabs.Request(src)
+    if API.IsSecret(src) or type(src) ~= "string" or not src:find("^[%w_%-]+$") or ours(src) then return false end
+    local always, never = rules()
+    if never[src] or always[src] or session[src] then return always[src] or session[src] or false end
+    if GC.IsDev() then
+        devDone[src] = true
+        session[src], closed[src] = true, nil
+        say("developer mode: " .. src .. " asked for its own tab (right-click its name, or /gchat tabs forget " .. src .. ")")
+        return true
+    end
+    if not offered[src] then offer(src, src .. " asks for its own chat tab.") end
+    return false
+end
+
+-- Right-click on an addon's name: a menu of the rules for it.
+function Tabs.Menu(src)
+    local always = rules()
+    local routed = always[src] or session[src]
+    local menu = rawget(_G, "MenuUtil")
+    if menu and menu.CreateContextMenu then
+        local ok, err = pcall(menu.CreateContextMenu, nil, function(_, root)
+            root:CreateTitle(src)
+            if not session[src] then root:CreateButton("Own tab for this session", function() Tabs.SetRule(src, "session") end) end
+            if not always[src] then root:CreateButton("Own tab, always", function() Tabs.SetRule(src, "always") end) end
+            if routed then root:CreateButton("Back to the main chat", function() Tabs.SetRule(src, "main") end) end
+        end)
+        if ok then return end
+        API.Fail("tab menu", err)
+    end
+    -- No menu: the same choices as links.
+    local function link(kind, text) return "|H" .. Tabs.LINK .. kind .. ":" .. src .. "|h|cff7fd4ff[" .. text .. "]|r|h" end
+    say(src .. ": " .. link("session", "Own tab for this session") .. " " .. link("always", "Always"))
+end
+
+function Tabs.OnLink(_, link, _, button)
+    if API.IsSecret(link) or type(link) ~= "string" then return end
+    local src = link:match("^addon:GlassChat:src:(.+)$")
+    if src then
+        if not API.IsSecret(button) and button == "RightButton" then Tabs.Menu(src) end
+        return
+    end
+    local kind
+    kind, src = link:match("^addon:GlassChat:tabs:(%a+):(.+)$")
+    if kind then Tabs.SetRule(src, kind) end
 end
 
 -- An addon's name as its rule spells it (case-insensitive), else as typed.
@@ -274,6 +356,13 @@ end
 
 function Tabs.Command(arg)
     local always, never = rules()
+    -- /gchat tabs route <Addon> [always]: a tab without the mouse (#35).
+    local route = arg:match("^[Rr][Oo][Uu][Tt][Ee]%s+(.+)$")
+    if route then
+        local name, forever = route:match("^(%S+)%s+[Aa][Ll][Ww][Aa][Yy][Ss]$")
+        Tabs.SetRule(known(name or route), name and "always" or "session")
+        return
+    end
     local forget = arg:match("^[Ff][Oo][Rr][Gg][Ee][Tt]%s+(.+)$")
     if forget then
         forget = known(forget)
@@ -288,6 +377,7 @@ function Tabs.Command(arg)
     for src in pairs(session) do any = true; say("own tab, this session: " .. src) end
     for src in pairs(never) do any = true; say("never asked: " .. src) end
     if not any then say("no tab rules yet: a chatty addon is offered its own tab") end
+    say("/gchat tabs route <Addon> [always] - its own tab (or right-click its name in chat)")
     say("/gchat tabs forget <Addon> - drop its rule")
 end
 
@@ -297,12 +387,13 @@ function Tabs.Start()
     started = true
     GC.Chat.Route = Tabs.Route
     GC.Chat.Restamped = Tabs.Restamped
+    GC.Chat.Linkify = Tabs.Linkify
     if EventRegistry and EventRegistry.RegisterCallback then
         EventRegistry:RegisterCallback("SetItemRef", Tabs.OnLink, Tabs)
     end
 end
 
 Tabs._test = {
-    reset = function() session, closed, tabs, offered, recent, moving = {}, {}, {}, {}, {}, false end,
+    reset = function() session, closed, tabs, offered, recent, moving, devDone = {}, {}, {}, {}, {}, false, {} end,
     sources = function() return current, previous end,
 }

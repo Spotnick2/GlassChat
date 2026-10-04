@@ -544,6 +544,15 @@ EventRegistry = { RegisterCallback = function(self, event, fn, owner)
         for _, c in ipairs(list) do c.fn(c.owner, ...) end
     end
 end }
+-- MenuUtil.CreateContextMenu (Blizzard_Menu): the generator fills a root
+-- description; WoW.menu holds its title and buttons ({ text, fn }).
+MenuUtil = { CreateContextMenu = function(owner, gen)
+    local root = { buttons = {} }
+    function root:CreateTitle(t) self.title = t end
+    function root:CreateButton(t, fn) table.insert(self.buttons, { text = t, fn = fn }) end
+    gen(owner, root)
+    WoW.menu = root
+end }
 -- debugstack: the stack a test sets (WoW.stack), else one with no addon in it.
 function debugstack() return WoW.stack or "[C]: ?" end
 -- FrameXML's per-window wrapper; temporary windows (id > 10) answer from their tab.

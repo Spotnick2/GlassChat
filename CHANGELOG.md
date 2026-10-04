@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Right-click an addon's name in chat** (the coloured `[AltStable]` at the start of its lines)
+  for a menu: its own tab for this session, always, or back to the main chat. Also
+  `/gchat tabs route <Addon> [always]`.
+- Addon authors can ask for a tab with `GlassChat.RequestTab("MyAddon")`: the player is offered
+  it once.
 - **Copy web addresses:** a web address in chat (`https://...`, `www....`, or a site like
   `wowhead.com/...`) becomes a link. Click it for a small box with the address selected, then
   Ctrl+C. Game links are untouched. `/gchat urls off` turns it off.

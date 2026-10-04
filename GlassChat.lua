@@ -103,6 +103,23 @@ function Settings.SetTimestamps(on)
     GC.Chat.ApplyTimestamps()
 end
 
+-- Developer mode (owner): a dev build, by its version ("dev" from the deploy
+-- script, or the packager's token not replaced); GlassChatDB.devMode
+-- overrides it (true or false). In it, our own probes get their own tab at
+-- once (Tabs.lua). Not exposed as a command yet.
+function GC.IsDev()
+    local forced = GC.db and rawget(GC.db, "devMode")
+    if forced ~= nil then return forced == true end
+    local get = C_AddOns and C_AddOns.GetAddOnMetadata
+    local ok, v = false, nil
+    if get then ok, v = pcall(get, "GlassChat", "Version") end
+    if not ok or API.IsSecret(v) or type(v) ~= "string" then return true end
+    return v == "dev" or v:find("@project%-version@") ~= nil
+end
+
+-- Public: an addon asks for its own chat tab (smart tabs, #35). See Tabs.Request.
+function GC.RequestTab(addonName) return GC.Tabs.Request(addonName) end
+
 function Settings.SetUrls(on)
     GC.db.urls = on and true or false
 end
