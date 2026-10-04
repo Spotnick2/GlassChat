@@ -732,6 +732,74 @@ local function countAt(label)
 end
 
 --------------------------------------------------------------------------------
+-- 13. Atlases for the chat-menu bubble and the friends button (GlassChat #7)
+--------------------------------------------------------------------------------
+
+-- The voice buttons' gold symbols are frameless atlases named
+-- chatframe-button-icon-<x> (FrameXML uses voicechat, headset, mic-on/off,
+-- speaker-on/off, TTS). The chat-menu bubble and the friends button have
+-- their frame baked in; a frameless symbol for each would let GlassChat put
+-- them on a glass pill like the others. FrameXML names none, so the client
+-- is asked which of these exist; each one found is shown, numbered, in a row
+-- on screen to choose from by eye. Logged with its size and file.
+P.ATLAS_CANDIDATES = {
+    -- chat menu (a speech bubble)
+    "chatframe-button-icon-chat", "chatframe-button-icon-bubble", "chatframe-button-icon-menu",
+    "chatframe-button-icon-speech", "chatframe-button-icon-chatbubble", "chatframe-button-icon-text",
+    "chatframe-button-icon-emote", "chatframe-button-icon-language", "chat-bubble", "chatbubble",
+    "communities-icon-chat", "groupfinder-icon-chat", "socialqueuing-icon-chat",
+    -- friends / social
+    "chatframe-button-icon-friends", "chatframe-button-icon-social", "chatframe-button-icon-friend",
+    "socialqueuing-icon-group", "groupfinder-icon-friend", "friends-icon-friendsInGroup",
+    "friends-icon-addFriend", "housefinder_bnet-friend-icon-circle", "quickjoin-button-friendslist-up",
+    "communities-icon-addgroupplus",
+    -- known good, for comparison
+    "chatframe-button-icon-voicechat", "chatframe-button-icon-TTS",
+}
+
+local atlasRow
+local function atlases()
+    if atlasRow and atlasRow:IsShown() then atlasRow:Hide(); say("13 atlas row hidden"); return end
+    local get = C_Texture and C_Texture.GetAtlasInfo
+    if not get then say("13 C_Texture.GetAtlasInfo absent"); return end
+    atlasRow = atlasRow or CreateFrame("Frame", nil, UIParent)
+    atlasRow:SetFrameStrata("DIALOG")
+    atlasRow:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+    atlasRow:SetSize(10, 64)
+    atlasRow.items = atlasRow.items or {}
+    for _, t in ipairs(atlasRow.items) do t.tex:Hide(); t.num:Hide() end
+    local found, x = 0, 0
+    for i, name in ipairs(P.ATLAS_CANDIDATES) do
+        local ok, info = pcall(get, name)
+        if ok and type(info) == "table" then
+            found = found + 1
+            say(string.format("13 #%d FOUND %s  %dx%d  file %s", found, name, info.width or 0, info.height or 0,
+                tostring(info.file or info.filename)))
+            local item = atlasRow.items[found]
+            if not item then
+                item = { tex = atlasRow:CreateTexture(nil, "ARTWORK"), num = atlasRow:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge") }
+                atlasRow.items[found] = item
+            end
+            item.tex:SetAtlas(name)
+            item.tex:SetSize(32, 32)
+            item.tex:SetPoint("LEFT", atlasRow, "LEFT", x, 8)
+            item.tex:SetVertexColor(1, 0.82, 0)   -- gold, as GlassChat would draw it
+            item.tex:Show()
+            item.num:SetText(found)
+            item.num:SetPoint("TOP", item.tex, "BOTTOM", 0, -2)
+            item.num:Show()
+            x = x + 44
+        else
+            say("13 missing " .. name)
+        end
+    end
+    atlasRow:SetWidth(math.max(10, x))
+    atlasRow:Show()
+    say("13 " .. found .. " of " .. #P.ATLAS_CANDIDATES .. " exist; they're shown numbered, in gold, above the middle of the screen. "
+        .. "Tell Claude which number fits the chat menu and which the friends button. /cprobe atlases again hides the row.")
+end
+
+--------------------------------------------------------------------------------
 -- Command
 --------------------------------------------------------------------------------
 
@@ -747,6 +815,7 @@ local function help()
     say("/cprobe move [addon] - 9 toggle moving an addon's direct AddMessage lines (default AltStableProbe) to 'Probe'")
     say("/cprobe lines    - 10/11 toggle tracing line identity and sender shapes")
     say("/cprobe ignoretest - 11 server ignore on your TARGET (added, read back, removed)")
+    say("/cprobe atlases  - 13 which chat-menu / friends symbols exist (shown on screen, numbered)")
     say("/cprobe clear    - empty the saved log")
 end
 
@@ -766,6 +835,7 @@ SlashCmdList.CHATPROBE = function(msg)
     elseif cmd == "move" then move(arg)
     elseif cmd == "lines" then identity()
     elseif cmd == "ignoretest" then ignoreTest()
+    elseif cmd == "atlases" then atlases()
     elseif cmd == "clear" then ChatProbeDB.log = {}; say("log cleared")
     else help() end
 end
