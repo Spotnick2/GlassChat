@@ -32,6 +32,26 @@ Tabs.CHATTY, Tabs.WINDOW = 20, 60   -- lines within seconds that make an addon "
 
 local function say(msg) API.Print(msg) end
 
+-- A notice printed WHILE a line is being handled would land in the chat
+-- before that line is moved or rewritten (it goes through the same hook), so
+-- "remove the newest" would find the notice and leave the line in both
+-- places (Codex review of #36). Inside the hook, notices wait in `held` and
+-- Chat.lua prints them once the line is done (Tabs.LineDone).
+local handling, held = false, {}
+local moving = false   -- copying a line into its tab (Route)
+local function notice(msg)
+    if handling then held[#held + 1] = msg else say(msg) end
+end
+function Tabs.LineDone()
+    -- The copy into a tab runs that tab's hook first: wait for the outer line.
+    if moving then return end
+    handling = false
+    if #held == 0 then return end
+    local out = held
+    held = {}
+    for _, m in ipairs(out) do say(m) end
+end
+
 --------------------------------------------------------------------------------
 -- Who wrote this line
 --------------------------------------------------------------------------------
@@ -105,6 +125,17 @@ local function openWindow(name)
     end
 end
 
+-- Is its cached tab still open? Closed: forgotten here, and marked closed
+-- when it was routed. Never opens a window, never prints.
+function Tabs.CheckTab(src)
+    local f = tabs[src]
+    if not f then return end
+    local ok, wname, _, _, _, _, _, shown, _, docked = pcall(GetChatWindowInfo, f:GetID())
+    if ok and not API.IsSecret(wname) and wname == src and (shown or docked) then return end
+    tabs[src] = nil
+    if session[src] or rules()[src] then closed[src] = true end
+end
+
 local function tabFor(src)
     local f = tabs[src]
     if f then
@@ -112,7 +143,7 @@ local function tabFor(src)
         if ok and not API.IsSecret(wname) and wname == src and (shown or docked) then return f end
         -- Closed by the player: back to the main chat for this session.
         tabs[src], closed[src] = nil, true
-        say(src .. "'s tab was closed: its lines go back to the main chat for this session (/gchat tabs)")
+        notice(src .. "'s tab was closed: its lines go back to the main chat for this session (/gchat tabs)")
         return nil
     end
     f = openWindow(src)
@@ -143,7 +174,7 @@ local function tabFor(src)
         end
         if not f and ok then
             closed[src] = true
-            say("no room for another chat tab for " .. src .. " (the game allows " .. GC.Chat.MaxWindows() ..
+            notice("no room for another chat tab for " .. src .. " (the game allows " .. GC.Chat.MaxWindows() ..
                 "); its lines stay in the main chat")
             return nil
         end
@@ -157,7 +188,6 @@ end
 -- Moving a line
 --------------------------------------------------------------------------------
 
-local moving = false
 
 -- Which addon wrote each recent line, by its text (focus mode's "From"
 -- filter). Two generations of SOURCE_CAP texts each: a full current one
@@ -202,7 +232,7 @@ local function offer(src, why)
     local function link(kind, text)
         return "|H" .. Tabs.LINK .. kind .. ":" .. src .. "|h|cff7fd4ff[" .. text .. "]|r|h"
     end
-    say((why or (src .. " printed " .. Tabs.CHATTY .. " lines in a minute.")) .. " " .. link("session", "Own tab for this session")
+    notice((why or (src .. " printed " .. Tabs.CHATTY .. " lines in a minute.")) .. " " .. link("session", "Own tab for this session")
         .. " " .. link("always", "Always") .. " " .. link("never", "No"))
 end
 
@@ -240,6 +270,7 @@ end
 function Tabs.Route(f, msg, r, g, b)
     if moving then return false end   -- (a copy into its tab: lastMsg/lastSrc still describe it)
     lastMsg, lastSrc = nil, nil
+    handling = true
     -- The combat log writes every entry this way (Blizzard_CombatLog.lua:1699):
     -- never walk the stack for it.
     if f == rawget(_G, "COMBATLOG") then return false end
@@ -256,7 +287,7 @@ function Tabs.Route(f, msg, r, g, b)
         devDone[src] = true
         if not never[src] and not closed[src] then
             session[src] = true
-            say("developer mode: " .. src .. " gets its own tab (right-click its name, or /gchat tabs forget " .. src .. ")")
+            notice("developer mode: " .. src .. " gets its own tab (right-click its name, or /gchat tabs forget " .. src .. ")")
         end
     end
     if not Tabs.IsRouted(src) then
@@ -286,8 +317,10 @@ end
 function Tabs.SetRule(src, kind)
     local always, never = rules()
     devDone[src] = true   -- a choice made: developer mode leaves it alone
+    if kind == "session" or kind == "always" then Tabs.CheckTab(src) end   -- no stale closed frame kept
     if kind == "session" then
-        session[src], closed[src], never[src] = true, nil, nil
+        -- This session only: a saved Always goes (Codex review of #36).
+        session[src], closed[src], never[src], always[src] = true, nil, nil, nil
         say(src .. " gets its own tab for this session (/gchat tabs)")
     elseif kind == "always" then
         always[src], closed[src], never[src] = true, nil, nil
@@ -322,6 +355,7 @@ end
 -- Right-click on an addon's name: a menu of the rules for it.
 function Tabs.Menu(src)
     local always = rules()
+    Tabs.CheckTab(src)                  -- closed since its last line? (Codex review of #36)
     local routed = Tabs.IsRouted(src)   -- a closed tab isn't routed (review of #36)
     if API.ContextMenu(function(root)
         root:CreateTitle(src)
@@ -375,6 +409,7 @@ function Tabs.Command(arg)
     local forget = arg:match("^[Ff][Oo][Rr][Gg][Ee][Tt]%s+(.+)$")
     if forget then
         forget = known(forget)
+        devDone[forget] = true   -- a saved rule forgotten stays forgotten (Codex review of #36)
         local was = always[forget] or never[forget] or session[forget]
         always[forget], never[forget], session[forget], offered[forget] = nil, nil, nil, nil
         say(was and ("forgot " .. forget .. ": its lines stay in the main chat, and it may be offered a tab again")
@@ -397,6 +432,7 @@ function Tabs.Start()
     GC.Chat.Route = Tabs.Route
     GC.Chat.Restamped = Tabs.Restamped
     GC.Chat.Linkify = Tabs.Linkify
+    GC.Chat.LineDone = Tabs.LineDone
     if EventRegistry and EventRegistry.RegisterCallback then
         EventRegistry:RegisterCallback("SetItemRef", Tabs.OnLink, Tabs)
     end

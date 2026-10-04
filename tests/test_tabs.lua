@@ -304,6 +304,11 @@ local probeTab
 for i = 4, 10 do if WoW.window(i).name == "ChatProbe" then probeTab = _G["ChatFrame" .. i] end end
 check(probeTab and probeTab._lines[#probeTab._lines].m:find("|Haddon:GlassChat:src:ChatProbe|h", 1, true),
     "the probe's first line, moved with a dev-mode notice, keeps its right-clickable name")
+local inMain = false
+for _, e in ipairs(main._lines) do
+    if type(e.m) == "string" and e.m:find("12 ignores at login", 1, true) then inMain = true end
+end
+check(not inMain, "and it's only in its tab, not left in the main chat too (Codex, #36)")
 -- After "Back to the main chat", the probe's next request doesn't undo it.
 Tabs.SetRule("ChatProbe", "main")
 check(not GC.RequestTab("ChatProbe"), "a request after Back to the main chat isn't granted")
@@ -320,6 +325,37 @@ check(not GC.RequestTab("AltStable"), "a request for a closed tab says no")
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:AltStable", "[AltStable]", "RightButton")
 eq(WoW.menu.buttons[1].text, "Own tab for this session", "the menu offers the tab again after it was closed")
 for _, b in ipairs(WoW.menu.buttons) do check(b.text ~= "Back to the main chat", "and not the way back: " .. b.text) end
+-- Codex review of #36, round 2.
+-- A probe with a SAVED rule, forgotten, stays in the main chat.
+GC.db.routes.ChatProbe = true
+Tabs._test.reset()
+emit(direct("ChatProbe"), "|cff33ff99ChatProbe|r saved rule")
+SlashCmdList.GLASSCHAT("tabs forget ChatProbe")
+emit(direct("ChatProbe"), "|cff33ff99ChatProbe|r after forget")
+check(not Tabs.IsRouted("ChatProbe"), "forgetting a saved probe rule isn't undone by developer mode")
+-- Always, then session only: the saved rule goes.
+Tabs.SetRule("Keeper", "always")
+Tabs.SetRule("Keeper", "session")
+eq(GC.db.routes.Keeper, nil, "choosing this session only drops a saved Always")
+Tabs._test.reset()
+check(not Tabs.IsRouted("Keeper"), "so the next session doesn't route it")
+-- A permanent tab closed, then a right-click before any new line: reopen offered.
+Tabs.SetRule("Shut", "always")
+emit(direct("Shut"), "|cffaaaaff[Shut]|r one")
+for i = 4, 10 do if WoW.window(i).name == "Shut" then WoW.window(i).shown, WoW.window(i).docked = false, nil end end
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:Shut", "[Shut]", "RightButton")
+eq(WoW.menu.buttons[1].text, "Own tab for this session", "right after closing it, the menu offers the tab again")
+WoW.menu.buttons[1].fn()
+emit(direct("Shut"), "|cffaaaaff[Shut]|r two")
+local reopened = false
+for i = 4, 10 do if WoW.window(i).name == "Shut" and WoW.window(i).shown then reopened = true end end
+check(reopened, "and choosing it opens a tab, not the stale closed one")
+for i = 4, 10 do if WoW.window(i).name == "Shut" then WoW.window(i).shown, WoW.window(i).docked = false, nil end end
+SlashCmdList.GLASSCHAT("tabs route Shut")   -- no menu: straight to the rule
+emit(direct("Shut"), "|cffaaaaff[Shut]|r three")
+check(Tabs.IsRouted("Shut"), "/gchat tabs route right after closing it routes it again, not stuck on the closed tab")
+SlashCmdList.GLASSCHAT("tabs forget Shut")
+
 GC.db.devMode = false
 -- The line that brings the chatty offer keeps its link too.
 for i = 1, Tabs.CHATTY do emit(direct("Chatter"), "|cffaaaaff[Chatter]|r line " .. i) end

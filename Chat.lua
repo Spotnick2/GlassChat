@@ -217,15 +217,23 @@ Chat.OnEachFrame("lines", function(f)
     hooksecurefunc(f, "AddMessage", function(...)
         local ok, moved = pcall(routeLine, ...)
         if not ok then API.Fail("tab route", moved); moved = false end
-        if moved then return end   -- it left this window: not a new line here
+        if moved then   -- it left this window: not a new line here
+            if Chat.LineDone then pcall(Chat.LineDone) end
+            return
+        end
         lineCounts[f] = (lineCounts[f] or 0) + 1
-        if not (f.TransformMessages and f.GetMessageInfo) then return end
+        if not (f.TransformMessages and f.GetMessageInfo) then
+            if Chat.LineDone then pcall(Chat.LineDone) end
+            return
+        end
         local okS, newText = pcall(decorateLine, ...)
         if not okS then API.Fail("line rewrite", newText)
         elseif newText and Chat.Restamped then
             -- The buffer now holds the new text: who wrote it follows (review of #28).
             pcall(Chat.Restamped, (select(2, ...)), newText)
         end
+        -- Notices smart tabs held while this line was handled (Tabs.LineDone).
+        if Chat.LineDone then pcall(Chat.LineDone) end
     end)
 end)
 

@@ -247,6 +247,10 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - **`GlassChat.RequestTab(addon)`** (public) is granted at once in developer mode, and
       outside it brings the one-time offer;
     - a player's No always wins.
+  - **Notices printed while a line is handled** (the developer-mode tab, the offer, "tab was
+    closed") are held and printed once that line is done (`Tabs.LineDone`, from the hook). They
+    go through the same hook, so printed straight away they would land before the line's move
+    and leave it in both windows (Codex, #36).
   - It never walks the stack for the combat log (`COMBATLOG`, every entry is a plain
     `AddMessage`). Opening a tab puts back the selected tab and active edit box, because
     `FCF_OpenNewWindow` selects the new one. **No new tab while the player is typing**
