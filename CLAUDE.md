@@ -195,6 +195,29 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   also holds `/gchat` and the login warning when the build differs from `MEASURED_ON_BUILD`.
   There's no combat queue: chat frames aren't protected. If a feature ever needs one, lift
   GlassRaidFrames' `WhenOutOfCombat` (one queue only).
+- **Plugins** (`Plugins/<Name>/`, GlassPanel's pattern): each is its own addon, with
+  `## Dependencies: GlassChat` and `## Group: GlassChat`. The packager moves it out to a
+  top-level folder named after its TOC (`.pkgmeta` `move-folders`), and `deploy.ps1` does the
+  same. `tests/harness.lua`'s `PLUGINS` list loads it after the core's `ADDON_LOADED`, as the
+  client does, and `test_toc` checks the list, the TOC and the `move-folders` line. A plugin uses:
+  - `GC.RegisterSlash(sub, fn, help)` for `/gchat <sub>`;
+  - `GC.Chat.OnEachFrame` / `Chat.Scan`;
+  - `GC.Skin.Panel(f)`, `Skin.ReserveIcons(n)` and `STRIP_ICON_STEP` for a tab-strip icon;
+  - `GC.Copy.Show(title, text, status)` for a text window.
+- **`Plugins/SpamIgnore/`** (Spam & Ignore, S1, #19; plan: `docs/PLAN-SPAM.md`):
+  - **One filter, two policies.** Explicit GUID ignores apply to every player-chat event, guild
+    and group included. Heuristics (literal mutes at word edges, `~` aggressive, CJK, repeats)
+    apply to public chat only: CHANNEL, SAY, YELL, EMOTE. They never touch you, friends, guild,
+    group, Battle.net friends or the allow list.
+  - **One decision per (event, lineID)**, the memo (measured: each line reaches the filter once
+    per window).
+  - Repeats are timed from the last *shown* post.
+  - **Never your own characters:** `db.own`, recorded at `PLAYER_LOGIN`.
+  - The ignore list never writes Blizzard's server list (that's S2b). Import reads it after
+    `PLAYER_LOGIN` only.
+  - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** tab-strip icon
+    (`/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
+    unreplaced) and an eye in a release, and the debug log shows the event too.
 - **`Tools/ChatProbe/`**: the throwaway measurement addon (`/cprobe help`). It logs every line to
   `ChatProbeDB.log` in SavedVariables, so after a full client exit the session is on disk at
   `WTF\Account\<account>\SavedVariables\ChatProbe.lua` for review. **It never logs what anyone

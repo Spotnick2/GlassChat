@@ -16,6 +16,47 @@ for _, f in ipairs(tocFiles()) do
     seen[f] = true
 end
 
+-- The plugins: each folder under Plugins/ is listed in the harness, has its
+-- TOC, depends on the core, and is moved out by .pkgmeta's move-folders.
+local moves = {}
+do
+    local inBlock = false
+    for line in io.lines(".pkgmeta") do
+        line = line:gsub("\r", "")
+        if line:match("^move%-folders:%s*$") then inBlock = true
+        elseif line:match("^[^%s#]") then inBlock = false
+        elseif inBlock then
+            local src, dst = line:match("^  ([^#%s][^:]*):%s*(%S+)%s*$")
+            if src then moves[src] = dst end
+        end
+    end
+end
+local listed = {}
+for _, p in ipairs(PLUGINS) do
+    listed[p.folder] = true
+    local f = io.open("Plugins/" .. p.folder .. "/" .. p.toc, "r")
+    check(f ~= nil, p.name .. ": its TOC exists")
+    if f then
+        local t = f:read("*a"); f:close()
+        check(t:find("## Interface: 16001", 1, true), p.name .. ": interface 16001")
+        check(t:find("## Version: @project-version@", 1, true), p.name .. ": version token")
+        check(t:find("## Dependencies: GlassChat", 1, true), p.name .. ": depends on the core")
+        check(t:find("## Group: GlassChat", 1, true), p.name .. ": grouped under the core")
+        for _, file in ipairs(tocFiles(p.toc, "Plugins/" .. p.folder .. "/")) do
+            check(io.open(file, "r") ~= nil, p.name .. ": file exists: " .. file)
+        end
+    end
+    eq(moves["GlassChat/Plugins/" .. p.folder], p.name, p.name .. ": .pkgmeta moves it out to its own folder")
+end
+-- Every Plugins/<Name> on disk is in the list (Windows only: CI lacks dir).
+if package.config:sub(1, 1) == "\\" then
+    local d = io.popen('dir /b /ad Plugins 2>nul')
+    if d then
+        for name in d:lines() do check(listed[name], "Plugins/" .. name .. " is listed in tests/harness.lua") end
+        d:close()
+    end
+end
+
 -- Two places that must agree, never derived from each other (porting guide §0).
 loadAddon()
 eq(GlassChat.MEASURED_ON_BUILD, "1.60.1.70205", "MEASURED_ON_BUILD")

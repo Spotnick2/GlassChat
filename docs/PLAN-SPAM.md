@@ -173,7 +173,16 @@ The core exposes what the plugin uses through `GC.API` (CLAUDE.md: client APIs g
 - The text is decoded deliberately (Lua 5.1 patterns are bytes). Malformed UTF-8 counts as nothing.
 - Hidden lines go to the eye log with the reason `cjk`. `/gchat spam cjk off` turns it off.
 
-### Seeing what was hidden (owner: "an eye icon")
+### Seeing what was hidden (owner: "an eye icon"; built in S1 as below)
+
+**As built (owner's later choices):**
+- The tab-strip icon is **opt-in**: `/gchat spam icon on`, off by default.
+- Until the official release, a dev build's icon is a **bug**, and its window lists each blocked
+  line with its event. That replaces a "Debug" chat tab, which the owner considered and dropped
+  for the window. A release shows an eye.
+- `/gchat spam log` opens the window either way.
+
+**The original design:**
 
 - An **eye icon in the tab strip**, beside the copy icon, drawn the same way. It shows a count of
   lines hidden since you last looked, in gold when that's above 0.

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Spam & Ignore** (a plugin, its own entry in the AddOns list):
+  - **Muted phrases:** `/gchat mute profession kit` hides public lines containing them. It
+    matches whole words, so "kit" doesn't hide "kite". `~phrase` also catches tricks like
+    "p.r.o.f.e.s.s.i.o.n".
+  - **Repeats:** the same post from the same player is hidden for 5 minutes after it was shown
+    (`/gchat spam repeat <minutes>`).
+  - **CJK posts:** Chinese, Japanese and Korean posts in public chat are hidden, on by default
+    (`/gchat spam cjk off`).
+  - **One ignore list for all your characters:** `/gchat ignore First Surname`, `/gchat unignore`,
+    `/gchat ignores`, and `/gchat ignore import` for this character's Blizzard list. It covers
+    chat and whispers, in guild and group too, and never ignores your own characters.
+  - **What was hidden:** `/gchat spam log`, or an optional tab-strip icon (`/gchat spam icon on`).
 - **One chat layout for every character:** `/gchat layout save` keeps this character's chat
   windows (tabs, chat types, channels, colours, font size). Your other characters get a clickable
   offer to apply it once, or use `/gchat layout apply`. The main window's position stays with

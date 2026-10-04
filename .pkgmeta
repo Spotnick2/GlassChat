@@ -2,6 +2,14 @@ package-as: GlassChat
 
 enable-nolib-creation: no
 
+# One CurseForge project, one addon folder per plugin. WoW only discovers
+# addons as top-level folders under Interface/AddOns, so plugins can't ship
+# nested inside GlassChat/: the packager moves them out (GlassPanel's and
+# AltStable's pattern). The destination is the plugin's TOC name. Add a line
+# here with each new Plugins/<Name>; tests/test_toc.lua checks.
+move-folders:
+  GlassChat/Plugins/SpamIgnore: GlassChatSpamIgnore
+
 manual-changelog:
   filename: CHANGELOG.md
   markup-type: markdown

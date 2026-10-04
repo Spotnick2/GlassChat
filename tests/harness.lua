@@ -18,15 +18,22 @@ function done(name)
     os.exit(failed == 0 and 0 or 1)
 end
 
--- Lua files listed in the TOC, in load order.
-function tocFiles()
+-- Lua files listed in a TOC, in load order (dir: where the TOC lives).
+function tocFiles(toc, dir)
+    toc, dir = toc or "GlassChat.toc", dir or ""
     local files = {}
-    for line in io.lines("GlassChat.toc") do
+    for line in io.lines(dir .. toc) do
         line = line:gsub("\r", "")
-        if line:match("%.lua$") and not line:match("^#") then files[#files + 1] = line end
+        if line:match("%.lua$") and not line:match("^#") then files[#files + 1] = dir .. line end
     end
     return files
 end
+
+-- The plugins, by folder and TOC (a list, not a directory listing: CI runs on
+-- Linux). test_toc checks every Plugins/<Name> is listed here.
+PLUGINS = {
+    { folder = "SpamIgnore", toc = "GlassChatSpamIgnore.toc", name = "GlassChatSpamIgnore" },
+}
 
 -- Load the addon the way the client does: every TOC file with (name, ns),
 -- then ADDON_LOADED, PLAYER_LOGIN, PLAYER_ENTERING_WORLD (initial login).
@@ -46,6 +53,17 @@ function loadAddon(opts)
     if opts.db then GlassChatDB = opts.db end
     if opts.charDB then GlassChatCharDB = opts.charDB end
     WoW.fire("ADDON_LOADED", "GlassChat")
+    -- Then each plugin, as the client does: its files after the core's
+    -- ADDON_LOADED, then its own ADDON_LOADED. opts.plugins = false: the core alone.
+    if opts.plugins ~= false then
+        for _, p in ipairs(PLUGINS) do
+            for _, file in ipairs(tocFiles(p.toc, "Plugins/" .. p.folder .. "/")) do
+                assert(loadfile(file))(p.name, {})
+            end
+            if opts.spamDB then GlassChatSpamIgnoreDB = opts.spamDB end
+            WoW.fire("ADDON_LOADED", p.name)
+        end
+    end
     WoW.fire("PLAYER_LOGIN")
     WoW.fire("PLAYER_ENTERING_WORLD", opts.initialLogin ~= false, false)
     WoW.tick()
