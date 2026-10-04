@@ -121,6 +121,18 @@ local function guarded(why, fn)
     if not ok then API.Fail("ignore mirror " .. why, err) end
 end
 
+-- Tries per write, kept across logins: a write may be queued while it has
+-- tries left, and a try is spent only when pump really makes the call, so a
+-- queue dropped by "mirror off" costs nothing (Codex review of #24).
+local function canTry(c, key)
+    local t = c.tries[key]
+    return not (t and t.n >= Mirror.MAX_TRIES)
+end
+local function spend(c, key, name)
+    local t = c.tries[key]
+    c.tries[key] = { name = name, n = (t and t.n or 0) + 1 }
+end
+
 -- One write per WRITE_GAP; the check that follows sees what took.
 local pump
 pump = function()
@@ -135,6 +147,7 @@ pump = function()
         return
     end
     busy, wroteThisSession = true, true
+    spend(charDB(), w.op .. ":" .. w.lname, w.name)
     inFlight()[w.lname] = { op = w.op, at = time() }
     local fn = w.op == "add" and C_FriendList.AddIgnore or C_FriendList.DelIgnore
     local ok, res = pcall(fn, w.name)
@@ -147,13 +160,6 @@ local function enqueue(op, lname, name)
     queue[#queue + 1] = { op = op, lname = lname, name = name }
 end
 
--- A try for this write; false once MAX_TRIES are used (kept across logins).
-local function try(c, key, name)
-    local t = c.tries[key]
-    if t and t.n >= Mirror.MAX_TRIES then return false end
-    c.tries[key] = { name = name, n = (t and t.n or 0) + 1 }
-    return true
-end
 
 local function check(why)
     if not (loggedIn and ready and not busy and Spam.db and Spam.db.mirror and canRun()) then return end
@@ -217,14 +223,14 @@ local function check(why)
 
     -- Linked names off the account list: remove them here.
     for l in pairs(c.linked) do
-        if server[l] and not want[l] and not inFlight[l] and try(c, "del:" .. l, server[l]) then
+        if server[l] and not want[l] and not inFlight[l] and canTry(c, "del:" .. l) then
             enqueue("del", l, server[l])
         end
     end
 
     -- Wanted names not on the list: add them. Already there: the player's own, left alone.
     for l, name in pairs(want) do
-        if not server[l] and not inFlight[l] and try(c, "add:" .. l, name) then
+        if not server[l] and not inFlight[l] and canTry(c, "add:" .. l) then
             enqueue("add", l, name)
         end
     end

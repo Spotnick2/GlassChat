@@ -292,6 +292,22 @@ SlashCmdList.GLASSCHAT("ignore mirror on")
 advance(60)
 check(serverHas("Batch Two") and serverHas("Batch Three"), "on again: the rest are added")
 
+-- Cancelled writes cost no tries: repeated off/on cycles still get every name in (Codex, #24).
+fresh({})
+local six = { "C One", "C Two", "C Three", "C Four", "C Five", "C Six" }
+for _, n in ipairs(six) do db.ignore["Player-1-" .. n] = { name = n } end
+for _ = 1, 3 do
+    SlashCmdList.GLASSCHAT("ignore mirror on")
+    SlashCmdList.GLASSCHAT("ignore mirror off")   -- after the first write
+    advance(1)
+end
+SlashCmdList.GLASSCHAT("ignore mirror on")
+advance(120)
+local missing = 0
+for _, n in ipairs(six) do if not serverHas(n) then missing = missing + 1 end end
+eq(missing, 0, "after three cancelled batches, every name is still added")
+eq(next(Mirror.Failed()), nil, "and none is reported as failed")
+
 -- A reload right after an add still knows the name is ours (Codex, #24).
 fresh({})
 db.ignore["Player-1-R"] = { name = "Reload Case" }
