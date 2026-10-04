@@ -428,6 +428,11 @@ WoW.windowUpdates = {}
 function FloatingChatFrame_Update(i) table.insert(WoW.windowUpdates, i) end
 function FCF_DockUpdate() WoW.dockUpdates = (WoW.dockUpdates or 0) + 1 end
 function FCF_SaveDock() WoW.dockSaves = (WoW.dockSaves or 0) + 1 end
+-- The per-window display helpers (FloatingChatFrame.lua:1088-1158), recorded.
+WoW.shownNames = {}
+function FCF_SetWindowName(frame, name) WoW.shownNames[frame:GetID()] = name end
+function FCF_SetWindowColor(frame, r, g, b) WoW.shownColor = { frame:GetID(), r, g, b } end
+function FCF_SetWindowAlpha(frame, a) WoW.shownAlpha = { frame:GetID(), a } end
 -- The window's own methods (ChatFrameMixin, ChatFrame.lua:69-233); a channel
 -- adds only if the character is in it (WoW.joined).
 WoW.joined = {}

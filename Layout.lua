@@ -103,6 +103,12 @@ function Layout.Matches(saved)
                 or not sameList(now.messages, w.messages) or not sameList(now.channels, w.channels) then
                 return false
             end
+            -- A floating window's size and place are part of the layout too (Codex, #10);
+            -- the main window's are Edit Mode's and were never saved.
+            if i ~= 1 and w.docked == nil and (now.width ~= w.width or now.height ~= w.height
+                or now.point ~= w.point or now.x ~= w.x or now.y ~= w.y) then
+                return false
+            end
         end
     end
     return true
@@ -114,9 +120,11 @@ local function who()
 end
 
 -- Each save gets a new id: a character's answer is to ONE save, so a newer
--- one is offered again.
+-- one is offered again. The counter lives outside the layout, so forget +
+-- save never reuses an id another character already answered (Codex, #10).
 function Layout.Save()
-    local id = ((type(GC.db.layout) == "table" and tonumber(GC.db.layout.id)) or 0) + 1
+    local id = (tonumber(GC.db.layoutRevision) or (type(GC.db.layout) == "table" and tonumber(GC.db.layout.id)) or 0) + 1
+    GC.db.layoutRevision = id
     GC.db.layout = { id = id, windows = Layout.Capture(), from = who(), guid = plain(UnitGUID("player")) }
     GC.charDB.layoutAnswered = id
     local n = 0
@@ -146,7 +154,16 @@ local function applyWindow(i, w)
         SetChatWindowShown(i, w.shown)
     end
     if w.fontSize and rawget(_G, "FCF_SetChatWindowFontSize") then FCF_SetChatWindowFontSize(nil, f, w.fontSize) end
-    if not main then FloatingChatFrame_Update(i, 1) end
+    if not main then
+        FloatingChatFrame_Update(i, 1)
+    else
+        -- The setters above only save the main window's values; these
+        -- helpers show them (tab text, background colour and opacity), with
+        -- nothing about its place, size or docking (Codex, #10).
+        if w.name and rawget(_G, "FCF_SetWindowName") then FCF_SetWindowName(f, w.name, true) end
+        if w.r and rawget(_G, "FCF_SetWindowColor") then FCF_SetWindowColor(f, w.r, w.g, w.b, true) end
+        if w.a and rawget(_G, "FCF_SetWindowAlpha") then FCF_SetWindowAlpha(f, w.a, true) end
+    end
     local missing = 0
     if inUse(w) then
         f:RemoveAllMessageGroups()

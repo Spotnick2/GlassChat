@@ -167,9 +167,12 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
     `FCF_SetChatWindowFontSize`, then Blizzard's `FloatingChatFrame_Update(i, 1)` per window
     (it names, colours, docks, shows or closes), then chat types and channels through the
     window's own methods, then `FCF_DockUpdate`.
-  - **The main window (an Edit Mode system) gets only its font, colour and chat contents**: no
-    `FloatingChatFrame_Update`, lock, dock or shown state, and never its place or size (review of
-    #10; Prat warns that this recipe taints Edit Mode).
+  - **The main window (an Edit Mode system) gets only its name, font, colour and chat contents**:
+    no `FloatingChatFrame_Update`, lock, dock or shown state, and never its place or size (review of
+    #10; Prat warns that this recipe taints Edit Mode). Its name, colour and opacity are shown
+    through `FCF_SetWindowName` / `Color` / `Alpha` with doNotSave (Codex, #10).
+  - Save ids come from an account-level counter (`GlassChatDB.layoutRevision`), so forget + save
+    never reuses an id. `Matches` compares a floating window's size and place too.
   - Tabs that are already docked keep their order: `FCF_DockFrame` / `FCFDock_AddChatFrame`
     return early for them, and reordering would mean undocking. `FCF_SaveDock` records the real
     order afterwards.

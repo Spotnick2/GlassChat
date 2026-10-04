@@ -70,6 +70,8 @@ for _, c in ipairs(WoW.layoutCalls) do
 end
 check((WoW.dockSaves or 0) >= 1, "the real dock order is recorded afterwards (FCF_SaveDock)")
 eq(GlassChatCharDB.layoutAnswered, saved.id, "and the character remembers which save it answered")
+eq(WoW.shownNames[1], "General", "the main window's tab shows its saved name (not only saved)")
+check(WoW.shownAlpha and WoW.shownAlpha[1] == 1 and WoW.shownAlpha[2] == 0.4, "and its opacity is shown")
 check(not Layout.Offer(), "so it isn't offered again")
 
 -- "Not here" is remembered too.
@@ -95,6 +97,21 @@ GC.charDB = GlassChatCharDB
 WoW.chatWindows = {}
 check(Layout.Offer(), "a character that answered the old save is offered the new one")
 
+-- Forget + save never reuses an id another character already answered.
+WoW.playerGUID = "Player-1-AAA"
+local before = GlassChatDB.layout.id
+Layout.Forget()
+WoW.chatWindows = {}
+WoW.chatWindows[3] = { name = "Whispers", size = 14, shown = true, docked = 3, messages = { "WHISPER" }, channels = {} }
+Layout.Save()
+check(GlassChatDB.layout.id > before, "a save after forget gets a fresh id")
+WoW.playerGUID = "Player-1-BBB"
+GlassChatCharDB = { layoutAnswered = before }
+GC.charDB = GlassChatCharDB
+WoW.chatWindows = {}
+check(Layout.Offer(), "so a character that answered the forgotten save is offered the new one")
+saved = GlassChatDB.layout
+
 -- A character that already matches isn't asked.
 GlassChatCharDB = {}
 GC.charDB = GlassChatCharDB
@@ -110,6 +127,19 @@ for _, w in pairs(saved.windows) do
     if w.shown and #w.channels == 0 then w.channels = { "General" }; break end
 end
 check(Layout.Offer(), "a different channel list on an open window does")
+
+-- A floating window's size counts too.
+for i, w in pairs(saved.windows) do
+    WoW.chatWindows[i] = { name = w.name, size = w.fontSize, r = 0, g = 0, b = 0, a = w.a, shown = w.shown,
+        locked = w.locked, docked = w.docked, uninteractable = false, messages = { unpack(w.messages) },
+        channels = { unpack(w.channels) }, width = w.width, height = w.height, point = w.point, x = w.x, y = w.y }
+end
+WoW.chatWindows[9] = { name = "Float", size = 14, shown = true, docked = nil, messages = {}, channels = {},
+    width = 400, height = 200, point = "CENTER", x = 0, y = 0 }
+saved.windows[9] = Layout.CaptureWindow(9)
+check(not Layout.Offer(), "matching windows, floating one included: not asked")
+WoW.chatWindows[9].width, WoW.chatWindows[9].height = 250, 120
+check(Layout.Offer(), "a floating window of another size: asked")
 
 -- Never in combat; a secret window name is never saved.
 WoW.combat = true
