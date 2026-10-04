@@ -25,6 +25,26 @@ rawset(_G, "ChatFrameUtil", {
 local callbacks = {}
 rawset(_G, "EventRegistry", { RegisterCallback = function(self, e, fn, owner) callbacks[e] = fn end })
 rawset(_G, "SetItemRef", function() end)
+-- The server ignore list (C_FriendList, 70205 dump :1610-1630), kept like the
+-- client: a list of names, IsIgnoredByGuid by the GUIDs added.
+local ignoreList, ignoredGuids, targetGuid = { "Old Grudge" }, {}, "Player-1-T"
+rawset(_G, "C_FriendList", {
+    GetNumIgnores = function() return #ignoreList end,
+    GetIgnoreName = function(i) return ignoreList[i] end,
+    AddIgnore = function(name) table.insert(ignoreList, name); ignoredGuids[targetGuid] = true; return true end,
+    DelIgnore = function(name)
+        for i, n in ipairs(ignoreList) do if n == name then table.remove(ignoreList, i); ignoredGuids[targetGuid] = nil; return true end end
+        return false
+    end,
+    IsIgnoredByGuid = function(guid) return ignoredGuids[guid] == true end,
+})
+local target = nil   -- { first, surname, full }
+rawset(_G, "UnitIsPlayer", function(u) return u == "target" and target ~= nil end)
+rawset(_G, "UnitIsUnit", function() return false end)
+rawset(_G, "UnitName", function(u) if u == "target" and target then return target[1], target[2] end end)
+rawset(_G, "GetUnitName", function(u) if u == "target" and target then return target[3] end end)
+rawset(_G, "UnitGUID", function(u) if u == "target" then return targetGuid end end)
+rawset(_G, "RegionalUniqueNamesEnabled", function() return true end)
 -- No "Probe" tab yet on this character (item 8 opens one; item 9 reuses it).
 -- windows[i] = { name, shown, docked }, GetChatWindowInfo's 1st, 7th and 9th.
 local windows = {}
@@ -72,6 +92,10 @@ check(rawget(_G, "ChatProbe_test") == nil, "the test seam stays off _G")
 WoW.fire("ADDON_LOADED", "ChatProbe")
 eq(type(ChatProbeDB.log), "table", "the probe keeps its log in saved variables")
 eq(ChatProbeDB.loads, 1, "it counts its loads (persistence check)")
+local function logHas0(pattern)
+    for _, l in ipairs(ChatProbeDB.log) do if l:find(pattern, 1, true) then return true end end
+end
+check(logHas0("12 ignores at ADDON_LOADED: 1"), "12 counts the ignore list at ADDON_LOADED (no names)")
 
 local function logHas(pattern)
     for _, line in ipairs(ChatProbeDB.log) do if line:find(pattern, 1, true) then return true end end
@@ -225,5 +249,47 @@ check(logHas("RegisterEvent CHAT_MSG_SAY: refused"), "5 a refused registration i
 SlashCmdList.CHATPROBE("watch")
 SlashCmdList.CHATPROBE("clear")
 eq(#ChatProbeDB.log, 1, "clear empties the log (leaving its own line)")
+
+
+-- 10: line identity per event. One line seen by two windows is one line with
+-- two filter calls; a reused lineID with different text is a collision; a
+-- missing lineID or a non-player GUID is counted; nothing said is logged.
+local T10 = ns._test
+SlashCmdList.CHATPROBE("lines")
+local f10 = filters.CHAT_MSG_SAY
+check(f10 == T10.identityFilter, "10 a filter is installed on each traced event")
+local function line(event, text, sender, lineID, guid)
+    T10.identityFilter(nil, event, text, sender, "", "", "", "", 0, 0, "", 0, lineID, guid)
+end
+line("CHAT_MSG_SAY", "hello there", "Kaleid Sumner", 101, "Player-1-AB")
+line("CHAT_MSG_SAY", "hello there", "Kaleid Sumner", 101, "Player-1-AB")   -- the same line, second window
+line("CHAT_MSG_SAY", "something else", "Kaleid Sumner", 101, "Player-1-AB") -- same id, other text
+line("CHAT_MSG_CHANNEL", "wts kits", "Bob Seller-Doomhowl", 0, "Player-1-CD")
+line("CHAT_MSG_TEXT_EMOTE", "waves", "Kaleid Sumner", 102, "Creature-0-1")
+SlashCmdList.CHATPROBE("lines")
+check(logHas("10 CHAT_MSG_SAY: 1 lines, 3 filter calls"), "10 a line in two windows counts once, its calls twice")
+check(logHas("10 lineID collisions (same id, different text) = 1"), "10 a reused lineID with other text is a collision")
+check(logHas("10 CHAT_MSG_CHANNEL: 0 lines, 1 filter calls (0.0 per line), badID=1"), "10 a missing lineID is counted")
+check(logHas("badGUID=1"), "10 a non-player GUID is counted")
+check(logHas("11 sender shape: CHAT_MSG_SAY words=2 dash=false"), "11 the sender's shape is logged")
+check(not logHas("Kaleid") and not logHas("hello") and not logHas("Bob"), "10/11 no name or text is logged")
+
+-- 11: the server ignore test on the target: added as "First Surname", read
+-- back, checked by GUID, removed again; only the target's entry is logged.
+SlashCmdList.CHATPROBE("ignoretest")
+check(logHas("11 target another player first"), "11 needs a target")
+target = { "Kaleid", "Sumner", "Kaleid" }   -- GetUnitName without the surname, as on Forever
+SlashCmdList.CHATPROBE("ignoretest")
+check(logHas("AddIgnore(Kaleid Sumner) ok=true"), "11 adds the 'First Surname' form")
+T10.blockWatch._scripts.OnEvent(T10.blockWatch, "IGNORELIST_UPDATE")
+check(logHas("exact entry Kaleid Sumner present = true"), "11 reads the entry back")
+check(logHas("IsIgnoredByGuid(target) = true"), "11 checks it by GUID")
+check(logHas("DelIgnore(Kaleid Sumner) ok=true returned=true"), "11 removes it again")
+eq(#ignoreList, 1, "11 the ignore list is as it was")
+check(not logHas("Old Grudge"), "11 the rest of the ignore list is never logged")
+
+-- 12: invites and duels that arrive are logged by sender shape.
+T10.blockWatch._scripts.OnEvent(T10.blockWatch, "PARTY_INVITE_REQUEST", "Ignored Alt")
+check(logHas("12 PARTY_INVITE_REQUEST (from words=2 dash=false)"), "12 an arriving invite is logged without the name")
 
 done("test_probe")

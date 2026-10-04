@@ -16,6 +16,9 @@
 --   7. which addons write to chat, through print or AddMessage       /cprobe sources
 --   8. routing one addon's print output to its own tab              /cprobe route
 --   9. moving one addon's direct AddMessage lines to that tab        /cprobe move
+--  10. line identity per chat type (lineID, GUID, collisions)       /cprobe lines
+--  11. sender name shapes; server ignore with surnames              /cprobe ignoretest
+--  12. ignore-list readiness at login; what the server ignore blocks (automatic)
 --
 -- Every client call that may be missing or throw goes through try(), so one
 -- refusal cannot stop the rest of the probe.
@@ -495,6 +498,177 @@ local function move(arg)
 end
 
 --------------------------------------------------------------------------------
+-- 10. Line identity (Spam & Ignore S0)
+--------------------------------------------------------------------------------
+
+-- Every event the plugin would filter. A filter runs once per chat frame
+-- that shows the line, so the same lineID arriving N times is expected; a
+-- lineID arriving with DIFFERENT text (a collision) is what must never happen.
+local IDENTITY_EVENTS = { "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_EMOTE",
+    "CHAT_MSG_TEXT_EMOTE", "CHAT_MSG_WHISPER", "CHAT_MSG_WHISPER_INFORM", "CHAT_MSG_DND", "CHAT_MSG_AFK",
+    "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER", "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID",
+    "CHAT_MSG_RAID_LEADER", "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" }
+
+P.ids = { on = false, stats = {}, seen = {}, collisions = 0, shapes = {} }
+
+-- A short, content-free fingerprint of a line: its length and a checksum.
+-- Enough to tell "same line" from "different line"; never logged.
+local function fingerprint(text)
+    if type(text) ~= "string" then return "?" end
+    local sum = 0
+    for i = 1, #text do sum = (sum * 31 + text:byte(i)) % 1000003 end
+    return #text .. ":" .. sum
+end
+
+-- The sender's SHAPE, never the name: words, a realm dash, a space.
+local function senderShape(sender)
+    if issecretvalue and issecretvalue(sender) then return "<secret>" end
+    if type(sender) ~= "string" then return type(sender) end
+    local words = select(2, sender:gsub("%S+", ""))
+    return string.format("words=%d dash=%s", words, tostring(sender:find("-", 1, true) ~= nil))
+end
+
+local function identityFilter(_, event, text, sender, ...)
+    local I = P.ids
+    if not I.on then return false end
+    local lineID, guid = select(9, ...)   -- arg11, arg12 (text, sender are arg1, arg2)
+    local st = I.stats[event] or { lines = 0, calls = 0, badID = 0, badGUID = 0, secret = 0 }
+    I.stats[event] = st
+    st.calls = st.calls + 1
+    if (issecretvalue and (issecretvalue(lineID) or issecretvalue(guid) or issecretvalue(text))) then
+        st.secret = st.secret + 1
+        return false
+    end
+    if type(lineID) ~= "number" or lineID <= 0 then st.badID = st.badID + 1; return false end
+    if type(guid) ~= "string" or guid:sub(1, 7) ~= "Player-" then st.badGUID = st.badGUID + 1 end
+    local key = event .. "#" .. lineID
+    local fp = fingerprint(text)
+    local prev = I.seen[key]
+    if prev == nil then
+        st.lines = st.lines + 1
+        I.seen[key] = fp
+        I.shapes[event .. " " .. senderShape(sender)] = true
+    elseif prev ~= fp then
+        I.collisions = I.collisions + 1
+    end
+    return false
+end
+
+local identityAdded = false
+local function identity()
+    local I = P.ids
+    if not I.on then
+        if not identityAdded and ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter then
+            for _, e in ipairs(IDENTITY_EVENTS) do
+                try("filter " .. e, ChatFrameUtil.AddMessageEventFilter, e, identityFilter)
+            end
+            identityAdded = true
+        end
+        I.on, I.stats, I.seen, I.collisions, I.shapes = true, {}, {}, 0, {}
+        say("10 tracing line identity: chat in as many channels as you can (say, trade, guild, party,"
+            .. " a whisper, /e, an emote like /wave, /afk), with chat shown in two tabs, then /cprobe lines again")
+        return
+    end
+    I.on = false
+    for event, st in pairs(I.stats) do
+        say(string.format("10 %s: %d lines, %d filter calls (%.1f per line), badID=%d badGUID=%d secret=%d",
+            event, st.lines, st.calls, st.lines > 0 and st.calls / st.lines or 0, st.badID, st.badGUID, st.secret))
+    end
+    say("10 lineID collisions (same id, different text) = " .. I.collisions)
+    for shape in pairs(I.shapes) do say("11 sender shape: " .. shape) end
+    say("10 tracing off.")
+end
+
+--------------------------------------------------------------------------------
+-- 11. Server ignore with surnames (uses YOUR TARGET; cleans up after itself)
+--------------------------------------------------------------------------------
+
+local function ignoreNames()
+    local out = {}
+    local ok, n = pcall(C_FriendList.GetNumIgnores)
+    if not ok or type(n) ~= "number" then return out, nil end
+    for i = 1, n do
+        local okN, name = pcall(C_FriendList.GetIgnoreName, i)
+        out[#out + 1] = okN and show(name) or "error"
+    end
+    return out, n
+end
+
+P.ignoreTest = nil
+local function ignoreTest()
+    if not UnitIsPlayer("target") or UnitIsUnit("target", "player") then
+        say("11 target another player first (an alt or a friend who agrees: they're ignored for a moment, then removed)")
+        return
+    end
+    local first, surname = UnitName("target")
+    local full = GetUnitName("target", true)
+    local guid = UnitGUID("target")
+    local names = { show(first), show(surname), show(full) }
+    say("11 target: UnitName = " .. names[1] .. " / " .. names[2] .. ", GetUnitName(target, true) = " .. names[3]
+        .. ", RegionalUniqueNamesEnabled = " .. show(RegionalUniqueNamesEnabled and RegionalUniqueNamesEnabled()))
+    local _, before = ignoreNames()
+    say("11 ignores before: " .. show(before))
+    -- The form Blizzard's unit menu uses (GetFullPlayerName with regional
+    -- unique names): "First Surname".
+    local candidate = full
+    if type(first) == "string" and type(surname) == "string" and surname ~= "" and not (type(full) == "string" and full:find(" ", 1, true)) then
+        candidate = first .. " " .. surname
+    end
+    local ok, added = try("AddIgnore", C_FriendList.AddIgnore, candidate)
+    say("11 AddIgnore(" .. show(candidate) .. ") ok=" .. tostring(ok) .. " returned=" .. show(added))
+    P.ignoreTest = { name = candidate, guid = guid }
+    say("11 waiting for IGNORELIST_UPDATE (it reads the list back, then removes the entry)")
+end
+
+local function ignoreReadBack()
+    local t = P.ignoreTest
+    if not t then return end
+    -- Only the entry for the TARGET is logged, never the rest of the list:
+    -- the exact name we added, else one starting with the same first name.
+    local names, n = ignoreNames()
+    local exact, similar = false, nil
+    local firstWord = type(t.name) == "string" and t.name:match("^(%S+)") or nil
+    for _, name in ipairs(names) do
+        if name == t.name then exact = true
+        elseif firstWord and name:sub(1, #firstWord) == firstWord then similar = name end
+    end
+    say("11 ignores now: " .. show(n) .. "; exact entry " .. show(t.name) .. " present = " .. tostring(exact)
+        .. (similar and ("; a similar entry reads back as " .. similar) or ""))
+    local okG, byGuid = false, nil
+    if t.guid and C_FriendList.IsIgnoredByGuid then okG, byGuid = pcall(C_FriendList.IsIgnoredByGuid, t.guid) end
+    say("11 IsIgnoredByGuid(target) = " .. (okG and show(byGuid) or "error"))
+    local okD, removed = try("DelIgnore", C_FriendList.DelIgnore, t.name)
+    say("11 DelIgnore(" .. show(t.name) .. ") ok=" .. tostring(okD) .. " returned=" .. show(removed) .. " (cleaned up)")
+    P.ignoreTest = nil
+end
+
+--------------------------------------------------------------------------------
+-- 12. What the server ignore blocks (needs an alt on another account)
+--------------------------------------------------------------------------------
+
+local blockWatch = CreateFrame("Frame")
+P.blocks = {}
+blockWatch:SetScript("OnEvent", function(_, event, a1)
+    if event == "IGNORELIST_UPDATE" then
+        local _, n = ignoreNames()
+        say(string.format("12 IGNORELIST_UPDATE at %.1f s, %s ignores", GetTime(), show(n)))
+        if P.ignoreTest then ignoreReadBack() end
+        return
+    end
+    P.blocks[event] = (P.blocks[event] or 0) + 1
+    say("12 " .. event .. " (from " .. senderShape(a1) .. ")")
+end)
+for _, e in ipairs({ "IGNORELIST_UPDATE", "CHAT_MSG_IGNORED", "PARTY_INVITE_REQUEST", "DUEL_REQUESTED" }) do
+    register(blockWatch, e)
+end
+
+-- The list's readiness through login (12): how many ignores each step sees.
+local function countAt(label)
+    local _, n = ignoreNames()
+    say(string.format("12 ignores at %s: %s", label, show(n)))
+end
+
+--------------------------------------------------------------------------------
 -- Command
 --------------------------------------------------------------------------------
 
@@ -508,6 +682,8 @@ local function help()
     say("/cprobe sources  - 7 toggle tracing which addons print to chat, and how")
     say("/cprobe route    - 8 toggle sending ChatProbe's own lines to a new 'Probe' tab")
     say("/cprobe move [addon] - 9 toggle moving an addon's direct AddMessage lines (default AltStableProbe) to 'Probe'")
+    say("/cprobe lines    - 10/11 toggle tracing line identity and sender shapes")
+    say("/cprobe ignoretest - 11 server ignore on your TARGET (added, read back, removed)")
     say("/cprobe clear    - empty the saved log")
 end
 
@@ -525,21 +701,33 @@ SlashCmdList.CHATPROBE = function(msg)
     elseif cmd == "sources" then sources()
     elseif cmd == "route" then route()
     elseif cmd == "move" then move(arg)
+    elseif cmd == "lines" then identity()
+    elseif cmd == "ignoretest" then ignoreTest()
     elseif cmd == "clear" then ChatProbeDB.log = {}; say("log cleared")
     else help() end
 end
 
 local boot = CreateFrame("Frame")
 register(boot, "ADDON_LOADED")
-boot:SetScript("OnEvent", function(_, _, name)
+register(boot, "PLAYER_LOGIN")
+register(boot, "PLAYER_ENTERING_WORLD")
+boot:SetScript("OnEvent", function(_, event, name)
+    if event == "PLAYER_LOGIN" then countAt("PLAYER_LOGIN"); return end
+    if event == "PLAYER_ENTERING_WORLD" then
+        countAt("PLAYER_ENTERING_WORLD")
+        C_Timer.After(5, function() countAt("PLAYER_ENTERING_WORLD +5 s") end)
+        return
+    end
     if name ~= ADDON then return end
     if type(ChatProbeDB) ~= "table" then ChatProbeDB = {} end
     if type(ChatProbeDB.log) ~= "table" then ChatProbeDB.log = {} end
     ChatProbeDB.loads = (ChatProbeDB.loads or 0) + 1
     say("loaded (" .. ChatProbeDB.loads .. " loads). /cprobe help")
+    countAt("ADDON_LOADED")
 end)
 
 -- The test seam lives on the addon namespace, not in _G.
-NS._test = { P = P, state = state, clip = clip, copyable = copyable, link = link, watch = watch,
+NS._test = { identity = identity, identityFilter = identityFilter, ignoreTest = ignoreTest,
+    ignoreReadBack = ignoreReadBack, blockWatch = blockWatch, P = P, state = state, clip = clip, copyable = copyable, link = link, watch = watch,
     report = report, history = history, watcher = watcher, sources = sources, route = route,
     sourceOf = sourceOf, printHandler = printHandler, move = move }
