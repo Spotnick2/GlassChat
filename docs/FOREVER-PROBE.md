@@ -31,3 +31,13 @@ and addon output".
 
 Still open: payload secrecy inside a dungeon (item 5), and whether a tab survives a relog on the
 character that made it (item 8; its `chat-cache.txt` lists `WINDOW 5 / NAME Probe`).
+
+## Spam & Ignore S0 (items 10-12, 2026-10-03)
+
+| # | Question | Result |
+|---|---|---|
+| 10 | Line identity per chat type | **Usable.** SAY, WHISPER, WHISPER_INFORM and PARTY_LEADER, with chat shown in two tabs: every line had a plain positive lineID and a `Player-` GUID, and each reached a filter **exactly twice** (once per window). No lineID was reused for a different text. One decision per (event, lineID) is sound. The probe's trace now survives a `/reload` (the first two runs were lost that way). Channel and emote events weren't covered in this run. |
+| 11 | Sender names | arg2 is **"First Surname" (2 words, no realm dash)** for SAY, WHISPER, WHISPER_INFORM and PARTY_LEADER (same realm). |
+| 11 | Server ignore with surnames | **Works with "First Surname".** On the target, `UnitName` = "Zoruka" / "Mortalis", `GetUnitName("target", true)` = **"Zoruka Mortalis"**, and `RegionalUniqueNamesEnabled()` = true. `AddIgnore("Zoruka Mortalis")` returned true, `GetIgnoreName` read back the exact "Zoruka Mortalis", `IsIgnoredByGuid` was true, and `DelIgnore` removed it. `IGNORELIST_UPDATE` fired on each change, twice per change. |
+| 12 | Ignore-list readiness | `GetNumIgnores()` answered **nil at `ADDON_LOADED`** on 3 of 6 loads, and 0 from `PLAYER_LOGIN` on. **Never read the list before `PLAYER_LOGIN`.** |
+| 12 | What the server ignore blocks | The ignorer, Karuzo Elegia, ignored the alt (Zoruka Mortalis, on another account).<br>**Whispers: blocked.** The alt gets `CHAT_MSG_IGNORED` ("... is ignoring you"). The first probe logged that event's text instead of its sender (arg2), so its name format is unmeasured (fixed after Codex's review of #16).<br>**Invites: never reach the ignorer.** The alt sent two invites, the ignorer's probe logged no `PARTY_INVITE_REQUEST` after the ignore, and no group formed (owner). The alt's "Looting set to..." lines were its own pending party.<br>**Duels: blocked** (owner, same layer: no duel arrives, and grouping doesn't work either).<br>**Say: not seen** (owner, same layer as the duel test).<br>Before the ignore, invites and a duel did arrive. `PARTY_INVITE_REQUEST`'s name is "First Surname" (2 words), but **`DUEL_REQUESTED`'s is one word with a dash**, so never match by name there. So the server ignore blocks whispers, say, invites and duels, the last two being what a chat filter can't, which makes S2b (mirroring) worth building later. |
