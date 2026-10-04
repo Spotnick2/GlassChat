@@ -335,4 +335,20 @@ check(logHas("12 CHAT_MSG_IGNORED (from words=2 dash=false)"), "12 CHAT_MSG_IGNO
 T10.blockWatch._scripts.OnEvent(T10.blockWatch, "PARTY_INVITE_REQUEST", "Ignored Alt")
 check(logHas("12 PARTY_INVITE_REQUEST (from words=2 dash=false)"), "12 an arriving invite is logged without the name")
 
+-- 13: which candidate atlases exist; each found one is shown, numbered, in gold.
+local realAtlas = C_Texture.GetAtlasInfo
+C_Texture.GetAtlasInfo = function(name)
+    if name == "chatframe-button-icon-voicechat" or name == "socialqueuing-icon-group" then
+        return { width = 24, height = 24, file = 123 }
+    end
+end
+SlashCmdList.CHATPROBE("atlases")
+check(logHas("13 #1 FOUND socialqueuing-icon-group  24x24"), "13 a found atlas is logged with its size, numbered")
+check(logHas("13 #2 FOUND chatframe-button-icon-voicechat"), "13 numbered in order")
+check(logHas("13 missing chatframe-button-icon-chat"), "13 a missing one is logged")
+check(logHas("13 2 of "), "13 with the count")
+SlashCmdList.CHATPROBE("atlases")
+check(logHas("13 atlas row hidden"), "13 again hides the row")
+C_Texture.GetAtlasInfo = realAtlas
+
 done("test_probe")
