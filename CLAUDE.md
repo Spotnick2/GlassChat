@@ -73,6 +73,8 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   goes for `Tools/make_textures.py`. Change the material in GlassUnitFrames first, then copy it
   back. `Media/*.tga` come from that generator. Chat-specific tuning (darker tint, less grain and
   wash) is applied **on the regions `Glass.Apply` returns**, in `Skin.lua`, never in the copy.
+  The window's directional edge is the material's own optional edge (`g.edge`, GlassUnitFrames
+  #60), set per window with `Glass.SetEdge` from `/gchat tune`'s values.
 - **`Chat.lua`**: the stock windows. `Chat.Frames()` is every `ChatFrameN` that exists (read
   with `rawget`). `Chat.OnEachFrame(key, fn)` registers an idempotent per-window setup.
   `Chat.Scan()` runs every setup on every window, each one under `pcall` (failures go to

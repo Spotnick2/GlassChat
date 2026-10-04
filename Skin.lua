@@ -36,7 +36,6 @@ local EDIT_TEXTURES = { "Left", "Right", "Mid", "FocusLeft", "FocusRight", "Focu
 Skin.TINT = { 0.05, 0.05, 0.06 }
 Skin.GRAIN, Skin.WASH = 0.12, 0
 Skin.RIM_IDLE, Skin.RIM_FOCUS = 0.45, 0.9
-Skin.EDGE_INSET = 14     -- keep the straight edge lines off the rounded corners
 
 -- The window panel's surface, live-tunable (/gchat tune <key> <value>) and
 -- saved account-wide in GlassChatDB.look; these are the shipped values.
@@ -85,15 +84,12 @@ local panels = setmetatable({}, { __mode = "k" })   -- Blizzard frame -> { panel
 -- The window panel's surface from Skin.Look (after tune(), which sets the
 -- grain for every panel).
 function Skin.WindowLook(p)
-    local L, g, e = Skin.Look, p.g, p.edge
+    local L, g = Skin.Look, p.g
     g.shadow:SetAlpha(L("shadow"))
     g.rim:SetAlpha(L("rim"))
     g.dark:SetAlpha(L("dark"))
     g.grain:SetAlpha(L("grain"))
-    e.top:SetColorTexture(1, 1, 1, L("top"))
-    e.glow:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, L("glow")))
-    e.glow:SetHeight(math.max(1, L("glowh")))
-    e.bottom:SetColorTexture(0, 0, 0, L("bottom"))
+    Glass.SetEdge(g, L("top"), L("glow"), L("bottom"), L("glowh"))
 end
 
 local function tune(g)
@@ -152,20 +148,9 @@ function Skin.Frame(f)
         sep:SetPoint("TOPLEFT", bg, "TOPLEFT", 0, Skin.PAD_Y + Skin.TAB_GAP)
         sep:SetPoint("TOPRIGHT", bg, "TOPRIGHT", 0, Skin.PAD_Y + Skin.TAB_GAP)
         sep:SetHeight(1)
-        -- The directional edge, over the dimmed material rim.
-        local top = g.top:CreateTexture(nil, "OVERLAY", nil, 7)
-        top:SetPoint("TOPLEFT", panel, "TOPLEFT", Skin.EDGE_INSET, -1)
-        top:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -Skin.EDGE_INSET, -1)
-        top:SetHeight(1)
-        local glow = g.top:CreateTexture(nil, "OVERLAY", nil, 5)
-        glow:SetColorTexture(1, 1, 1, 1)
-        glow:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, 0)
-        glow:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT", 0, 0)
-        local bottom = g.top:CreateTexture(nil, "OVERLAY", nil, 7)
-        bottom:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", Skin.EDGE_INSET, 1)
-        bottom:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -Skin.EDGE_INSET, 1)
-        bottom:SetHeight(1)
-        p = { panel = panel, g = g, separator = sep, edge = { top = top, glow = glow, bottom = bottom } }
+        -- The directional edge is the material's own (g.edge, GlassUnitFrames
+        -- #60), set to this window's values in Skin.WindowLook.
+        p = { panel = panel, g = g, separator = sep, edge = g.edge }
         panels[f] = p
         -- The panel follows the chat frame's size: refit the lines then.
         panel:SetScript("OnSizeChanged", function() Skin.FitLines(f) end)
