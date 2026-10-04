@@ -92,6 +92,10 @@ end
 -- Glass.MEDIA points into the embedded copy, where the packager puts it.
 eq(GlassChat.Glass.MEDIA, "Interface\\AddOns\\GlassChat\\Libs\\LibGlass-1.0\\Media\\", "MEDIA is the embedded copy's")
 -- The plugins load after the core, so they share its instance.
-check(GlassChat.Glass.Apply and GlassChat.Glass.SetEdge, "the instance has the calls Skin.lua uses")
+-- Every member of the instance GlassChat and its plugin use (a pin bump that
+-- drops one fails here, not in game; review of #30).
+for _, k in ipairs({ "Apply", "Font", "SetEdge", "MEDIA", "SIZES" }) do
+    check(GlassChat.Glass[k] ~= nil, "the instance has Glass." .. k)
+end
 
 done("test_toc")

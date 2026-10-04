@@ -32,7 +32,7 @@ local EDIT_TEXTURES = { "Left", "Right", "Mid", "FocusLeft", "FocusRight", "Focu
 -- grain, and on the window panel a thinner, directional edge: the
 -- material's rim much dimmer, a fine bright line along the top, a darker
 -- one along the bottom. All of it on the regions Glass.Apply returns; the
--- material copy itself is untouched.
+-- material (the embedded LibGlass-1.0) is never edited from here.
 Skin.TINT = { 0.05, 0.05, 0.06 }
 Skin.GRAIN, Skin.WASH = 0.12, 0
 Skin.RIM_IDLE, Skin.RIM_FOCUS = 0.45, 0.9

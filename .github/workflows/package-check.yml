@@ -40,10 +40,10 @@ jobs:
       # checked in its repo.
       - name: Syntax-check every Lua file
         run: |
-          count=$(find . -name '*.lua' -not -path './.git/*' | wc -l)
+          count=$(find . -name '*.lua' -not -path './.git/*' -not -path './Libs/*' | wc -l)
           test "$count" -gt 0 || { echo "no Lua files found - the check would prove nothing"; exit 1; }
           echo "checking $count files"
-          find . -name '*.lua' -not -path './.git/*' -print0 | xargs -0 luac5.1 -p
+          find . -name '*.lua' -not -path './.git/*' -not -path './Libs/*' -print0 | xargs -0 luac5.1 -p
 
       # Without the API dump (local only), test_methods skips the method check.
       - name: Unit tests

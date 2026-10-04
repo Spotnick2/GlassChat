@@ -27,34 +27,17 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 if (-not (Test-Path $AddOnsPath)) { Write-Error "AddOns path not found: $AddOnsPath"; exit 1 }
 
+. (Join-Path $PSScriptRoot "LibGlassPin.ps1")
 $LibGlass = if ($env:LIBGLASS) { $env:LIBGLASS } else { Join-Path (Split-Path -Parent $RepoRoot) "LibGlass" }
-if (-not (Test-Path -LiteralPath (Join-Path $LibGlass "Tools\deploy.ps1"))) {
-    Write-Error "LibGlass checkout not found at $LibGlass (clone github.com/Spotnick2/LibGlass there, or set `$env:LIBGLASS)"
-    exit 1
-}
-
-# The commit or tag .pkgmeta pins, which is what the packager will ship. A dev
-# checkout elsewhere is legitimate (trying a library change before a pin bump),
-# but an in-game check then tests something the release won't carry: say so.
-function Test-LibGlassPin {
-    $pin = (Get-Content -LiteralPath (Join-Path $RepoRoot ".pkgmeta")) |
-        Where-Object { $_ -match '^\s+(commit|tag):\s*(\S+)\s*$' } | ForEach-Object { $Matches[2] } | Select-Object -First 1
-    if (-not $pin) { Write-Host "  (no LibGlass pin found in .pkgmeta)" -ForegroundColor Yellow; return }
-    $want = $null; $head = $null
-    try {
-        $want = (git -C $LibGlass rev-parse --verify --quiet "$pin^{commit}" 2>$null)
-        $head = (git -C $LibGlass rev-parse HEAD 2>$null)
-        $dirty = (git -C $LibGlass status --porcelain 2>$null)
-    } catch { }
-    if (-not $want -or $want -ne $head -or $dirty) {
-        Write-Host "  WARNING: the LibGlass checkout is not at the .pkgmeta pin ($pin)$(if ($dirty) { ', or has uncommitted changes' }):" -ForegroundColor Yellow
-        Write-Host "  this deploy tests a library the release won't ship." -ForegroundColor Yellow
-    }
-}
 
 function Deploy-Addon {
     $dest = Join-Path $AddOnsPath "GlassChat"
-    Test-LibGlassPin
+    # Only the addon needs the library: -ProbeOnly works without a checkout (review of #30).
+    if (-not (Test-Path -LiteralPath (Join-Path $LibGlass "Tools\deploy.ps1"))) {
+        Write-Error "LibGlass checkout not found at $LibGlass (clone github.com/Spotnick2/LibGlass there, or set `$env:LIBGLASS)"
+        exit 1
+    }
+    Write-LibGlassPinStatus $RepoRoot $LibGlass "this deploy tests a library the release won't ship"
     # The library first: its deploy checks the checkout and may refuse, and a
     # refusal must leave the deployed addon as it was (a new TOC naming a
     # library that never arrived loads no frames at all).
