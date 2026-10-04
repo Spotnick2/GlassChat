@@ -19,6 +19,8 @@ Sources:
    - failing that, their chat and whispers;
    - **between accounts**, like AltStable's Battle.net sync.
 4. **Hidden lines can be seen:** an eye icon or similar.
+5. **CJK posts hidden, on by default** (owner, 2026-10-03). BadBoy did this: Chinese, Japanese
+   and Korean posts are of no use to most NA players, and the CJK font fallback disturbs the chat.
 
 ## What the references teach (and why neither is lifted)
 
@@ -153,6 +155,24 @@ The core exposes what the plugin uses through `GC.API` (CLAUDE.md: client APIs g
   - So a sender gets one post per window and is never hidden forever.
 - Session memory only.
 
+### CJK posts (on by default)
+
+- **Public chat only**, like every heuristic: CHANNEL, SAY, YELL, EMOTE. Never guild, group,
+  instance or whispers, so a guildmate or a friend writing in Chinese is unaffected. The usual
+  heuristic exemptions apply (friends, guild, group, the allow list).
+- **Detection is on the UTF-8 bytes**, with no font or locale involved. It counts code points in:
+  - CJK ideographs (U+4E00-U+9FFF; lead bytes E4-E9);
+  - CJK extension A (U+3400-U+4DBF);
+  - kana (U+3040-U+30FF);
+  - Hangul syllables (U+AC00-U+D7AF);
+  - CJK punctuation (U+3000-U+303F);
+  - full-width forms (U+FF00-U+FFEF).
+- **A line goes when** it holds at least **3** such characters **and** they are at least a third of
+  the non-space characters. So one stray symbol, or a name with a CJK character inside an English
+  sentence, never hides a line.
+- The text is decoded deliberately (Lua 5.1 patterns are bytes). Malformed UTF-8 counts as nothing.
+- Hidden lines go to the eye log with the reason `cjk`. `/gchat spam cjk off` turns it off.
+
 ### Seeing what was hidden (owner: "an eye icon")
 
 - An **eye icon in the tab strip**, beside the copy icon, drawn the same way. It shows a count of
@@ -235,6 +255,7 @@ gives something the filter can't (invites, duels). It would need its own reconci
   - the filter path (guards, memo, the two policies);
   - literal muted words (plus opt-in aggressive);
   - public-chat repeats;
+  - the CJK filter (on by default);
   - the eye icon and the hidden-lines log;
   - the GUID ignore list, filter-enforced, with `/gchat ignore|unignore|ignores` and explicit
     import.
@@ -242,6 +263,7 @@ gives something the filter can't (invites, duels). It would need its own reconci
   reconciliation rules.
 - **S3:** cross-account snapshot copy through an AltStable API (an AltStable issue first).
 - **S4 (maybe):**
+  - other scripts, if asked (Cyrillic was BadBoy's other case);
   - a light spam score that requires commercial signals together (a website alone, such as a
     guide link, never reaches the threshold);
   - negative signals only from data that isn't English display text;
