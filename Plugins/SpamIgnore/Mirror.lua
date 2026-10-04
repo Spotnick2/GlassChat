@@ -14,15 +14,20 @@
 --   character) is removed from this character's list at its next check.
 -- - A read is TRUSTED only when every entry from 1 to GetNumIgnores() reads
 --   as a plain name, the list is ready (an IGNORELIST_UPDATE this session,
---   or READY_DELAY s after login; measured: nil at ADDON_LOADED), it isn't
---   empty while names are linked, and no more than MASS_LOSS linked names
---   vanish at once. A distrusted read changes nothing (review of #24: one
---   bad read must never unignore the whole list).
+--   or READY_DELAY s after login; measured: nil at ADDON_LOADED), and no
+--   more than MASS_LOSS linked names vanish at once. An EMPTY read with names
+--   linked is trusted only once the list is SETTLED: an update that came
+--   READY_DELAY s or more after login, or one our own write caused; until
+--   then GlassChat asks for the list (ShowFriends) and waits. A distrusted
+--   read changes nothing (review of #24: one bad read must never unignore
+--   the whole list).
 -- - Writes are throttled, at most one in flight per name, and checked: a
 --   write counts once the list shows it, and a write that hasn't shown up
 --   WRITE_WAIT s later is a try. After MAX_TRIES (kept across logins) it's
 --   reported, not retried, and never taken to mean the name is invalid (it
---   stays ignored in chat).
+--   stays ignored in chat). Writes in flight are SAVED (charDB.writes), so a
+--   reload right after an add still knows the name is ours (Codex, #24).
+-- - Turning the mirror off stops the queue before its next write.
 -- - Never your own characters (owner): db.own, which holds this one too.
 -- Blizzard's own lines about our writes are hidden while they're in flight;
 -- one summary line instead.
@@ -42,18 +47,25 @@ Mirror.QUIET = 3          -- s after a write during which its system lines are h
 Mirror.MAX_TRIES = 3
 Mirror.MASS_LOSS = 3      -- more linked names than this gone at once: distrust the read
 
-local ready, loggedIn = false, false
+local ready, loggedIn, settled, asked = false, false, false, false
+local loginAt, wroteThisSession = nil, false
 local queue = {}          -- { op = "add"|"del", lname, name }
-local inFlight = {}       -- lname -> { op, at }
 local busy, warnedMass = false, false
 local summary = { added = 0, removed = 0, unignored = {} }
 
 local function charDB()
     local c = Spam.charDB
-    if type(c.linked) ~= "table" then c.linked = {} end
-    if type(c.tries) ~= "table" then c.tries = {} end
+    for _, k in ipairs({ "linked", "tries", "writes" }) do
+        if type(c[k]) ~= "table" then c[k] = {} end
+    end
+    for l, w in pairs(c.writes) do
+        if type(w) ~= "table" or (w.op ~= "add" and w.op ~= "del") or type(w.at) ~= "number" then c.writes[l] = nil end
+    end
     return c
 end
+
+-- Writes in flight, lname -> { op, at = time() }: saved, so they outlive a reload.
+local function inFlight() return charDB().writes end
 
 -- This character's Blizzard list, lname -> name, and its size; nil unless
 -- every entry read as a plain name (GetIgnoreName is nullable).
@@ -118,8 +130,12 @@ pump = function()
         C_Timer.After(Mirror.WRITE_WAIT, function() Mirror.Check("after writes") end)
         return
     end
-    busy = true
-    inFlight[w.lname] = { op = w.op, at = GetTime() }
+    if not Spam.db.mirror then   -- switched off: the rest of the queue is dropped
+        queue, busy = {}, false
+        return
+    end
+    busy, wroteThisSession = true, true
+    inFlight()[w.lname] = { op = w.op, at = time() }
     local fn = w.op == "add" and C_FriendList.AddIgnore or C_FriendList.DelIgnore
     local ok, res = pcall(fn, w.name)
     if not ok then API.Fail("ignore mirror " .. w.op, res) end
@@ -144,10 +160,18 @@ local function check(why)
     local server, n = Mirror.ReadServer()
     if not server then return end
     local c = charDB()
-    if n == 0 and next(c.linked) then return end   -- never trusted: a list not loaded yet reads empty
+    if n == 0 and next(c.linked) and not settled then
+        -- A list not loaded yet reads empty: ask for it, and wait for its update.
+        if not asked and C_FriendList.ShowFriends then
+            asked = true
+            pcall(C_FriendList.ShowFriends)
+        end
+        return
+    end
+    local inFlight = inFlight()
 
     -- Writes in flight: done once the list shows them, a lapsed try after WRITE_WAIT.
-    local t = GetTime()
+    local t = time()
     for l, w in pairs(inFlight) do
         local landed = (w.op == "add") == (server[l] ~= nil)
         if landed then
@@ -225,7 +249,7 @@ function Mirror.UnignoreHere(name)
     if not (Spam.db.mirror and canRun()) then return end
     local server = Mirror.ReadServer()
     local l = name:lower()
-    if server and server[l] and not inFlight[l] then
+    if server and server[l] and not inFlight()[l] then
         charDB().linked[l] = server[l]   -- so the check removes it
     end
     Mirror.Check("unignore")
@@ -258,9 +282,11 @@ local function blizzardLines(name)
 end
 
 function Mirror.SystemFilter(_, _, text)
-    if API.IsSecret(text) or type(text) ~= "string" or not next(inFlight) then return false end
-    local t, lower = GetTime(), text:lower()
-    for l, w in pairs(inFlight) do
+    if API.IsSecret(text) or type(text) ~= "string" or not Spam.charDB then return false end
+    local writes = inFlight()
+    if not next(writes) then return false end
+    local t, lower = time(), text:lower()
+    for l, w in pairs(writes) do
         if t - w.at < Mirror.QUIET then
             local exact = blizzardLines(l)
             if #exact > 0 then
@@ -280,7 +306,7 @@ function Mirror.Start()
     local f = CreateFrame("Frame")
     f:SetScript("OnEvent", function(_, event)
         if event == "PLAYER_LOGIN" then
-            loggedIn = true
+            loggedIn, loginAt = true, GetTime()
             if C_Timer and C_Timer.After then
                 C_Timer.After(Mirror.READY_DELAY, function()
                     ready = true
@@ -290,6 +316,7 @@ function Mirror.Start()
         elseif event == "IGNORELIST_UPDATE" then
             if not loggedIn then return end
             ready = true
+            if wroteThisSession or GetTime() - loginAt >= Mirror.READY_DELAY then settled = true end
             Mirror.Check("update")
         end
     end)
@@ -298,10 +325,10 @@ end
 
 Mirror._test = {
     reset = function()
-        ready, loggedIn, busy, warnedMass = false, false, false, false
-        queue, inFlight = {}, {}
+        ready, loggedIn, busy, warnedMass, settled, asked = false, false, false, false, false, false
+        loginAt, wroteThisSession, queue = nil, false, {}
         summary = { added = 0, removed = 0, unignored = {} }
     end,
-    inFlight = function() return inFlight end,
+    inFlight = function() return inFlight() end,
     queue = function() return queue end,
 }

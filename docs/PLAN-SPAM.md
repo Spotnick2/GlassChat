@@ -251,14 +251,17 @@ which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
   unignore the whole list). That means:
   - the list is ready: after an `IGNORELIST_UPDATE` this session, or 20 s after login;
   - every entry from 1 to `GetNumIgnores()` reads as a plain name;
-  - it isn't empty while names are linked;
+  - an empty list with names linked is trusted only once the list is settled: an update 20 s or
+    more after login, or one GlassChat's own write caused. Before that, GlassChat asks for the
+    list (`ShowFriends`) and waits;
   - no more than 3 linked names vanish at once (with a warning).
   A distrusted read changes nothing.
 - **Writes are throttled** (one per 0.5 s), with one in flight per name, and **checked**: an add
   or a removal counts only once the list shows it. Each attempt is a try, and after 3 tries
   (counted across logins) it's reported in `/gchat ignores` and not retried. A failed add is
   never taken to mean the name is invalid: the player stays ignored in chat. A failed removal
-  stays linked.
+  stays linked. Writes in flight are saved per character, so a reload between an add and its
+  check still knows the name is GlassChat's. Turning the mirror off stops the queue.
 - **Never your own characters, nor this one**, whether by GUID or by name.
 - Blizzard's own lines about GlassChat's writes are hidden for 3 s after each write. These are
   the exact `ERR_IGNORE_*` lines where those strings exist, and lines naming the player

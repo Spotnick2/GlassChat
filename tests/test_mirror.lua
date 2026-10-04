@@ -6,6 +6,8 @@ dofile("tests/harness.lua")
 -- Timers on a clock: advance(s) moves GetTime and runs what's due, in order.
 local clock, timers = 0, {}
 rawset(_G, "C_Timer", { After = function(s, fn) timers[#timers + 1] = { at = clock + s, fn = fn } end })
+-- Wall-clock time() on the same clock (saved writes are timed with it).
+rawset(_G, "time", function() return 1000000 + math.floor(clock) end)
 local function advance(s)
     local stop = clock + s
     while true do
@@ -41,6 +43,9 @@ C_FriendList.DelIgnore = function(name)
     end
     return false
 end
+-- ShowFriends asks the server for the list; the test decides when it arrives.
+local asked = 0
+C_FriendList.ShowFriends = function() asked = asked + 1 end
 local function blizzardRemoves(name)   -- the player, in Blizzard's UI
     for i, n in ipairs(WoW.ignores) do if n == name then table.remove(WoW.ignores, i) end end
     WoW.fire("IGNORELIST_UPDATE")
@@ -92,7 +97,7 @@ check(chatHas("added 4"), "one summary line")
 writes = {}
 SlashCmdList.GLASSCHAT("ignore Future Pest")   -- already there: no write
 eq(#writes, 0, "an entry already on the list isn't written again")
-Mirror._test.inFlight()["new pest"] = { op = "add", at = WoW.now }
+Mirror._test.inFlight()["new pest"] = { op = "add", at = time() }
 check(Mirror.SystemFilter(nil, "CHAT_MSG_SYSTEM", "New Pest is now being ignored."), "Blizzard's line for our write is hidden")
 check(not Mirror.SystemFilter(nil, "CHAT_MSG_SYSTEM", "Someone has come online."), "other system lines aren't")
 check(not Mirror.SystemFilter(nil, "CHAT_MSG_SYSTEM", WoW.Secret("x")), "a secret line passes")
@@ -146,8 +151,10 @@ db.ignore["Player-1-K"] = { name = "Kept Ignored" }
 c.linked["kept ignored"] = "Kept Ignored"
 Mirror._test.reset()
 WoW.fire("PLAYER_LOGIN")
+asked = 0
 advance(Mirror.READY_DELAY + 5)   -- ready by the delay, but Blizzard's list hasn't arrived
 check(db.ignore["Player-1-K"] ~= nil, "an empty list with linked names, before any update, doesn't unignore anyone")
+eq(asked, 1, "GlassChat asks for the list once instead")
 WoW.ignores = saved
 table.insert(WoW.ignores, "Kept Ignored")
 WoW.fire("IGNORELIST_UPDATE")
@@ -232,6 +239,74 @@ eq(#writes, 0, "with the mirror off, Blizzard's list isn't written")
 SlashCmdList.GLASSCHAT("ignore mirror on")
 advance(60)
 check(serverHas("Off Switch"), "on again: brought in step")
+
+-- From here: a small, fresh setup (no permanent Blizzard-only entry).
+local function fresh(names)
+    db.ignore, db.pending = {}, {}
+    for _, n in ipairs(names) do db.ignore["Player-1-" .. n] = { name = n } end
+    c.linked, c.tries, c.writes = {}, {}, {}
+    WoW.ignores = {}
+    Mirror._test.reset()
+    WoW.fire("PLAYER_LOGIN")
+    advance(Mirror.READY_DELAY)
+    WoW.fire("IGNORELIST_UPDATE")   -- the list arrives, after the delay
+    advance(60)
+end
+
+-- The last name removed leaves an empty list: that's trusted, and the sync goes on (Codex, #24).
+fresh({ "Only One" })
+check(serverHas("Only One") and c.linked["only one"], "one name added and linked")
+SlashCmdList.GLASSCHAT("unignore Only One")
+advance(60)
+check(not serverHas("Only One") and c.linked["only one"] == nil, "/gchat unignore of the last name: removed and unlinked")
+SlashCmdList.GLASSCHAT("ignore Next One")
+advance(60)
+check(serverHas("Next One"), "and the next ignore is still added")
+blizzardRemoves("Next One")
+advance(60)
+check(db.pending["next one"] == nil, "the last name removed in Blizzard's UI is unignored on the account")
+
+-- An update right after login with an empty list (not loaded yet) isn't trusted.
+fresh({ "Early One" })
+check(c.linked["early one"], "linked")
+WoW.ignores = {}
+Mirror._test.reset()
+WoW.fire("PLAYER_LOGIN")
+advance(1)
+WoW.fire("IGNORELIST_UPDATE")
+advance(5)
+check(db.ignore["Player-1-Early One"] ~= nil and c.linked["early one"], "an empty list in an update just after login unignores no one")
+table.insert(WoW.ignores, "Early One")
+advance(60)
+
+-- Off during a batch: the queue stops before its next write (Codex, #24).
+fresh({})
+writes = {}
+for _, n in ipairs({ "Batch One", "Batch Two", "Batch Three" }) do db.ignore["Player-1-" .. n] = { name = n } end
+Mirror.Check("test")
+eq(#writes, 1, "the batch starts with one write")
+SlashCmdList.GLASSCHAT("ignore mirror off")
+advance(60)
+eq(#writes, 1, "switched off: no further writes")
+SlashCmdList.GLASSCHAT("ignore mirror on")
+advance(60)
+check(serverHas("Batch Two") and serverHas("Batch Three"), "on again: the rest are added")
+
+-- A reload right after an add still knows the name is ours (Codex, #24).
+fresh({})
+db.ignore["Player-1-R"] = { name = "Reload Case" }
+Mirror.Check("test")   -- the add is written at once; its check is 10 s away
+check(serverHas("Reload Case") and c.linked["reload case"] == nil, "written, not yet confirmed")
+Mirror._test.reset()   -- /reload: session state gone, saved tables kept
+WoW.fire("PLAYER_LOGIN")
+advance(Mirror.READY_DELAY)
+WoW.fire("IGNORELIST_UPDATE")
+advance(60)
+check(c.linked["reload case"], "after the reload it's linked: GlassChat's own write")
+db.ignore["Player-1-R"] = nil   -- unignored on another character
+Mirror.Check("test")
+advance(60)
+check(not serverHas("Reload Case"), "so another character's unignore removes it here")
 
 eq(next(GC.failures), nil, "nothing failed")
 done("test_mirror")
