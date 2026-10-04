@@ -12,4 +12,5 @@ Chat.lua
 Skin.lua
 History.lua
 Copy.lua
+Buttons.lua
 GlassChat.lua

@@ -53,7 +53,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 ## Layout
 
 TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `GlassChat.lua`.
+`Copy.lua` → `Buttons.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -143,6 +143,19 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
     (review of #6). `||` is set aside before stripping, so `a||rb` stays `a|rb`.
     `StripHyperlinks` keeps brackets, and `|K` names are replaced before it runs.
   - Focus mode (M4) builds on this window.
+- **`Buttons.lua`** (#7): the buttons beside the chat as compact glass buttons.
+  - **Voice-style buttons** (`VoiceToggleButtonTemplate`: channel, TTS, deafen, mute): the metal
+    frame is the button's normal and pushed art, set to alpha 0. TTS's own black `Background`
+    square goes too.
+  - Behind them, a small glass pill from `Skin.NewPanel` / `Skin.Tune`, our own child one level
+    under. Its `g.top` (the rims) is lowered with it, since `Glass.Apply` puts it at +10, over the
+    gold `Icon`. The level re-syncs every scan.
+  - The highlight is softened, and softened again after Blizzard's `UpdateHighlight`.
+  - A button never styled (glass off from login) is never touched.
+  - Parent keys and mixin methods are read with `rawget`: they are plain fields on the frame.
+  - The chat-menu bubble (frame baked into one texture) and the friends button (animated
+    atlases) wait for an in-game atlas check.
+  - Run after every scan through `Chat.AfterScan`.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It

@@ -402,6 +402,22 @@ end
 function ScrollingEdit_OnCursorChanged() end
 function ScrollingEdit_OnUpdate() end
 function Methods.SetVerticalScroll(w, v) w._vscroll = v end
+-- A voice-style button beside the chat (VoiceToggleButtonTemplate): its
+-- frame is the normal and pushed art, its symbol a separate Icon.
+function Methods.GetNormalTexture(b) return b._normal end
+function Methods.GetPushedTexture(b) return b._pushed end
+function Methods.GetHighlightTexture(b) return b._highlight end
+ChatFrameChannelButton = newWidget("Button", UIParent, "ChatFrameChannelButton")
+ChatFrameChannelButton._level = 6
+for _, k in ipairs({ "_normal", "_pushed", "_highlight" }) do ChatFrameChannelButton[k] = newWidget("Texture", ChatFrameChannelButton) end
+-- The TTS button: the same template, plus an opaque black Background square
+-- (TextToSpeech.xml:17-24), and Blizzard's UpdateHighlight, which re-sets
+-- the highlight on every state change (PropertyButton.lua:60-67).
+TextToSpeechButton = newWidget("Button", UIParent, "TextToSpeechButton")
+TextToSpeechButton._level = 6
+for _, k in ipairs({ "_normal", "_pushed", "_highlight" }) do TextToSpeechButton[k] = newWidget("Texture", TextToSpeechButton) end
+TextToSpeechButton.Background = newWidget("Texture", TextToSpeechButton)
+rawset(TextToSpeechButton, "UpdateHighlight", function(self) self._highlight._alpha = 1 end)
 -- FrameXML's list of frames Escape closes.
 UISpecialFrames = {}
 -- The name-suggestion list under the edit box (Blizzard_AutoComplete).
