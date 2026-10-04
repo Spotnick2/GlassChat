@@ -88,34 +88,84 @@ Chat.OnEachFrame("lines", function(f)
     if f:GetMaxLines() ~= want then f:SetMaxLines(want) end
 end)
 
--- Timestamps (owner: "off by default, but I want it"). Blizzard stamps chat
--- lines itself from the showTimestamps setting (ChatFrameUtil.lua:845,
--- ChatFrameOverrides.lua:424, 661), a plain BetterDate(format, time())
--- prefix; GlassChat turns that on, and remembers what was there to give it
--- back. Lines with no chat event (addon output, like probe logs, and
--- Blizzard's system lines) get no stamp from Blizzard: GlassChat adds the
--- same plain prefix to them right after they're added, through the window's
--- public TransformMessages (ScrollingMessageFrame.lua:95). A line that
--- already starts with a time is left alone, so nothing is stamped twice.
-Chat.STAMP_FORMAT = "%H:%M:%S "
+-- Timestamps (owner: "off by default, but I want it", "between [ ] like
+-- Prat"). Blizzard stamps chat lines itself from the showTimestamps setting
+-- (ChatFrameUtil.lua:845, ChatFrameOverrides.lua:424, 661), a plain
+-- BetterDate(format, time()) prefix; GlassChat sets it to STAMP_FORMAT.
+-- Lines with no chat event (addon output, like probe logs, and Blizzard's
+-- system lines) get no stamp from Blizzard: GlassChat adds the same prefix
+-- right after they're added, through the window's public TransformMessages
+-- (ScrollingMessageFrame.lua:95). A line that already starts with a time is
+-- left alone, so nothing is stamped twice.
+Chat.STAMP_FORMAT = "[%H:%M:%S] "
+-- Formats GlassChat itself has written (an older build's too): the setting
+-- is still ours while it holds one of them.
+local OURS = { ["[%H:%M:%S] "] = true, ["%H:%M:%S "] = true }
 local STAMP_CVAR = "showTimestamps"
 
+-- On: remember the setting GlassChat replaces, re-read every time it applies,
+-- so a choice made in Blizzard's options meanwhile is the one kept. Off: put
+-- it back, but only while the setting is still ours; a choice made in
+-- Blizzard's options while ours were on is left alone (Codex review of #22).
 function Chat.ApplyTimestamps()
     if not (C_CVar and C_CVar.GetCVar and C_CVar.SetCVar) then return end
     local now = C_CVar.GetCVar(STAMP_CVAR)
+    if API.IsSecret(now) or type(now) ~= "string" then return end
     if GC.db.timestamps then
         if now ~= Chat.STAMP_FORMAT then
-            if GC.db.stampsBefore == nil and type(now) == "string" then GC.db.stampsBefore = now end
+            if not OURS[now] then GC.db.stampsBefore = now end
             C_CVar.SetCVar(STAMP_CVAR, Chat.STAMP_FORMAT)
         end
     elseif GC.db.stampsBefore ~= nil then
-        C_CVar.SetCVar(STAMP_CVAR, GC.db.stampsBefore)
+        if OURS[now] then C_CVar.SetCVar(STAMP_CVAR, GC.db.stampsBefore) end
         GC.db.stampsBefore = nil
     end
 end
 
 local function stamped(msg)
-    return msg:find("^%d%d?:%d%d") ~= nil
+    return msg:find("^%[?%d%d?:%d%d") ~= nil
+end
+
+-- The format the window stamps chat lines with now (the setting may have
+-- been changed in Blizzard's options), else ours.
+local function stampNow()
+    local fmt = ChatFrameUtil and ChatFrameUtil.GetTimestampFormat and ChatFrameUtil.GetTimestampFormat()
+    if API.IsSecret(fmt) or type(fmt) ~= "string" then fmt = Chat.STAMP_FORMAT end
+    if TimeUtil and TimeUtil.BetterDate then return TimeUtil.BetterDate(fmt, time()) end
+    return date(fmt)
+end
+
+-- Which entry is the line just added? TransformMessages walks the buffer in
+-- its storage order (CircularBuffer.lua:106), which is the lines' order
+-- rotated once the buffer wraps: the newest line sits right after the
+-- older ones in storage. So the first pass reads the storage order, and when
+-- the text occurs more than once (an identical older line), the candidate
+-- whose storage neighbours match the newest lines from GetMessageInfo is the
+-- new one (Codex review of #22). Returns its storage position, or nil.
+local function findNewest(f, msg)
+    local texts, cands = {}, {}
+    f:TransformMessages(function(m, r, g, b, id, accessID, typeID, event)
+        local i = #texts + 1
+        if API.IsSecret(m) or type(m) ~= "string" then texts[i] = false; return false end
+        texts[i] = m
+        if m == msg and not API.IsSecret(event) and event == nil then cands[#cands + 1] = i end
+        return false
+    end, function(...) return ... end)
+    if #cands <= 1 then return cands[1] end
+    local n, total = #texts, f:GetNumMessages()
+    if API.IsSecret(total) or total ~= n then return cands[#cands] end
+    for back = 1, n - 1 do
+        local want = f:GetMessageInfo(n - back)   -- the back-th line before the newest
+        if API.IsSecret(want) or type(want) ~= "string" then want = nil end
+        local keep = {}
+        for _, h in ipairs(cands) do
+            local have = texts[(h - 1 - back) % n + 1]
+            if want == nil or have == false or have == want then keep[#keep + 1] = h end
+        end
+        if #keep > 0 then cands = keep end
+        if #cands == 1 then break end
+    end
+    return cands[#cands]
 end
 
 -- Right after a line with no chat event lands: prefix it, once.
@@ -123,18 +173,18 @@ local function stampLine(f, msg, r, g, b, id, accessID, typeID, event)
     if not GC.db.timestamps then return end
     if API.IsSecret(event) or event ~= nil then return end   -- Blizzard stamps chat-event lines itself
     if API.IsSecret(msg) or type(msg) ~= "string" or msg == "" or stamped(msg) then return end
-    local stamp = date(Chat.STAMP_FORMAT)
-    local done = false
-    f:TransformMessages(function(m)
-        if done or API.IsSecret(m) or m ~= msg then return false end
-        done = true
-        return true
+    local target = findNewest(f, msg)
+    if not target then return end
+    local stamp, i = stampNow(), 0
+    f:TransformMessages(function()
+        i = i + 1
+        return i == target
     end, function(m, ...) return stamp .. m, ... end)
 end
 
 local stampHooked = setmetatable({}, { __mode = "k" })
 Chat.OnEachFrame("timestamps", function(f)
-    if stampHooked[f] or not f.TransformMessages then return end
+    if stampHooked[f] or not (f.TransformMessages and f.GetMessageInfo) then return end
     stampHooked[f] = true
     hooksecurefunc(f, "AddMessage", function(...)
         local ok, err = pcall(stampLine, ...)

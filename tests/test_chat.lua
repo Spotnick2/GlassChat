@@ -302,29 +302,56 @@ eq(#GlassChatCharDB.sent, 12, "the saved list is trimmed to the new size")
 eq(edit:GetHistoryLines(), 12, "and the native history follows")
 
 -- Timestamps: off by default; on, Blizzard's own setting for chat lines
--- (the old value remembered and given back) and the same stamp on lines
--- with no chat event; never twice.
+-- and the same stamp, [HH:MM:SS], on lines with no chat event; never twice.
 eq(db.timestamps, false, "timestamps are off by default")
 WoW.cvars.showTimestamps = "none"
-ChatFrame1._lines = {}
+local function last() return ChatFrame1._lines[#ChatFrame1._lines].m end
+ChatFrame1._lines, ChatFrame1._rot = {}, 0
 ChatFrame1:AddMessage("[pet] stable slot 3: empty", 1, 1, 1)
-eq(ChatFrame1._lines[#ChatFrame1._lines].m, "[pet] stable slot 3: empty", "off: addon lines aren't stamped")
+eq(last(), "[pet] stable slot 3: empty", "off: addon lines aren't stamped")
 SlashCmdList.GLASSCHAT("stamps on")
-eq(WoW.cvars.showTimestamps, "%H:%M:%S ", "on: Blizzard's chat timestamps are on, HH:MM:SS")
+eq(WoW.cvars.showTimestamps, "[%H:%M:%S] ", "on: Blizzard's chat timestamps are on, [HH:MM:SS]")
 ChatFrame1:AddMessage("[pet] stable slot 4: empty", 1, 1, 1)
-check(ChatFrame1._lines[#ChatFrame1._lines].m:find("^%d%d:%d%d:%d%d %[pet%] stable slot 4"), "an addon line gets the same stamp")
+check(last():find("^%[%d%d:%d%d:%d%d%] %[pet%] stable slot 4"), "an addon line gets the same stamp")
 ChatFrame1:AddMessage("[1. General] [Bob]: hi", 1, 1, 1, 1, nil, 1, "CHAT_MSG_CHANNEL")
-eq(ChatFrame1._lines[#ChatFrame1._lines].m, "[1. General] [Bob]: hi", "a chat-event line is left to Blizzard (it stamps those)")
-ChatFrame1:AddMessage("09:15:00 already stamped", 1, 1, 1)
-eq(ChatFrame1._lines[#ChatFrame1._lines].m, "09:15:00 already stamped", "a line that starts with a time isn't stamped twice")
+eq(last(), "[1. General] [Bob]: hi", "a chat-event line is left to Blizzard (it stamps those)")
+ChatFrame1:AddMessage("[09:15:00] already stamped", 1, 1, 1)
+eq(last(), "[09:15:00] already stamped", "a line that starts with a time isn't stamped twice")
 ChatFrame1:AddMessage(WoW.Secret("hidden"), 1, 1, 1)
 check(true, "a secret line is left alone (no error)")
+
+-- The new line is the one stamped, not an identical older one (Codex, #22),
+-- before and after the buffer wraps.
+ChatFrame1:AddMessage("[pet] stable slot 3: empty", 1, 1, 1)
+eq(ChatFrame1._lines[1].m, "[pet] stable slot 3: empty", "an identical older line keeps no stamp")
+check(last():find("^%[%d%d:%d%d:%d%d%] %[pet%] stable slot 3"), "the new copy gets it")
+ChatFrame1._lines, ChatFrame1._rot = {}, 0
+SlashCmdList.GLASSCHAT("stamps off")
+for _, t in ipairs({ "dup", "a", "dup", "b" }) do ChatFrame1:AddMessage(t, 1, 1, 1) end
+SlashCmdList.GLASSCHAT("stamps on")
+ChatFrame1._rot = 2   -- wrapped: storage is b?, dup(new)?, then the older ones
+ChatFrame1:AddMessage("dup", 1, 1, 1)
+ChatFrame1._rot = 3   -- the newest line is stored at position 3 of 5
+for i = 1, 4 do check(not ChatFrame1._lines[i].m:find("^%["), "wrapped: older line " .. i .. " keeps no stamp") end
+check(last():find("^%[%d%d:%d%d:%d%d%] dup$"), "wrapped: the new copy gets it")
+
+-- The Blizzard setting: given back, but never over a newer choice (Codex, #22).
 SlashCmdList.GLASSCHAT("stamps off")
 eq(WoW.cvars.showTimestamps, "none", "off again: the old Blizzard setting comes back")
 WoW.cvars.showTimestamps = "%I:%M "   -- changed in Blizzard's options meanwhile
 SlashCmdList.GLASSCHAT("stamps on")
 SlashCmdList.GLASSCHAT("stamps off")
 eq(WoW.cvars.showTimestamps, "%I:%M ", "and it's the latest one that comes back, not a stale one")
+SlashCmdList.GLASSCHAT("stamps on")
+WoW.cvars.showTimestamps = "%H:%M "   -- changed in Blizzard's options while ours are on
+SlashCmdList.GLASSCHAT("stamps off")
+eq(WoW.cvars.showTimestamps, "%H:%M ", "a choice made while ours were on is kept")
+WoW.cvars.showTimestamps = "none"
+SlashCmdList.GLASSCHAT("stamps on")
+WoW.cvars.showTimestamps = "%H:%M "   -- changed while on, then a reload re-applies ours
+GC.Chat.ApplyTimestamps()
+SlashCmdList.GLASSCHAT("stamps off")
+eq(WoW.cvars.showTimestamps, "%H:%M ", "and survives ours being applied again (a reload)")
 
 -- /gchat drives the same settings.
 newChat()
