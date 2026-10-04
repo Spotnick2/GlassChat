@@ -140,7 +140,18 @@ this. Chat windows are **per character** (probe item 8).
 
 ### M3: smart tabs (the owner's main pain: probe output)
 
-- GlassChat installs a **wrapping print handler** (probe item 7) that names the addon behind each
+- **As built (#25), after probe items 7-9:** ASProbe and the AltStable family write with
+  `DEFAULT_CHAT_FRAME:AddMessage`, not `print`, so a print handler alone would miss the owner's
+  main case. Instead, **one `AddMessage` post-hook per window** (in `Chat.lua`, shared with the
+  timestamps) handles every line that has no chat event:
+  - It names the writer from `debugstack`: the first frame below our own that isn't
+    `Blizzard_*` plumbing. `print` reaches `AddMessage` through `Blizzard_PrintHandler`, so it is
+    covered too.
+  - A routed line is copied to its tab, then the newest matching copy is removed where it landed,
+    with the public `RemoveMessagesByPredicate`. Its `RemoveIf` walks oldest to newest, so older
+    identical lines are safe.
+  - Routing runs before the timestamp, because stamping rewrites the line in the buffer.
+- *Original design:* a **wrapping print handler** (probe item 7) that names the addon behind each
   `print` line from the stack. The handler passes every line on unchanged unless a rule moves it.
 - **When an addon gets chatty** (e.g. 20 lines in a minute), GlassChat offers, once, in chat:
   "ASProbe printed 40 lines. [Own tab for this session] [Always] [No]". Those are clickable addon
@@ -153,7 +164,10 @@ this. Chat windows are **per character** (probe item 8).
   character opens its own tab on that addon's first line. An existing window with that name is
   reused, so a permanent tab isn't duplicated after a relog.
 - Every routed line is also kept in GlassChat's own buffer, with its source addon and time, for
-  M4.
+  M4. *(Deferred to M4, which will need it; M3 doesn't.)*
+- **Never offered:** Blizzard's own lines, GlassChat and its plugins, and lines carrying a chat
+  event. A tab the player closes sends that addon's lines back to the main chat for the session,
+  with one line saying so. With no room for another tab, the lines stay in the main chat.
 - Limits: only `print` output can be moved (probe item 7 says how much that covers). Blizzard
   caps chat windows at 10. Lua errors go to the error frame, not chat, and are out of scope.
 
@@ -203,7 +217,6 @@ The owner's picture: freeze and maximise the current tab, which reveals search a
 
 ## Still open
 
-- Smart tabs, "session": should the tab close at logout? It's simplest to leave it, because
-  Blizzard saves chat windows. Closing it means calling `FCF_Close` at logout.
-- The threshold for "chatty" (lines per minute), and whether Blizzard's own system spam (loot,
-  XP) should ever be offered a tab.
+- *(Settled in M3.)* A "session" tab isn't closed at logout: Blizzard saves chat windows, so it
+  stays as an ordinary tab, but nothing routes to it in the next session. "Chatty" means 20 lines
+  within 60 s (`Tabs.CHATTY`, `Tabs.WINDOW`). Blizzard's own lines are never offered.

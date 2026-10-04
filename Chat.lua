@@ -187,13 +187,28 @@ local function stampLine(f, msg, r, g, b, id, accessID, typeID, event)
     end, function(m, ...) return stamp .. m, ... end)
 end
 
-local stampHooked = setmetatable({}, { __mode = "k" })
-Chat.OnEachFrame("timestamps", function(f)
-    if stampHooked[f] or not (f.TransformMessages and f.GetMessageInfo) then return end
-    stampHooked[f] = true
+-- One AddMessage post-hook per window, for lines with no chat event: first
+-- smart tabs (Tabs.lua sets Chat.Route), which may move the line to its
+-- addon's tab, then the timestamp for a line that stays. One hook, in that
+-- order, because stamping rewrites the line in the buffer and a move must
+-- find it as it was added.
+Chat.Route = nil
+local function routeLine(f, msg, r, g, b, id, accessID, typeID, event)
+    if not Chat.Route or API.IsSecret(event) or event ~= nil then return false end
+    return Chat.Route(f, msg, r, g, b)
+end
+
+local lineHooked = setmetatable({}, { __mode = "k" })
+Chat.OnEachFrame("lines", function(f)
+    if lineHooked[f] or not f.AddMessage then return end
+    lineHooked[f] = true
     hooksecurefunc(f, "AddMessage", function(...)
-        local ok, err = pcall(stampLine, ...)
-        if not ok then API.Fail("timestamp", err) end
+        local ok, moved = pcall(routeLine, ...)
+        if not ok then API.Fail("tab route", moved); moved = false end
+        if moved then return end
+        if not (f.TransformMessages and f.GetMessageInfo) then return end
+        local okS, err = pcall(stampLine, ...)
+        if not okS then API.Fail("timestamp", err) end
     end)
 end)
 

@@ -477,6 +477,15 @@ function Methods.AddMessage(f, msg, ...)
 end
 -- ScrollingMessageFrame:TransformMessages over the stub's _lines buffer
 -- (entries { m = text }), as the mixin does (ScrollingMessageFrame.lua:95).
+-- ScrollingMessageFrame:RemoveMessagesByPredicate: RemoveIf walks oldest to
+-- newest (CircularBuffer.lua:89) and keeps that order.
+function Methods.RemoveMessagesByPredicate(f, pred)
+    local keep = {}
+    for _, e in ipairs(f._lines or {}) do
+        if not pred(e.m, unpack(e.extra or {}, 1, e.extra and e.extra.n or 0)) then keep[#keep + 1] = e end
+    end
+    f._lines = keep
+end
 -- Storage order: chronological, rotated by f._rot once "wrapped" (as
 -- CircularBuffer stores it: the newest lines first, then the older ones).
 function Methods.TransformMessages(f, pred, transform)
@@ -515,9 +524,19 @@ time = os.time
 function GetTime() return WoW.now or 0 end
 function UnitName(unit) if unit == "player" then return WoW.playerName or "Karuzo", "Morphisto" end end
 function GetRealmName() return "Doomhowl" end
--- EventRegistry callbacks, recorded by event.
-WoW.callbacks = {}
-EventRegistry = { RegisterCallback = function(self, event, fn, owner) WoW.callbacks[event] = fn end }
+-- EventRegistry callbacks: several per event, each called with its owner
+-- first (CallbackRegistry.lua:112). WoW.callbacks[event](_, ...) fires them all.
+WoW.callbacks, WoW.callbackList = {}, {}
+EventRegistry = { RegisterCallback = function(self, event, fn, owner)
+    local list = WoW.callbackList[event] or {}
+    WoW.callbackList[event] = list
+    list[#list + 1] = { fn = fn, owner = owner }
+    WoW.callbacks[event] = function(_, ...)
+        for _, c in ipairs(list) do c.fn(c.owner, ...) end
+    end
+end }
+-- debugstack: the stack a test sets (WoW.stack), else one with no addon in it.
+function debugstack() return WoW.stack or "[C]: ?" end
 -- FrameXML's per-window wrapper; temporary windows (id > 10) answer from their tab.
 function FCF_GetChatWindowInfo(i)
     if i > 10 then
