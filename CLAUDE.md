@@ -47,14 +47,14 @@ this client each one taints chat. The research behind this is in `docs/PLAN.md`.
 
 **Status: M0-M3 done (readable glass, class colours, scrollback, sent history, one layout,
 smart tabs), plus timestamps and the Spam & Ignore plugin.** The probe results are in
-`docs/FOREVER-PROBE.md`; the plan is `docs/PLAN.md`. M4 (focus mode) is built; next: M5 (URL
-copy). Work goes through
+`docs/FOREVER-PROBE.md`; the plan is `docs/PLAN.md`. M0-M5 are built; what's left is in the
+plan's "Later" and the Spam & Ignore S3/S4. Work goes through
 GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
 
 ## Layout
 
 TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `GlassChat.lua`.
+`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -260,6 +260,21 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - **Export** writes the view's plain lines to `GlassChatDB.export`.
   - **Secret lines** are `Copy.HIDDEN`, never matched or exported. The chat behind it is never
     touched.
+- **`Url.lua`** (M5): click a web address to copy it (`db.urls`, on by default).
+  - **The filter:** a message filter on the player-chat events (`Url.EVENTS`) rewrites arg1,
+    returning false plus every argument. Each web address becomes
+    `|Haddon:GlassChat:url:<address>|h[<address>]|h`.
+  - **What counts:** `http(s)://`, `www.`, or a bare `name.tld[/...]` whose ending is in
+    `Url.TLDS`. Never e-mail addresses or bare IPs.
+  - `Url.Wrap` scans only the plain text between escapes: links, textures and atlases, colour
+    codes (`|c`, `|cn`, `|r`) and `||`. Leading brackets and quotes, and trailing punctuation,
+    stay outside the address.
+  - **The filter goes in at `PLAYER_LOGIN`**, after the spam plugin's, because filters run in
+    the order they were added and mutes must see the text as typed. There's one decision per
+    (event, lineID).
+  - `Copy.Plain` turns our address links back into the plain address, without the brackets.
+  - **The click:** `EventRegistry "SetItemRef"` opens a small read-only box with the address
+    selected for Ctrl+C. There is no clipboard API here (probe items 2-3).
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It

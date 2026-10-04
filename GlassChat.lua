@@ -19,6 +19,7 @@ local DEFAULTS = {
     history = 100,         -- sent lines kept (stock: 32)
     tabSize = 14,          -- tab name font size (stock GameFontNormalSmall, ~10)
     shortChannels = true,  -- "[1. General - The Barrens]" -> "[1. General]"
+    urls = true,           -- web addresses in chat become click-to-copy links
     timestamps = false,    -- HH:MM:SS on every line, addon output included (owner: off by default)
 }
 
@@ -102,6 +103,10 @@ function Settings.SetTimestamps(on)
     GC.Chat.ApplyTimestamps()
 end
 
+function Settings.SetUrls(on)
+    GC.db.urls = on and true or false
+end
+
 function Settings.SetShortChannels(on)
     GC.db.shortChannels = on and true or false
 end
@@ -144,6 +149,7 @@ local function help()
     say("/gchat arrows on|off - Up/Down recall what you sent (" .. onOff(db.plainArrows) .. ")")
     say("/gchat history N - sent lines kept (" .. db.history .. ")")
     say("/gchat channels on|off - drop the zone from channel names (" .. onOff(db.shortChannels) .. ")")
+    say("/gchat urls on|off - click a web address in chat to copy it (" .. onOff(db.urls) .. ")")
     say("/gchat stamps on|off - a time on every line, addon output too (" .. onOff(db.timestamps) .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
     say("/gchat layout - save this character's chat windows for your other characters")
@@ -162,7 +168,7 @@ local function flag(arg)
 end
 
 local TOGGLES = { glass = Settings.SetGlass, colors = Settings.SetClassColors, arrows = Settings.SetPlainArrows,
-    channels = Settings.SetShortChannels, stamps = Settings.SetTimestamps }
+    channels = Settings.SetShortChannels, stamps = Settings.SetTimestamps, urls = Settings.SetUrls }
 local NUMBERS = { alpha = Settings.SetAlpha, lines = Settings.SetLines, history = Settings.SetHistory,
     tabsize = Settings.SetTabSize }
 
@@ -260,6 +266,8 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         if not ok then API.Fail("start layout", err) end
         ok, err = pcall(GC.Tabs.Start)
         if not ok then API.Fail("start tabs", err) end
+        ok, err = pcall(GC.Url.Start)
+        if not ok then API.Fail("start urls", err) end
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- arg1 = isInitialLogin: warn and offer at a real login, never on /reload.
         if arg1 and GC.Layout then GC.Layout.ScheduleOffer() end

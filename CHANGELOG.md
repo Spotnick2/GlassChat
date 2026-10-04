@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Copy web addresses:** a web address in chat (`https://...`, `www....`, or a site like
+  `wowhead.com/...`) becomes a link. Click it for a small box with the address selected, then
+  Ctrl+C. Game links are untouched. `/gchat urls off` turns it off.
 - The glass look now comes from LibGlass, a small library shared by the Glass addons and
   included in the download. Nothing changes on screen.
 - **Focus mode:** `/gchat focus` (or the magnifier next to the copy icon) freezes the chat window

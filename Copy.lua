@@ -30,6 +30,7 @@ local PIPE = "\1"
 function Copy.Plain(text)
     if API.IsSecret(text) or type(text) ~= "string" then return nil end
     local s = text:gsub("||", PIPE)
+    s = s:gsub("|Haddon:GlassChat:url:[^|]*|h%[(.-)%]|h", "%1")
     s = s:gsub("|K.-|k", "?")
     local util = rawget(_G, "C_StringUtil")
     if util and util.StripHyperlinks then
@@ -108,14 +109,7 @@ local function build()
     scroll:SetScrollChild(edit)
     win.scroll = scroll
     API.AutoHideScrollBar(scroll)
-    edit:SetScript("OnEscapePressed", function() win:Hide() end)
-    -- Read-only: typing puts the text back, selected.
-    edit:SetScript("OnTextChanged", function(self, userInput)
-        if userInput and win.text then
-            self:SetText(win.text)
-            self:HighlightText()
-        end
-    end)
+    API.ReadOnly(edit, win, "text", true)   -- typing puts the text back, selected
     win.edit = edit
     win.status = Glass.Font(win, 11, "LEFT")
     win.status:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 14, 16)

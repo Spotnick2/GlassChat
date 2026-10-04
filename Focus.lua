@@ -207,10 +207,7 @@ local function build()
         edit:SetScript("OnCursorChanged", ScrollingEdit_OnCursorChanged)
         edit:SetScript("OnUpdate", ScrollingEdit_OnUpdate)
     end
-    edit:SetScript("OnEscapePressed", function() win:Hide() end)
-    edit:SetScript("OnTextChanged", function(self, userInput)
-        if userInput and win.text then self:SetText(win.text) end
-    end)
+    API.ReadOnly(edit, win, "text", false)
     scroll:SetScrollChild(edit)
     API.AutoHideScrollBar(scroll)
     win.scroll, win.edit = scroll, edit

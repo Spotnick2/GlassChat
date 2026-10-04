@@ -10,8 +10,15 @@ local Spam, UI, Text = GC.Spam, GC.SpamUI, GC.SpamText
 local db = GlassChatSpamIgnoreDB
 
 -- The filter is installed for every player-chat event.
-local filter = WoW.messageFilters.CHAT_MSG_CHANNEL[#WoW.messageFilters.CHAT_MSG_CHANNEL]
-eq(filter, Spam.Filter, "the plugin's filter is on CHAT_MSG_CHANNEL")
+-- The plugin's filter is on CHAT_MSG_CHANNEL, before the address filter
+-- (added at PLAYER_LOGIN), so it judges the text as typed.
+local spamAt, urlAt
+for i, fn in ipairs(WoW.messageFilters.CHAT_MSG_CHANNEL) do
+    if fn == Spam.Filter then spamAt = i end
+    if fn == GC.Url.Filter then urlAt = i end
+end
+check(spamAt, "the plugin's filter is on CHAT_MSG_CHANNEL")
+check(urlAt and spamAt < urlAt, "and runs before the address filter")
 check(WoW.messageFilters.CHAT_MSG_GUILD ~= nil, "and on guild chat (for explicit ignores)")
 
 local nextLine = 1000

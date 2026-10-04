@@ -210,10 +210,19 @@ The owner's picture: freeze and maximise the current tab, which reveals search a
 
 ### M5: copy web addresses
 
-- **URLs only** (owner). A message filter wraps them in an addon link (`|Haddon:GlassChat:url:…|h`).
-  A click opens a small glass box with the URL selected (Ctrl+C), or copies it directly if probe
-  item 2 passes.
-- Drag-select copy in the normal chat (not only in focus mode), if probe item 3 passes.
+**As built (#31):** `Url.lua`, on by default (`/gchat urls on|off`).
+- Probe items 2 and 3 failed: there's no clipboard write and no drag-select copy. So a click
+  opens a small glass box with the address selected, for Ctrl+C.
+- **What counts as an address:** `http(s)://`, `www.`, and a bare `name.tld/path` for a short
+  list of endings (`Url.TLDS`). E-mail addresses and bare IPs, which Prat's UrlCopy also takes,
+  are left out.
+- **Only the plain text** between game links, colour codes, textures and atlases is scanned. An
+  address another addon already linked stays as it is. A sentence's full stop stays outside the
+  address.
+
+- *Original plan:* URLs only (owner), wrapped by a message filter in an addon link, with a direct
+  copy if probe item 2 passed and drag-select copy if item 3 did. Both failed, so the box above
+  is what's built.
 - Game links keep their stock behaviour.
 
 ### Later (only if asked)
