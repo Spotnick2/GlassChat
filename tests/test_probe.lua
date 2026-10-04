@@ -303,6 +303,34 @@ check(logHas("DelIgnore(Kaleid Sumner) ok=true returned=true"), "11 removes it a
 eq(#ignoreList, 1, "11 the ignore list is as it was")
 check(not logHas("Old Grudge"), "11 the rest of the ignore list is never logged")
 
+-- 11 never touches an ignore the player already has, and allows one test
+-- at a time (Codex, #16).
+ignoreList = { "Old Grudge", "Kaleid Sumner" }
+ignoredGuids[targetGuid] = true
+SlashCmdList.CHATPROBE("ignoretest")
+check(logHas("11 your target is already on your ignore list"), "11 an already-ignored target is left alone")
+eq(#ignoreList, 2, "11 and the player's own entry stays")
+ignoreList, ignoredGuids = { "Old Grudge" }, {}
+rawset(_G, "C_FriendList", setmetatable({ AddIgnore = function() return false end }, { __index = C_FriendList }))
+SlashCmdList.CHATPROBE("ignoretest")
+check(logHas("11 not added, so nothing to clean up"), "11 a refused add schedules no removal")
+check(T10.P.ignoreTest == nil, "11 nothing pending after a refused add")
+rawset(_G, "C_FriendList", getmetatable(C_FriendList).__index)
+SlashCmdList.CHATPROBE("ignoretest")
+SlashCmdList.CHATPROBE("ignoretest")
+check(logHas("11 an ignore test is still waiting"), "11 a second test is refused while one is pending")
+T10.blockWatch._scripts.OnEvent(T10.blockWatch, "IGNORELIST_UPDATE")
+eq(#ignoreList, 1, "11 the pending test cleaned up its own entry only")
+-- No other name from the list is logged, not even one sharing the first name.
+ignoreList = { "Kaleid Other" }
+SlashCmdList.CHATPROBE("ignoretest")
+T10.blockWatch._scripts.OnEvent(T10.blockWatch, "IGNORELIST_UPDATE")
+check(not logHas("Kaleid Other"), "11 a similar name on the list is never logged")
+
+-- 12: CHAT_MSG_IGNORED's sender is arg2, not its text.
+T10.blockWatch._scripts.OnEvent(T10.blockWatch, "CHAT_MSG_IGNORED", "this is a long text", "Karuzo Elegia")
+check(logHas("12 CHAT_MSG_IGNORED (from words=2 dash=false)"), "12 CHAT_MSG_IGNORED's sender comes from arg2")
+
 -- 12: invites and duels that arrive are logged by sender shape.
 T10.blockWatch._scripts.OnEvent(T10.blockWatch, "PARTY_INVITE_REQUEST", "Ignored Alt")
 check(logHas("12 PARTY_INVITE_REQUEST (from words=2 dash=false)"), "12 an arriving invite is logged without the name")

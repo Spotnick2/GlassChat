@@ -629,6 +629,12 @@ end
 
 P.ignoreTest = nil
 local function ignoreTest()
+    -- One test at a time: a second one before the list update would leave
+    -- the first target ignored (Codex, #16).
+    if P.ignoreTest then
+        say("11 an ignore test is still waiting for the list update; try again in a moment")
+        return
+    end
     if not UnitIsPlayer("target") or UnitIsUnit("target", "player") then
         say("11 target another player first (an alt or a friend who agrees: they're ignored for a moment, then removed)")
         return
@@ -647,26 +653,43 @@ local function ignoreTest()
     if type(first) == "string" and type(surname) == "string" and surname ~= "" and not (type(full) == "string" and full:find(" ", 1, true)) then
         candidate = first .. " " .. surname
     end
+    -- Never touch an ignore the player already has: only an entry this test
+    -- added is removed again (Codex, #16).
+    local already = false
+    if guid and C_FriendList.IsIgnoredByGuid then
+        local okG, byGuid = pcall(C_FriendList.IsIgnoredByGuid, guid)
+        already = okG and byGuid == true
+    end
+    if not already then
+        for _, name in ipairs((ignoreNames())) do
+            if name == candidate then already = true end
+        end
+    end
+    if already then
+        say("11 your target is already on your ignore list; the test leaves it alone (pick someone else)")
+        return
+    end
     local ok, added = try("AddIgnore", C_FriendList.AddIgnore, candidate)
     say("11 AddIgnore(" .. show(candidate) .. ") ok=" .. tostring(ok) .. " returned=" .. show(added))
-    P.ignoreTest = { name = candidate, guid = guid }
-    say("11 waiting for IGNORELIST_UPDATE (it reads the list back, then removes the entry)")
+    if ok and added == true then
+        P.ignoreTest = { name = candidate, guid = guid }
+        say("11 waiting for IGNORELIST_UPDATE (it reads the list back, then removes the entry)")
+    else
+        say("11 not added, so nothing to clean up")
+    end
 end
 
 local function ignoreReadBack()
     local t = P.ignoreTest
     if not t then return end
-    -- Only the entry for the TARGET is logged, never the rest of the list:
-    -- the exact name we added, else one starting with the same first name.
+    -- Only whether the TARGET's exact entry is there: no other name from the
+    -- list is ever logged, not even a similar one (Codex, #16).
     local names, n = ignoreNames()
-    local exact, similar = false, nil
-    local firstWord = type(t.name) == "string" and t.name:match("^(%S+)") or nil
+    local exact = false
     for _, name in ipairs(names) do
-        if name == t.name then exact = true
-        elseif firstWord and name:sub(1, #firstWord) == firstWord then similar = name end
+        if name == t.name then exact = true end
     end
-    say("11 ignores now: " .. show(n) .. "; exact entry " .. show(t.name) .. " present = " .. tostring(exact)
-        .. (similar and ("; a similar entry reads back as " .. similar) or ""))
+    say("11 ignores now: " .. show(n) .. "; exact entry " .. show(t.name) .. " present = " .. tostring(exact))
     local okG, byGuid = false, nil
     if t.guid and C_FriendList.IsIgnoredByGuid then okG, byGuid = pcall(C_FriendList.IsIgnoredByGuid, t.guid) end
     say("11 IsIgnoredByGuid(target) = " .. (okG and show(byGuid) or "error"))
@@ -681,7 +704,7 @@ end
 
 local blockWatch = CreateFrame("Frame")
 P.blocks = {}
-blockWatch:SetScript("OnEvent", function(_, event, a1)
+blockWatch:SetScript("OnEvent", function(_, event, a1, a2)
     if event == "IGNORELIST_UPDATE" then
         local _, n = ignoreNames()
         say(string.format("12 IGNORELIST_UPDATE at %.1f s, %s ignores", GetTime(), show(n)))
@@ -689,7 +712,10 @@ blockWatch:SetScript("OnEvent", function(_, event, a1)
         return
     end
     P.blocks[event] = (P.blocks[event] or 0) + 1
-    say("12 " .. event .. " (from " .. senderShape(a1) .. ")")
+    -- CHAT_MSG_IGNORED is (text, playerName, ...); invites and duels put the
+    -- name first (70205 dump :6946, :7713, :7180). Codex, #16.
+    local sender = (event == "CHAT_MSG_IGNORED") and a2 or a1
+    say("12 " .. event .. " (from " .. senderShape(sender) .. ")")
 end)
 for _, e in ipairs({ "IGNORELIST_UPDATE", "CHAT_MSG_IGNORED", "PARTY_INVITE_REQUEST", "DUEL_REQUESTED" }) do
     register(blockWatch, e)
