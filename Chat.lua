@@ -88,6 +88,60 @@ Chat.OnEachFrame("lines", function(f)
     if f:GetMaxLines() ~= want then f:SetMaxLines(want) end
 end)
 
+-- Timestamps (owner: "off by default, but I want it"). Blizzard stamps chat
+-- lines itself from the showTimestamps setting (ChatFrameUtil.lua:845,
+-- ChatFrameOverrides.lua:424, 661), a plain BetterDate(format, time())
+-- prefix; GlassChat turns that on, and remembers what was there to give it
+-- back. Lines with no chat event (addon output, like probe logs, and
+-- Blizzard's system lines) get no stamp from Blizzard: GlassChat adds the
+-- same plain prefix to them right after they're added, through the window's
+-- public TransformMessages (ScrollingMessageFrame.lua:95). A line that
+-- already starts with a time is left alone, so nothing is stamped twice.
+Chat.STAMP_FORMAT = "%H:%M:%S "
+local STAMP_CVAR = "showTimestamps"
+
+function Chat.ApplyTimestamps()
+    if not (C_CVar and C_CVar.GetCVar and C_CVar.SetCVar) then return end
+    local now = C_CVar.GetCVar(STAMP_CVAR)
+    if GC.db.timestamps then
+        if now ~= Chat.STAMP_FORMAT then
+            if GC.db.stampsBefore == nil and type(now) == "string" then GC.db.stampsBefore = now end
+            C_CVar.SetCVar(STAMP_CVAR, Chat.STAMP_FORMAT)
+        end
+    elseif GC.db.stampsBefore ~= nil then
+        C_CVar.SetCVar(STAMP_CVAR, GC.db.stampsBefore)
+        GC.db.stampsBefore = nil
+    end
+end
+
+local function stamped(msg)
+    return msg:find("^%d%d?:%d%d") ~= nil
+end
+
+-- Right after a line with no chat event lands: prefix it, once.
+local function stampLine(f, msg, r, g, b, id, accessID, typeID, event)
+    if not GC.db.timestamps then return end
+    if API.IsSecret(event) or event ~= nil then return end   -- Blizzard stamps chat-event lines itself
+    if API.IsSecret(msg) or type(msg) ~= "string" or msg == "" or stamped(msg) then return end
+    local stamp = date(Chat.STAMP_FORMAT)
+    local done = false
+    f:TransformMessages(function(m)
+        if done or API.IsSecret(m) or m ~= msg then return false end
+        done = true
+        return true
+    end, function(m, ...) return stamp .. m, ... end)
+end
+
+local stampHooked = setmetatable({}, { __mode = "k" })
+Chat.OnEachFrame("timestamps", function(f)
+    if stampHooked[f] or not f.TransformMessages then return end
+    stampHooked[f] = true
+    hooksecurefunc(f, "AddMessage", function(...)
+        local ok, err = pcall(stampLine, ...)
+        if not ok then API.Fail("timestamp", err) end
+    end)
+end)
+
 -- Class colours: the client does the colouring; keep its switch on. "Off"
 -- leaves the CVar alone rather than guessing what the player had before.
 local CVAR = "chatClassColorOverride"
@@ -133,7 +187,7 @@ function Chat.Start()
     step("events", function()
         local f = CreateFrame("Frame")
         f:SetScript("OnEvent", function(_, event)
-            if event == "PLAYER_LOGIN" then Chat.ApplyClassColors() end
+            if event == "PLAYER_LOGIN" then Chat.ApplyClassColors(); Chat.ApplyTimestamps() end
             Chat.Scan()
         end)
         API.RegisterEvents(f, { "PLAYER_LOGIN", "UPDATE_CHAT_WINDOWS", "UPDATE_FLOATING_CHAT_WINDOWS" })

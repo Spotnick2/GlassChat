@@ -301,6 +301,31 @@ GC.Settings.SetHistory(12)
 eq(#GlassChatCharDB.sent, 12, "the saved list is trimmed to the new size")
 eq(edit:GetHistoryLines(), 12, "and the native history follows")
 
+-- Timestamps: off by default; on, Blizzard's own setting for chat lines
+-- (the old value remembered and given back) and the same stamp on lines
+-- with no chat event; never twice.
+eq(db.timestamps, false, "timestamps are off by default")
+WoW.cvars.showTimestamps = "none"
+ChatFrame1._lines = {}
+ChatFrame1:AddMessage("[pet] stable slot 3: empty", 1, 1, 1)
+eq(ChatFrame1._lines[#ChatFrame1._lines].m, "[pet] stable slot 3: empty", "off: addon lines aren't stamped")
+SlashCmdList.GLASSCHAT("stamps on")
+eq(WoW.cvars.showTimestamps, "%H:%M:%S ", "on: Blizzard's chat timestamps are on, HH:MM:SS")
+ChatFrame1:AddMessage("[pet] stable slot 4: empty", 1, 1, 1)
+check(ChatFrame1._lines[#ChatFrame1._lines].m:find("^%d%d:%d%d:%d%d %[pet%] stable slot 4"), "an addon line gets the same stamp")
+ChatFrame1:AddMessage("[1. General] [Bob]: hi", 1, 1, 1, 1, nil, 1, "CHAT_MSG_CHANNEL")
+eq(ChatFrame1._lines[#ChatFrame1._lines].m, "[1. General] [Bob]: hi", "a chat-event line is left to Blizzard (it stamps those)")
+ChatFrame1:AddMessage("09:15:00 already stamped", 1, 1, 1)
+eq(ChatFrame1._lines[#ChatFrame1._lines].m, "09:15:00 already stamped", "a line that starts with a time isn't stamped twice")
+ChatFrame1:AddMessage(WoW.Secret("hidden"), 1, 1, 1)
+check(true, "a secret line is left alone (no error)")
+SlashCmdList.GLASSCHAT("stamps off")
+eq(WoW.cvars.showTimestamps, "none", "off again: the old Blizzard setting comes back")
+WoW.cvars.showTimestamps = "%I:%M "   -- changed in Blizzard's options meanwhile
+SlashCmdList.GLASSCHAT("stamps on")
+SlashCmdList.GLASSCHAT("stamps off")
+eq(WoW.cvars.showTimestamps, "%I:%M ", "and it's the latest one that comes back, not a stale one")
+
 -- /gchat drives the same settings.
 newChat()
 SlashCmdList.GLASSCHAT("alpha 0.6")

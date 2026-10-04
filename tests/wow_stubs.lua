@@ -447,7 +447,21 @@ function Methods.AddChannel(f, c)
     table.insert(WoW.window(f._id).channels, c)
     return GetChannelName(c)
 end
+-- WoW's date() is Lua's os.date.
+date = os.date
 function Methods.ReceiveAllPrivateMessages(f) end
+-- ScrollingMessageFrame:AddMessage into the stub's _lines buffer.
+function Methods.AddMessage(f, msg)
+    f._lines = f._lines or {}
+    table.insert(f._lines, { m = msg })
+end
+-- ScrollingMessageFrame:TransformMessages over the stub's _lines buffer
+-- (entries { m = text }), as the mixin does (ScrollingMessageFrame.lua:95).
+function Methods.TransformMessages(f, pred, transform)
+    for _, e in ipairs(f._lines or {}) do
+        if pred(e.m) then e.m = (transform(e.m)) end
+    end
+end
 -- The player, by GUID; their name and realm.
 WoW.playerGUID = "Player-1-AAA"
 function UnitGUID(unit) return unit == "player" and WoW.playerGUID or nil end

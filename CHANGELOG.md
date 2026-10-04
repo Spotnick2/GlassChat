@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Timestamps** (off by default): `/gchat stamps on` puts HH:MM:SS on every line, addon output
+  and system lines included. It uses Blizzard's own chat timestamps, and turning it off gives
+  back what Blizzard's option was set to.
 - **One chat layout for every character:** `/gchat layout save` keeps this character's chat
   windows (tabs, chat types, channels, colours, font size). Your other characters get a clickable
   offer to apply it once, or use `/gchat layout apply`. The main window's position stays with
