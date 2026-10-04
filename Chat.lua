@@ -141,7 +141,11 @@ end
 -- older ones in storage. So the first pass reads the storage order, and when
 -- the text occurs more than once (an identical older line), the candidate
 -- whose storage neighbours match the newest lines from GetMessageInfo is the
--- new one (Codex review of #22). Returns its storage position, or nil.
+-- new one (Codex review of #22). The true position matches every line, so
+-- a lone survivor is always right. When several survive (a window of
+-- identical lines, or a repeating run), the new line can't be told from the
+-- old ones: nil, and it goes unstamped rather than an older line getting
+-- the current time (Codex follow-up). Returns its storage position, or nil.
 local function findNewest(f, msg)
     local texts, cands = {}, {}
     f:TransformMessages(function(m, r, g, b, id, accessID, typeID, event)
@@ -153,7 +157,7 @@ local function findNewest(f, msg)
     end, function(...) return ... end)
     if #cands <= 1 then return cands[1] end
     local n, total = #texts, f:GetNumMessages()
-    if API.IsSecret(total) or total ~= n then return cands[#cands] end
+    if API.IsSecret(total) or total ~= n then return nil end
     for back = 1, n - 1 do
         local want = f:GetMessageInfo(n - back)   -- the back-th line before the newest
         if API.IsSecret(want) or type(want) ~= "string" then want = nil end
@@ -162,10 +166,11 @@ local function findNewest(f, msg)
             local have = texts[(h - 1 - back) % n + 1]
             if want == nil or have == false or have == want then keep[#keep + 1] = h end
         end
-        if #keep > 0 then cands = keep end
-        if #cands == 1 then break end
+        cands = keep
+        if #cands <= 1 then break end
     end
-    return cands[#cands]
+    if #cands == 1 then return cands[1] end
+    return nil
 end
 
 -- Right after a line with no chat event lands: prefix it, once.

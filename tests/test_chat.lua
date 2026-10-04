@@ -334,6 +334,24 @@ ChatFrame1:AddMessage("dup", 1, 1, 1)
 ChatFrame1._rot = 3   -- the newest line is stored at position 3 of 5
 for i = 1, 4 do check(not ChatFrame1._lines[i].m:find("^%["), "wrapped: older line " .. i .. " keeps no stamp") end
 check(last():find("^%[%d%d:%d%d:%d%d%] dup$"), "wrapped: the new copy gets it")
+-- A wrapped window of identical lines: the new one can't be told apart, so
+-- nothing is stamped rather than an older line (Codex follow-up, #22).
+SlashCmdList.GLASSCHAT("stamps off")
+ChatFrame1._lines, ChatFrame1._rot = {}, 0
+for _ = 1, 6 do ChatFrame1:AddMessage("same", 1, 1, 1) end
+SlashCmdList.GLASSCHAT("stamps on")
+ChatFrame1._rot = 5
+ChatFrame1:AddMessage("same", 1, 1, 1)
+local any = false
+for _, e in ipairs(ChatFrame1._lines) do if e.m ~= "same" then any = true end end
+check(not any, "identical lines, wrapped: no line is stamped, so no old line gets the time")
+ChatFrame1._messages = { "x" }   -- counts that don't add up: no guess either
+ChatFrame1:AddMessage("same", 1, 1, 1)
+ChatFrame1._messages = nil
+any = false
+for _, e in ipairs(ChatFrame1._lines) do if e.m ~= "same" then any = true end end
+check(not any, "and none when the line counts don't agree")
+SlashCmdList.GLASSCHAT("stamps on")
 
 -- The Blizzard setting: given back, but never over a newer choice (Codex, #22).
 SlashCmdList.GLASSCHAT("stamps off")
