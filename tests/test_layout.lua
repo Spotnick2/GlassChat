@@ -116,8 +116,8 @@ saved = GlassChatDB.layout
 GlassChatCharDB = {}
 GC.charDB = GlassChatCharDB
 for i, w in pairs(saved.windows) do
-    WoW.chatWindows[i] = { name = w.name, size = w.fontSize, r = 0, g = 0, b = 0, a = w.a, shown = w.shown,
-        locked = w.locked, docked = w.docked, uninteractable = false, messages = { unpack(w.messages) }, channels = {} }
+    WoW.chatWindows[i] = { name = w.name, size = w.fontSize, r = w.r, g = w.g, b = w.b, a = w.a, shown = w.shown,
+        locked = w.locked, docked = w.docked, uninteractable = w.uninteractable, messages = { unpack(w.messages) }, channels = {} }
 end
 check(not Layout.Offer(), "a character whose windows already match isn't asked")
 -- A closed window's leftover name doesn't count, but an open one's channels do.
@@ -130,8 +130,8 @@ check(Layout.Offer(), "a different channel list on an open window does")
 
 -- A floating window's size counts too.
 for i, w in pairs(saved.windows) do
-    WoW.chatWindows[i] = { name = w.name, size = w.fontSize, r = 0, g = 0, b = 0, a = w.a, shown = w.shown,
-        locked = w.locked, docked = w.docked, uninteractable = false, messages = { unpack(w.messages) },
+    WoW.chatWindows[i] = { name = w.name, size = w.fontSize, r = w.r, g = w.g, b = w.b, a = w.a, shown = w.shown,
+        locked = w.locked, docked = w.docked, uninteractable = w.uninteractable, messages = { unpack(w.messages) },
         channels = { unpack(w.channels) }, width = w.width, height = w.height, point = w.point, x = w.x, y = w.y }
 end
 WoW.chatWindows[9] = { name = "Float", size = 14, shown = true, docked = nil, messages = {}, channels = {},
@@ -140,6 +140,25 @@ saved.windows[9] = Layout.CaptureWindow(9)
 check(not Layout.Offer(), "matching windows, floating one included: not asked")
 WoW.chatWindows[9].width, WoW.chatWindows[9].height = 250, 120
 check(Layout.Offer(), "a floating window of another size: asked")
+WoW.chatWindows[9].width, WoW.chatWindows[9].height = 400, 200
+check(not Layout.Offer(), "back to the saved size: matching again")
+-- Every other applied setting counts too (Codex follow-up on #10).
+local function differs(field, value, label)
+    local old = WoW.chatWindows[9][field]
+    WoW.chatWindows[9][field] = value
+    check(Layout.Offer(), label)
+    WoW.chatWindows[9][field] = old
+end
+differs("a", 0.9, "another opacity: asked")
+differs("r", 0.5, "another colour: asked")
+differs("locked", true, "another lock state: asked")
+differs("uninteractable", true, "another click-through setting: asked")
+check(not Layout.Offer(), "and identical again: not asked")
+-- The main window's lock isn't applied, so it doesn't count.
+local mainLocked = WoW.chatWindows[1].locked
+WoW.chatWindows[1].locked = not mainLocked
+check(not Layout.Offer(), "the main window's lock (Edit Mode's) doesn't count")
+WoW.chatWindows[1].locked = mainLocked
 
 -- Never in combat; a secret window name is never saved.
 WoW.combat = true

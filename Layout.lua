@@ -84,6 +84,12 @@ function Layout.Capture()
     return windows
 end
 
+-- Colours and opacity come back as floats: equal within a hair.
+local function near(a, b)
+    if a == nil or b == nil then return a == b end
+    return type(a) == "number" and type(b) == "number" and math.abs(a - b) < 0.001
+end
+
 local function sameList(a, b)
     if #a ~= #b then return false end
     for i = 1, #a do if a[i] ~= b[i] then return false end end
@@ -101,6 +107,14 @@ function Layout.Matches(saved)
         if inUse(w) then
             if now.name ~= w.name or (now.docked ~= nil) ~= (w.docked ~= nil) or now.fontSize ~= w.fontSize
                 or not sameList(now.messages, w.messages) or not sameList(now.channels, w.channels) then
+                return false
+            end
+            -- Colour and opacity are applied to every window, the main one too.
+            if not (near(now.r, w.r) and near(now.g, w.g) and near(now.b, w.b) and near(now.a, w.a)) then
+                return false
+            end
+            -- Lock and click-through are applied to every window but the main one.
+            if i ~= 1 and (now.locked ~= w.locked or now.uninteractable ~= w.uninteractable) then
                 return false
             end
             -- A floating window's size and place are part of the layout too (Codex, #10);
