@@ -152,6 +152,7 @@ local function mute(arg)
     local phrase = aggressive and arg:sub(2):match("^%s*(.-)%s*$") or arg
     local form = aggressive and GC.SpamText.Aggressive(phrase) or GC.SpamText.Visible(phrase)
     if form == "" then say("that phrase has nothing to match on"); return end
+    if #phrase > Spam.MUTE_MAX then say("that phrase is too long (at most " .. Spam.MUTE_MAX .. " bytes)"); return end
     for _, m in ipairs(Spam.db.mutes) do
         if m.phrase:lower() == phrase:lower() and (m.aggressive or false) == aggressive then
             say("already muted: " .. phrase); return
@@ -162,17 +163,20 @@ local function mute(arg)
     say("muted" .. (aggressive and " (tricks too)" or "") .. ": " .. phrase)
 end
 
+-- "~phrase" unmutes the aggressive rule, "phrase" the literal one: they're
+-- separate rules, as in mute's duplicate check (Codex review of #20).
 local function unmute(arg)
-    local phrase = arg:gsub("^~%s*", "")
+    local aggressive = arg:sub(1, 1) == "~"
+    local phrase = aggressive and arg:sub(2):match("^%s*(.-)%s*$") or arg
     for i, m in ipairs(Spam.db.mutes) do
-        if m.phrase:lower() == phrase:lower() then
+        if m.phrase:lower() == phrase:lower() and (m.aggressive or false) == aggressive then
             table.remove(Spam.db.mutes, i)
             Spam.RebuildMutes()
-            say("unmuted: " .. m.phrase)
+            say("unmuted: " .. (aggressive and "~" or "") .. m.phrase)
             return
         end
     end
-    say(phrase .. " isn't muted")
+    say((aggressive and "~" or "") .. phrase .. " isn't muted")
 end
 
 local function mutes()
@@ -228,7 +232,7 @@ local function spam(arg)
         end
         say("tab-strip icon: " .. (Spam.db.icon and "shown" or "hidden") .. " (/gchat spam icon on|off)")
     elseif cmd == "test" then
-        local reason = Spam.Judge("CHAT_MSG_CHANNEL", rest, "Test Sender", "Player-0-TEST")
+        local reason = Spam.Judge("CHAT_MSG_CHANNEL", rest, "Test Sender", "Player-0-TEST", true)
         say("test: " .. (reason and ("hidden (" .. reason .. ")") or "shown"))
     else
         say("/gchat spam log - what was hidden")

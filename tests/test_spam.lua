@@ -195,5 +195,47 @@ check(chatHas("already muted"), "a duplicate mute is refused")
 SlashCmdList.GLASSCHAT("mute ~ . . . ")
 check(chatHas("nothing to match on"), "an empty mute is refused")
 
+-- Unmute picks the rule by mode too (Codex review of #20).
+db.mutes = {}
+Spam.RebuildMutes()
+SlashCmdList.GLASSCHAT("mute kit")
+SlashCmdList.GLASSCHAT("mute ~kit")
+eq(#db.mutes, 2, "a literal and an aggressive rule are separate")
+SlashCmdList.GLASSCHAT("unmute ~kit")
+eq(#db.mutes, 1, "unmute ~kit removes one")
+check(not db.mutes[1].aggressive and db.mutes[1].phrase == "kit", "the aggressive one, keeping the literal")
+check(not say(CH, "k.i.t here", "Trick Seller", "Player-1-TK"), "and the aggressive match is gone")
+SlashCmdList.GLASSCHAT("unmute kit")
+eq(#db.mutes, 0, "unmute kit removes the literal one")
+
+-- A phrase the command accepts survives a load; a too-long one is refused.
+newChat()
+SlashCmdList.GLASSCHAT("mute " .. string.rep("a", Spam.MUTE_MAX + 1))
+check(chatHas("too long"), "a phrase over the limit is refused")
+eq(#db.mutes, 0, "and not added")
+SlashCmdList.GLASSCHAT("mute " .. string.rep("b", Spam.MUTE_MAX))
+Spam.Load()
+eq(#Spam.db.mutes, 1, "one at the limit is kept across a load")
+db = Spam.db
+db.mutes = {}
+Spam.RebuildMutes()
+
+-- No usable lineID: only stateless checks, nothing logged (Codex review of #20).
+Spam._test.reset()
+WoW.now = 5000
+for _, id in ipairs({ 0, false }) do
+    local lid = id or nil
+    local a = Spam.Filter(nil, CH, "LFM no id", "No Id", "", "", "", "", 0, 0, "", 0, lid, "Player-1-NI")
+    local b = Spam.Filter(nil, CH, "LFM no id", "No Id", "", "", "", "", 0, 0, "", 0, lid, "Player-1-NI")
+    check(not a and not b, "lineID " .. tostring(lid) .. ": the same line in two windows is shown in both (no repeat state)")
+end
+db.mutes = { { phrase = "noid" } }
+Spam.RebuildMutes()
+check(Spam.Filter(nil, CH, "noid", "No Id", "", "", "", "", 0, 0, "", 0, nil, "Player-1-NI"), "a muted line with no lineID is still hidden")
+eq(#Spam.Log(), 0, "but not logged")
+eq(Spam.unseen, 0, "nor counted")
+db.mutes = {}
+Spam.RebuildMutes()
+
 eq(next(GC.failures), nil, "nothing failed")
 done("test_spam")

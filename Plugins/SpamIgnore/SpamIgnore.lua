@@ -21,6 +21,7 @@ GC.Spam = Spam
 
 Spam.ADDON = "GlassChatSpamIgnore"
 Spam.MEMO_SIZE = 200
+Spam.MUTE_MAX = 100   -- bytes; /gchat mute refuses longer, Load drops longer
 Spam.LOG_SIZE = 200
 Spam.REPEAT_CAP = 500
 Spam.NAME_CAP = 500
@@ -61,7 +62,7 @@ function Spam.Load()
     end
     local mutes = {}
     for _, m in ipairs(db.mutes) do
-        if type(m) == "table" and type(m.phrase) == "string" and #m.phrase <= 100 then mutes[#mutes + 1] = m end
+        if type(m) == "table" and type(m.phrase) == "string" and #m.phrase <= Spam.MUTE_MAX then mutes[#mutes + 1] = m end
     end
     db.mutes = mutes
     setmetatable(db, { __index = DEFAULTS })
@@ -195,8 +196,10 @@ end
 -- The decision
 --------------------------------------------------------------------------------
 
--- nil = show; else the reason it's hidden.
-function Spam.Judge(event, text, sender, guid)
+-- nil = show; else the reason it's hidden. stateless: only the checks that
+-- give the same answer each time (ignores, mutes, CJK), never the repeat
+-- state, for a line with no usable lineID (the plan; Codex review of #20).
+function Spam.Judge(event, text, sender, guid, stateless)
     local lname = sender and sender:lower()
     -- Explicit ignores: every player-chat event, never your own characters.
     if not isOwn(guid) then
@@ -213,7 +216,7 @@ function Spam.Judge(event, text, sender, guid)
     local phrase = mutedBy(text)
     if phrase then return "muted: " .. phrase end
     if Spam.db.cjk and Text.IsCJK(text) then return "cjk" end
-    if isRepeat(event, guid, text) then return "repeat" end
+    if not stateless and isRepeat(event, guid, text) then return "repeat" end
     return nil
 end
 
@@ -234,13 +237,15 @@ function Spam.Filter(_, event, ...)
     if sender then remember(names, nameOrder, sender:lower(), guid, Spam.NAME_CAP) end
     -- One decision per (event, lineID): a line shown in two windows is
     -- judged and logged once (measured: each line reaches the filter once per
-    -- window). Without a usable lineID, no memo: judged afresh.
+    -- window). Without a usable lineID there's no memo, so the line may be
+    -- judged once per window: only the stateless checks run, and it isn't
+    -- logged or counted (it can't be told apart from another copy).
     local key = lineID and lineID > 0 and (event .. "#" .. lineID) or nil
     if key and memo[key] ~= nil then return memo[key] ~= false end
-    local ok, reason = pcall(Spam.Judge, event, text, sender, guid)
+    local ok, reason = pcall(Spam.Judge, event, text, sender, guid, key == nil)
     if not ok then API.Fail("spam judge", reason); reason = nil end
     if key then remember(memo, memoOrder, key, reason or false, Spam.MEMO_SIZE) end
-    if reason then record(event, text, sender, guid, reason) end
+    if reason and key then record(event, text, sender, guid, reason) end
     return reason ~= nil
 end
 
