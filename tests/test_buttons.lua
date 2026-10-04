@@ -50,7 +50,22 @@ eq(M._normal._alpha, 0, "its framed bubble art is invisible")
 eq(M._disabled._alpha, 0, "the disabled art too")
 local parts = GC.Buttons._test.bubbles[M]
 check(parts and #parts == 4, "a drawn bubble instead")
-for _, t in ipairs(parts) do check(t:IsShown() and t._color[2] == GC.Skin.TAB_GOLD[2], "in gold") end
+check(parts.holder:IsShown(), "shown")
+for _, t in ipairs(parts) do check(t._color[2] == GC.Skin.TAB_GOLD[2], "in gold") end
+-- Pressed it moves down a pixel; disabled it dims (review of #38).
+M._scripts.OnMouseDown(M)
+eq(parts.holder._points[1][5], 0, "pressed: the bubble moves down")
+M._scripts.OnMouseUp(M)
+eq(parts.holder._points[1][5], 1, "released: back up")
+M._enabled = false
+M._scripts.OnDisable(M)
+eq(parts.holder._alpha, 0.4, "disabled: dimmed")
+M._enabled = true
+M._scripts.OnEnable(M)
+eq(parts.holder._alpha, 1, "enabled again")
+eq(F._highlight._alpha, GC.Buttons.HIGHLIGHT, "the friends button's hover glow is softened too")
+local fp = F.FriendsButton._points[1]
+check(fp and fp[5] >= 6 and F.FriendsButton._height <= 16, "the friends symbol sits above the friend count")
 check(pills[F] and pills[F].pill:IsShown(), "the friends button sits on a pill")
 eq(F.FriendsButton._atlas, "socialqueuing-icon-group", "with the frameless friends symbol (probe 13, #2)")
 F._scripts.OnMouseDown(F)
@@ -59,11 +74,13 @@ F._scripts.OnMouseUp(F)
 eq(F.FriendsButton._atlas, "socialqueuing-icon-group", "and released")
 GC.Settings.SetGlass(false)
 eq(M._normal._alpha, 1, "glass off: the chat menu's art comes back")
-for _, t in ipairs(parts) do check(not t:IsShown(), "and the drawn bubble goes") end
+check(not parts.holder:IsShown(), "and the drawn bubble goes")
 eq(F.FriendsButton._atlas, "quickjoin-button-friendslist-up", "the friends button's stock art comes back")
 check(F.FriendsButton._points[1] and F.FriendsButton._points[1][1] == "ALL", "filling the button again")
 F._scripts.OnMouseDown(F)
 eq(F.FriendsButton._atlas, "quickjoin-button-friendslist-down", "and Blizzard's presses work as before")
+GC.Chat.Scan()
+eq(F.FriendsButton._atlas, "quickjoin-button-friendslist-down", "a scan with glass off leaves Blizzard's pressed art alone")
 GC.Settings.SetGlass(true)
 
 eq(next(GC.failures), nil, "nothing failed")

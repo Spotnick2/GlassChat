@@ -194,6 +194,9 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - **chat menu:** no frameless bubble exists, so a small gold bubble is drawn from fills, like
       the copy icon. The file art (normal, pushed, disabled) goes to alpha 0.
     - The queue toast (`QueueButton`) is left as it is.
+    - **Every button runs the shared steps** (pill, frame art, softened highlight), then its own
+      `symbol[name]` step: the bubble, pressed (1 px down) and disabled (dimmed); or the friends
+      symbol, applied once per glass change so a scan never overrides Blizzard's pressed art.
   - Run after every scan through `Chat.AfterScan`.
 - **`Layout.lua`** (M2, #9): one chat layout for every character. Chat windows are saved per
   character (measured).

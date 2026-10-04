@@ -596,6 +596,7 @@ rawset(TextToSpeechButton, "UpdateHighlight", function(self) self._highlight._al
 -- The chat-menu button (FloatingChatFrame.xml:723): file art for normal,
 -- pushed and disabled, the frame baked in.
 function Methods.GetDisabledTexture(b) return b._disabled end
+function Methods.IsEnabled(b) return b._enabled ~= false end
 function Methods.SetAtlas(t, name) t._atlas = name end
 ChatFrameMenuButton = newWidget("Button", UIParent, "ChatFrameMenuButton")
 ChatFrameMenuButton._level = 6
