@@ -57,7 +57,7 @@ function Buttons.Style(b)
         pills[b] = p
     end
     -- Re-synced every time: the button's level may have moved. Glass.Apply
-    -- puts its rims on g.top at +10 (Glass.lua:117), which would draw them
+    -- puts its rims on g.top at +10 (LibGlass.lua, lib.impl.Apply), which would draw them
     -- over the gold Icon; down with the pill instead.
     p.pill:SetFrameLevel(math.max(0, b:GetFrameLevel() - 1))
     p.g.top:SetFrameLevel(p.pill:GetFrameLevel())

@@ -4,6 +4,12 @@
     The repo keeps "## Version: @project-version@" for the packager; the deployed
     copy gets "dev". The repo copy is never modified.
 
+    The glass material is the embedded LibGlass-1.0. The packager fetches it
+    into Libs\LibGlass-1.0 (.pkgmeta externals); for a dev copy this script
+    hands that job to the LibGlass checkout's own deploy.ps1, which checks the
+    checkout, copies only the shipped files and prints its commit. The checkout
+    is $env:LIBGLASS, else ..\LibGlass (GlassUnitFrames' pattern, #64).
+
     Usage:
         pwsh Tools/deploy.ps1               # GlassChat
         pwsh Tools/deploy.ps1 -Probe        # ...and ChatProbe
@@ -21,8 +27,22 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 if (-not (Test-Path $AddOnsPath)) { Write-Error "AddOns path not found: $AddOnsPath"; exit 1 }
 
+. (Join-Path $PSScriptRoot "LibGlassPin.ps1")
+$LibGlass = if ($env:LIBGLASS) { $env:LIBGLASS } else { Join-Path (Split-Path -Parent $RepoRoot) "LibGlass" }
+
 function Deploy-Addon {
     $dest = Join-Path $AddOnsPath "GlassChat"
+    # Only the addon needs the library: -ProbeOnly works without a checkout (review of #30).
+    if (-not (Test-Path -LiteralPath (Join-Path $LibGlass "Tools\deploy.ps1"))) {
+        Write-Error "LibGlass checkout not found at $LibGlass (clone github.com/Spotnick2/LibGlass there, or set `$env:LIBGLASS)"
+        exit 1
+    }
+    Write-LibGlassPinStatus $RepoRoot $LibGlass "this deploy tests a library the release won't ship"
+    # The library first: its deploy checks the checkout and may refuse, and a
+    # refusal must leave the deployed addon as it was (a new TOC naming a
+    # library that never arrived loads no frames at all).
+    & pwsh -NoProfile -File (Join-Path $LibGlass "Tools\deploy.ps1") -Addon GlassChat -AddOnsPath $AddOnsPath
+    if ($LASTEXITCODE -ne 0) { Write-Error "LibGlass deploy refused; GlassChat was not touched"; exit 1 }
     Write-Host "Deploying GlassChat -> $dest" -ForegroundColor Cyan
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     $files = @("GlassChat.toc") + (Get-ChildItem -LiteralPath $RepoRoot -Filter "*.lua" | Select-Object -ExpandProperty Name)
@@ -42,11 +62,12 @@ function Deploy-Addon {
         Remove-Item -LiteralPath $_.FullName -Force
     }
 
-    $media = Join-Path $dest "Media"
-    New-Item -ItemType Directory -Force -Path $media | Out-Null
-    $tex = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "Media") -File | Where-Object { $_.Extension -eq ".tga" }
-    foreach ($t in $tex) { Copy-Item -LiteralPath $t.FullName -Destination (Join-Path $media $t.Name) -Force }
-    Write-Host "  Media\  ($($tex.Count) files)"
+    # The textures now ship inside Libs\LibGlass-1.0\Media; the old folder is dead weight.
+    $oldMedia = Join-Path $dest "Media"
+    if (Test-Path -LiteralPath $oldMedia) {
+        Write-Host "  removing stale Media\ (textures now come from LibGlass)" -ForegroundColor DarkYellow
+        Remove-Item -LiteralPath $oldMedia -Recurse -Force
+    }
 
     # Each plugin is its own addon, deployed under its TOC's name (the
     # packager's move-folders does the same for releases).

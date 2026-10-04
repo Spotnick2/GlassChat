@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The glass look now comes from LibGlass, a small library shared by the Glass addons and
+  included in the download. Nothing changes on screen.
 - **Focus mode:** `/gchat focus` (or the magnifier next to the copy icon) freezes the chat window
   in a large glass window so nothing scrolls away while you read.
   - **Search:** as you type, in plain text, with two lines of context around each match if you

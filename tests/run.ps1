@@ -30,6 +30,11 @@ try {
         Write-Host "luac -p: ok ($($tocFiles.Count) addon files + probe)" -ForegroundColor DarkGray
     }
 
+    # The tests load the LibGlass checkout as it is; CI loads the .pkgmeta pin.
+    $libGlass = if ($env:LIBGLASS) { $env:LIBGLASS } else { Join-Path (Split-Path -Parent $RepoRoot) "LibGlass" }
+    . (Join-Path $RepoRoot "Tools\LibGlassPin.ps1")
+    if (Test-Path -LiteralPath $libGlass) { Write-LibGlassPinStatus $RepoRoot $libGlass "CI tests the pin" }
+
     $failed = 0
     Get-ChildItem (Join-Path $PSScriptRoot "test_*.lua") | Sort-Object Name | ForEach-Object {
         Write-Host "-- $($_.Name) " -NoNewline -ForegroundColor Cyan

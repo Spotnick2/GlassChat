@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 GlassChat is a **chat addon for World of Warcraft: Forever 1.60.1** (Interface `16001`), written
 in **Lua 5.1**. It has a single owner (Spotnick) and uses the same stack and conventions as the
 sibling Forever addons `..\GlassRaidFrames` (the closest sibling in workflow and tests),
-`..\GlassUnitFrames` (the source of the glass material) and `..\GlassXp` (GlassPanel). When this
+`..\GlassUnitFrames` (the glass material's pilot consumer) and `..\GlassXp` (GlassPanel). When this
 file doesn't cover something, check how those handle it before you invent a new idiom.
 
 **Goal:** a much smaller, glass-styled take on Prat-3.0.
@@ -53,7 +53,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 
 ## Layout
 
-TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
+TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
 `Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
@@ -69,13 +69,43 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
 
   It is a subset of GlassRaidFrames' `Compat.lua`; lift more from there when needed rather than
   rewriting.
-- **`Glass.lua`**: the material. It is a **copy of GlassUnitFrames `main:Glass.lua`**; only the
-  header and namespace lines differ. `tests/test_toc.lua` fails while they differ, and the same
-  goes for `Tools/make_textures.py`. Change the material in GlassUnitFrames first, then copy it
-  back. `Media/*.tga` come from that generator. Chat-specific tuning (darker tint, less grain and
-  wash) is applied **on the regions `Glass.Apply` returns**, in `Skin.lua`, never in the copy.
-  The window's directional edge is the material's own optional edge (`g.edge`, GlassUnitFrames
-  #60), set per window with `Glass.SetEdge` from `/gchat tune`'s values.
+- **`Glass.lua`**: GlassChat's instance of the material,
+  `GlassChat.Glass = LibStub("LibGlass-1.0"):New()` (see "The glass material" below). Chat-specific
+  tuning (darker tint, less grain and wash) is applied **on the regions `Glass.Apply` returns**, in
+  `Skin.lua`: the library never repaints existing regions. The window's directional edge is the
+  material's own optional edge (`g.edge`), set per window with `Glass.SetEdge` from `/gchat
+  tune`'s values.
+
+## The glass material
+
+The material is **LibGlass-1.0**, an embedded LibStub library (`..\LibGlass`,
+github.com/Spotnick2/LibGlass, public, MIT) that every glass addon embeds. Its repo owns the code,
+the textures, the generator and the write-up (`docs/GLASS-MATERIAL.md`), and its `CLAUDE.md`
+holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIGRATION.md`.
+
+- **Material changes are LibGlass PRs**, never edits here, and never edits to `..\LibGlass` from a
+  GlassChat session: a bug or a need found here goes on a LibGlass issue.
+- **How it's embedded:**
+  - `.pkgmeta` externals put it in `Libs\LibGlass-1.0\`. That's the only supported path:
+    `MEDIA` is derived from it.
+  - The TOC loads its XML first.
+  - `Libs/` is gitignored. A dev copy comes from the LibGlass checkout (`$env:LIBGLASS`,
+    default `..\LibGlass`) through its own `Tools\deploy.ps1`, which `Tools\deploy.ps1` here
+    calls first.
+  - The tests load the same checkout, and fail loudly without one.
+- **The pin:** `.pkgmeta` pins a tag (`r1`), **never `tag: latest`**.
+  - Bump it only in a release made anyway: players get library fixes earlier through whichever
+    glass addon ships the newest copy, since LibStub runs that one.
+  - CI reads the pin from `.pkgmeta` (`tests/fetch_libglass.sh`) and tests against it.
+  - CI also asserts that the zip's `Libs/LibGlass-1.0/` is exactly that commit's shipped files.
+  - `tests\run.ps1` and the deploy warn when the local checkout isn't at the pin.
+- **`GlassChat.Glass` is an instance**: `STYLE`, `EDGE`, the `TUNABLES` setters and the font
+  registry are GlassChat's own, so `/gchat tune` never touches another glass addon.
+  - The plugins use the core's instance, `GlassChat.Glass`.
+  - `Glass.MEDIA` resolves to the winning copy's `Media\`. Use it only for library textures:
+    GlassChat has no art of its own.
+- **Colours passed to a glass bar's `SetStatusBarColor` must be plain** (the library's hook
+  compares them): never a secret.
 - **`Chat.lua`**: the stock windows. `Chat.Frames()` is every `ChatFrameN` that exists (read
   with `rawget`). `Chat.OnEachFrame(key, fn)` registers an idempotent per-window setup.
   `Chat.Scan()` runs every setup on every window, each one under `pcall` (failures go to
@@ -305,7 +335,7 @@ exists here.
     `CopyToClipboard`;
   - `Blizzard_UIPanels_Game/Shared/ItemRefHandlersShared.lua`: the `addon` link type →
     `EventRegistry "SetItemRef"`.
-- `..\GlassUnitFrames\docs\GLASS-MATERIAL.md` is the write-up of the glass material.
+- `..\LibGlass\docs\GLASS-MATERIAL.md` is the write-up of the glass material.
 
 ## Reference addon
 
@@ -334,9 +364,8 @@ not a newer Lua that may be first on `PATH`.
 
 ```powershell
 & 'C:\Program Files (x86)\Lua\5.1\luac.exe' -p File.lua             # syntax check; silent on success
-pwsh tests\run.ps1                                                   # luac -p on TOC files + probe + every tests\test_*.lua
+pwsh tests\run.ps1                                                   # luac -p on our files + probe + every tests\test_*.lua (needs ..\LibGlass or $env:LIBGLASS)
 & 'C:\Program Files (x86)\Lua\5.1\lua.exe' tests\test_boot.lua      # one test, run from the repo root
-python Tools\make_textures.py                                        # regenerate Media\*.tga (a copy of GlassUnitFrames')
 pwsh Tools\deploy.ps1 -Probe                                         # copy the addon (+ ChatProbe) into AddOns
 ```
 
