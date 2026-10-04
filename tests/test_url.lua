@@ -20,6 +20,10 @@ eq(Url.Address("https://x.com/a,"), "https://x.com/a", "so does a comma")
 eq(Url.Address("https://en.wikipedia.org/wiki/Foo_(bar))"), "https://en.wikipedia.org/wiki/Foo_(bar)",
     "a bracket the address opened is kept, an extra one isn't")
 eq(Url.Address(string.rep("a", 300) .. ".com"), nil, "an absurdly long word isn't")
+eq(Url.Address("https://example.org/search?q=[foo]"), "https://example.org/search?q=[foo]",
+    "a square bracket the address opened is kept (Codex, #32)")
+eq(Url.Wrap("[https://example.org/search?q=[foo]]"), "[" .. "|cff7fd4ff|Haddon:GlassChat:url:https://example.org/search?q=[foo]|h[https://example.org/search?q=[foo]]|h|r" .. "]",
+    "and in an extra pair of brackets, only the outer pair stays outside")
 
 -- Wrapping: the address becomes our link; everything else stays exactly.
 local L = function(u) return "|cff7fd4ff|Haddon:GlassChat:url:" .. u .. "|h[" .. u .. "]|h|r" end
@@ -83,6 +87,12 @@ check(box.edit._highlighted and box.edit._focused, "selected, for Ctrl+C")
 box.edit._text = "typed over"
 box.edit._scripts.OnTextChanged(box.edit, true)
 eq(box.edit:GetText(), "https://www.wowhead.com/item=19019", "read-only")
+box:Hide()
+-- The whole trip with a bracketed query: wrapped, clicked, copied whole.
+local w = Url.Wrap("see https://example.org/search?q=[foo] now")
+WoW.callbacks.SetItemRef(nil, w:match("|H(addon:GlassChat:url:[^|]*)|h"))
+eq(box.edit:GetText(), "https://example.org/search?q=[foo]", "the box has the whole address, its ] included")
+eq(GC.Copy.Plain(w), "see https://example.org/search?q=[foo] now", "and so does copied text")
 box:Hide()
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:layout:no")
 check(not box:IsShown(), "another GlassChat link doesn't open it")

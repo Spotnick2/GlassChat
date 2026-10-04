@@ -41,12 +41,16 @@ for t in ("com net org io gg tv uk eu info dev app ca ru gl nl fr pl se fi dk cz
 
 -- Punctuation that ends a sentence, not an address: "see wowhead.com." keeps
 -- the dot outside. A closing bracket is kept when the address opened one.
+-- A closing bracket, round or square, stays when the address opened it
+-- (?q=[foo] keeps its ], Codex review of #32); an unmatched one goes.
+local OPEN = { [")"] = "%(", ["]"] = "%[" }
 local function trim(u)
     while true do
         local last = u:sub(-1)
-        if last:find("[%.,;:!%?'\"%]>]") then
+        local open = OPEN[last]
+        if last:find("[%.,;:!%?'\">]") then
             u = u:sub(1, -2)
-        elseif last == ")" and select(2, u:gsub("%(", "")) < select(2, u:gsub("%)", "")) then
+        elseif open and select(2, u:gsub(open, "")) < select(2, u:gsub("%" .. last, "")) then
             u = u:sub(1, -2)
         else
             return u
