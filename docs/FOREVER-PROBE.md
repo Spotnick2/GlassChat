@@ -31,3 +31,11 @@ and addon output".
 
 Still open: payload secrecy inside a dungeon (item 5), and whether a tab survives a relog on the
 character that made it (item 8; its `chat-cache.txt` lists `WINDOW 5 / NAME Probe`).
+
+## Spam & Ignore S0 (items 10-12, 2026-10-03)
+
+| # | Question | Result |
+|---|---|---|
+| 10 | Line identity per chat type | *Rerun:* the first trace was lost to a `/reload` before its report. |
+| 11 | Server ignore with surnames | **Works with "First Surname".** On the target, `UnitName` = "Zoruka" / "Mortalis", `GetUnitName("target", true)` = **"Zoruka Mortalis"**, and `RegionalUniqueNamesEnabled()` = true. `AddIgnore("Zoruka Mortalis")` returned true, `GetIgnoreName` read back the exact "Zoruka Mortalis", `IsIgnoredByGuid` was true, and `DelIgnore` removed it. `IGNORELIST_UPDATE` fired on each change, twice per change. |
+| 12 | Ignore-list readiness | On one load, `GetNumIgnores()` answered **nil at `ADDON_LOADED`** and 0 from `PLAYER_LOGIN` on (on other loads it was 0 at once). **Never read the list before `PLAYER_LOGIN`.** What the server ignore blocks (whispers, say, invites, duels): *pending* (the alt test). |
