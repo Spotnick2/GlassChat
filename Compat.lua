@@ -64,3 +64,55 @@ function API.ClassColor(classFile)
     if c then return c.r, c.g, c.b end
     return nil
 end
+
+-- A plain Blizzard button (UIPanelButtonTemplate, as GlassPanel uses it).
+function API.Button(parent, text, width, onClick)
+    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    b:SetSize(width, 22)
+    b:SetText(text)
+    b:SetScript("OnClick", onClick)
+    return b
+end
+
+-- UIPanelScrollFrameTemplate shows its bar even with nothing to scroll
+-- (seen in GlassPanel, #36): show it only while the content is taller than
+-- the view, the range floored like the template's own handler.
+function API.AutoHideScrollBar(scroll)
+    local bar = scroll.ScrollBar
+    if not bar then return end
+    local function sync(self, _, yrange)
+        bar:SetShown(math.floor(yrange or self:GetVerticalScrollRange() or 0) > 0)
+    end
+    scroll:HookScript("OnScrollRangeChanged", sync)
+    sync(scroll)
+end
+
+-- A glass dialog window, lifted from GlassPanel's Compat: FULLSCREEN_DIALOG,
+-- clamped, Escape closes it (UISpecialFrames, as AltStable does on
+-- Forever), an opaque backing under the glass so nothing shows through the
+-- text. Fields: glass, backing, title, hint (anchor content below
+-- `win.hint`). Hidden.
+function API.Window(name, width, height)
+    local Glass = GlassChat.Glass
+    local win = CreateFrame("Frame", name, UIParent)
+    win:SetSize(width, height)
+    win:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+    win:SetFrameStrata("FULLSCREEN_DIALOG")
+    win:SetClampedToScreen(true)
+    win:EnableMouse(true)
+    win:Hide()
+    local special = rawget(_G, "UISpecialFrames")
+    if type(special) == "table" and name then table.insert(special, name) end
+    win.glass = Glass.Apply(win, "small")
+    win.backing = win:CreateTexture(nil, "BACKGROUND", nil, -7)
+    win.backing:SetAllPoints(win)
+    win.backing:SetColorTexture(0.05, 0.05, 0.06, 0.96)
+    win.backing:AddMaskTexture(win.glass.mask)
+    win.title = Glass.Font(win, 14, "LEFT")
+    win.title:SetPoint("TOPLEFT", win, "TOPLEFT", 14, -12)
+    win.hint = Glass.Font(win, 11, "LEFT")
+    win.hint:SetPoint("TOPLEFT", win.title, "BOTTOMLEFT", 0, -6)
+    win.hint:SetPoint("RIGHT", win, "RIGHT", -14, 0)
+    win.hint:SetTextColor(0.75, 0.75, 0.75)
+    return win
+end

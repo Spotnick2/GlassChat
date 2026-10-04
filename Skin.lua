@@ -366,14 +366,15 @@ function Skin.Tab(f)
     applyTabAlpha(f)
 end
 
+-- The window panel of a chat frame (nil before it's built or with glass off
+-- from the start): other modules put their controls on it.
+function Skin.Panel(f)
+    return panels[f]
+end
+
 -- Re-apply after a setting change (glass on/off, opacity, tab size).
 function Skin.Refresh()
-    for _, f in ipairs(GC.Chat.Frames()) do
-        Skin.Frame(f)
-        Skin.Tab(f)
-        Skin.LiftTab(f, 0)   -- every FCF_SetTabPosition call site passes 0
-    end
-    Skin.LiftDock()
+    GC.Chat.Scan()
 end
 
 GC.Chat.OnEachFrame("skin", Skin.Frame)
@@ -393,7 +394,9 @@ function Skin.LiftDock(_, chatFrame)
     if not bg then return end
     dock:ClearAllPoints()
     dock:SetPoint("BOTTOMLEFT", bg, "TOPLEFT", 0, gap())
-    dock:SetPoint("BOTTOMRIGHT", bg, "TOPRIGHT", 0, gap())
+    -- Its right end stops short of the Copy button, so the tabs and the
+    -- dock's overflow arrow (bottom right of the dock) never sit under it.
+    dock:SetPoint("BOTTOMRIGHT", bg, "TOPRIGHT", GC.db.glass and -Skin.DOCK_RESERVE or 0, gap())
 end
 
 -- A floating (undocked) window's tab: the same point FCF_SetTabPosition
@@ -410,6 +413,9 @@ local function liftTab(chatFrame, x)
 end
 
 Skin.LiftTab = liftTab
+Skin.DOCK_RESERVE = 56   -- px kept free at the dock's right end for the Copy button
+GC.Chat.OnEachFrame("lift", function(f) liftTab(f, 0) end)   -- every FCF_SetTabPosition call site passes 0
+GC.Chat.AfterScan("dock", function() Skin.LiftDock() end)
 
 -- After Blizzard's own tab updates (selection, docking, alerts).
 function Skin.HookTabs()
@@ -426,5 +432,9 @@ function Skin.HookTabs()
         hooksecurefunc("FCFTab_UpdateColors", paintTab)
     end
 end
+
+-- The panel recipe and its tuning, for other modules' glass (Buttons.lua).
+Skin.NewPanel = newPanel
+Skin.Tune = tune
 
 Skin._test = { panels = panels, tabFont = tabFont, tabLit = tabLit, applyTabAlpha = applyTabAlpha, liftTab = liftTab }

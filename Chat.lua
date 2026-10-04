@@ -59,12 +59,25 @@ function Chat.OnEachFrame(key, fn)
     perFrame[#perFrame + 1] = { key = key, fn = fn }
 end
 
+-- And setups that aren't per window (the dock, the buttons beside the
+-- chat), run once after every scan.
+local afterScan = {}
+function Chat.AfterScan(key, fn)
+    afterScan[#afterScan + 1] = { key = key, fn = fn }
+end
+
+-- Every setting change re-runs this too (GC.Settings), so a module never
+-- needs its own refresh wiring.
 function Chat.Scan()
     for _, f in ipairs(Chat.Frames()) do
         for _, step in ipairs(perFrame) do
             local ok, err = pcall(step.fn, f)
             if not ok then API.Fail(step.key .. " " .. tostring(f:GetName()), err) end
         end
+    end
+    for _, step in ipairs(afterScan) do
+        local ok, err = pcall(step.fn)
+        if not ok then API.Fail(step.key, err) end
     end
 end
 
