@@ -373,6 +373,8 @@ end
 WoW.tabAlphas = {}
 WoW.messageFilters = {}
 ChatFrameUtil = {
+    -- The edit box being typed in, else nil (ChatFrameUtil.lua:496).
+    GetActiveWindow = function() return WoW.activeBox end,
     -- The edit box Enter opens (ChatFrameUtil.lua:500, 570).
     GetLastActiveWindow = function() return WoW.lastActive end,
     SetLastActiveWindow = function(editBox) WoW.lastActive = editBox end,

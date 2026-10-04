@@ -206,7 +206,9 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
     `RemoveMessagesByPredicate` (oldest to newest, so older identical lines stay).
   - It never walks the stack for the combat log (`COMBATLOG`, every entry is a plain
     `AddMessage`). Opening a tab puts back the selected tab and active edit box, because
-    `FCF_OpenNewWindow` selects the new one.
+    `FCF_OpenNewWindow` selects the new one. **No new tab while the player is typing**
+    (`ChatFrameUtil.GetActiveWindow()`): in the IM chat style, making the new box the last
+    active one hides the box being typed in, and its `OnHide` clears the draft (Codex, #26).
   - It never offers Blizzard, GlassChat or its plugins, and never moves a secret line. A closed
     tab sends that addon's lines back to the main chat for the session.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no

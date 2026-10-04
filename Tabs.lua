@@ -112,6 +112,14 @@ local function tabFor(src)
         return nil
     end
     f = openWindow(src)
+    -- Never a new tab while the player is typing: FCF_OpenNewWindow makes the
+    -- new tab's edit box the last active one, and in the IM chat style that
+    -- hides the box being typed in, whose OnHide clears the unfinished text
+    -- and its destination (ChatFrameUtil.lua:570-580; Codex review of #26).
+    -- The line stays where it is; the tab opens on the next line after.
+    if not f and ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow() then
+        return nil
+    end
     if not f and FCF_OpenNewWindow then
         -- FCF_OpenNewWindow selects the new tab and makes its edit box the
         -- active one (FloatingChatFrame.lua:847-849): put back what the player

@@ -105,6 +105,13 @@ emit(direct("ASProbe"), "same text")   -- an identical older line, before routin
 emit(direct("OtherAddon"), "between")
 GENERAL_CHAT_DOCK._selected, WoW.lastActive = main, "main box"
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:session:ASProbe")
+-- While the player is typing, no tab is created (it would clear their draft).
+WoW.activeBox = "main box"
+emit(direct("ASProbe"), "while typing")
+eq(opened, 0, "no new tab while the player is typing")
+check(has(main, "while typing"), "the line stays in the main chat")
+eq(WoW.lastActive, "main box", "and the active edit box isn't touched")
+WoW.activeBox = nil
 emit(direct("ASProbe"), "same text")
 local tab = ChatFrame4
 eq(opened, 1, "one tab opened")
@@ -115,7 +122,7 @@ check(has(tab, "same text"), "the line is in its tab")
 local n = 0
 for _, m in ipairs(lines(main)) do if m == "same text" then n = n + 1 end end
 eq(n, 1, "and removed from the main chat, the older identical line kept")
-eq(main._lines[#main._lines].m, "between", "the one removed is the newest (the older one sits before 'between')")
+eq(main._lines[#main._lines].m, "while typing", "the one removed is the newest (the older one sits before the lines after it)")
 emit(printed("ASProbe"), "via print")
 check(has(tab, "via print") and not has(main, "via print"), "print lines move too")
 eq(opened, 1, "the same tab is reused")
