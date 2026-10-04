@@ -66,6 +66,12 @@ jobs:
             echo GlassChat/LICENSE
             tr -d '\r' < GlassChat.toc | tr '\\' '/' | grep -v '^#' | grep -v '^$' | sed 's|^|GlassChat/|'
             ls Media/*.tga | sed 's|^|GlassChat/|'
+            # Each plugin, moved out to a top-level folder named after its TOC.
+            for toc in Plugins/*/*.toc; do
+              name=$(basename "$toc" .toc); dir=$(dirname "$toc")
+              echo "$name/$name.toc"
+              tr -d '\r' < "$toc" | grep -v '^#' | grep -v '^$' | sed "s|^|$name/|"
+            done
           } | sort > expected.txt
           (cd unpacked && find . -type f | sed 's|^\./||' | sort) > actual.txt
           if ! diff -u expected.txt actual.txt; then

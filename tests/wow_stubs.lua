@@ -204,9 +204,16 @@ function Methods.CreateMaskTexture(w) return newWidget("MaskTexture", w) end
 function Methods.CreateFontString(w) return newWidget("FontString", w) end
 function Methods.SetTexture(t, file) t._file = file; return true end
 function Methods.SetColorTexture(t, r, g, b, a) t._color = { r, g, b, a } end
+function Methods.SetVertexColor(t, r, g, b, a) t._vertex = { r, g, b, a } end
 function Methods.AddMaskTexture(t, m) t._masks = t._masks or {}; table.insert(t._masks, m) end
 function Methods.SetGradient(t, orientation, c1, c2) t._gradient = { orientation, c1, c2 } end
 function Methods.SetTextureSliceMargins(t, l, tp, r, b) t._slice = { l, tp, r, b } end
+-- Animations: groups record whether they play.
+function Methods.CreateAnimationGroup(w) return newWidget("AnimationGroup", w) end
+function Methods.CreateAnimation(ag, atype) return newWidget(atype or "Animation", ag) end
+function Methods.Play(ag) ag._playing = true end
+function Methods.Stop(ag) ag._playing = false end
+function Methods.IsPlaying(ag) return ag._playing == true end
 
 -- FontString: the client formats natively and accepts secrets. With any
 -- secret argument, keep the arguments unformatted instead of calling
@@ -482,7 +489,30 @@ function Methods.TransformMessages(f, pred, transform)
 end
 -- The player, by GUID; their name and realm.
 WoW.playerGUID = "Player-1-AAA"
-function UnitGUID(unit) return unit == "player" and WoW.playerGUID or nil end
+function UnitGUID(unit)
+    if unit == "player" then return WoW.playerGUID end
+    return WoW.unitGUIDs and WoW.unitGUIDs[unit] or nil
+end
+-- The Spam & Ignore plugin's lookups: friends, guild, Battle.net, group,
+-- the target, the addon's version, atlases.
+WoW.friends, WoW.guild, WoW.bnet, WoW.group = {}, {}, {}, {}
+C_FriendList = {
+    IsFriend = function(guid) return WoW.friends[guid] == true end,
+    GetNumIgnores = function() return WoW.ignores and #WoW.ignores or nil end,
+    GetIgnoreName = function(i) return WoW.ignores and WoW.ignores[i] end,
+}
+function IsGuildMember(guid) return WoW.guild[guid] == true end
+C_BattleNet = { GetGameAccountInfoByGUID = function(guid) if WoW.bnet[guid] then return {} end end }
+function GetNumGroupMembers() return #WoW.group end
+function IsInRaid() return false end
+function UnitIsPlayer(unit) return unit == "target" and WoW.targetName ~= nil end
+function GetUnitName(unit) if unit == "target" then return WoW.targetName end end
+WoW.addonVersion = "dev"
+C_AddOns = { GetAddOnMetadata = function(name, field) if field == "Version" then return WoW.addonVersion end end }
+C_Texture = { GetAtlasInfo = function(name) return name == "socialqueuing-icon-eye" and {} or nil end }
+date = os.date
+time = os.time
+function GetTime() return WoW.now or 0 end
 function UnitName(unit) if unit == "player" then return WoW.playerName or "Karuzo", "Morphisto" end end
 function GetRealmName() return "Doomhowl" end
 -- EventRegistry callbacks, recorded by event.
@@ -617,7 +647,8 @@ WoW.reset()
 
 -- Strict globals: any read of an undefined global is an error, except the
 -- addon's own globals that are legitimately nil before first assignment.
-local allowNil = { GlassChat = true, GlassChatDB = true, GlassChatCharDB = true, ChatProbeDB = true }
+local allowNil = { GlassChat = true, GlassChatDB = true, GlassChatCharDB = true, ChatProbeDB = true,
+    GlassChatSpamIgnoreDB = true, GlassChatSpamIgnoreCharDB = true }
 setmetatable(_G, { __index = function(_, k)
     if allowNil[k] then return nil end
     error("read of undefined global '" .. tostring(k) .. "' (not stubbed: is it in the API dump?)", 2)

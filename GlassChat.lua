@@ -127,6 +127,14 @@ end
 
 local function onOff(v) return v and "on" or "off" end
 
+-- Plugins add their own /gchat subcommands (Spam & Ignore: mute, ignore...).
+-- help: lines for /gchat's help.
+local pluginSlash, pluginHelp = {}, {}
+function GC.RegisterSlash(sub, fn, help)
+    pluginSlash[sub] = fn
+    for _, line in ipairs(help or {}) do pluginHelp[#pluginHelp + 1] = line end
+end
+
 local function help()
     local db = GC.db
     say("/gchat glass on|off - the glass panels (" .. onOff(db.glass) .. ")")
@@ -143,6 +151,7 @@ local function help()
     say("/gchat tune - adjust the panel's edge, shadow and sheen live")
     say("/gchat failures - what failed to build or register")
     say("/gchat version - client build vs the measured one")
+    for _, line in ipairs(pluginHelp) do say(line) end
 end
 
 -- "on"/"off" -> true/false; anything else -> nil.
@@ -181,6 +190,13 @@ end
 
 local function slash(msg, editBox)
     local cmd, arg = (msg or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
+    -- A plugin's subcommand gets the rest of the line as typed (case kept:
+    -- names and phrases matter).
+    if pluginSlash[cmd] then
+        local raw = (msg or ""):match("^%s*%S+%s*(.-)%s*$") or ""
+        pluginSlash[cmd](raw, editBox)
+        return
+    end
     if cmd == "tune" then
         tuneCmd(arg)
     elseif cmd == "layout" then

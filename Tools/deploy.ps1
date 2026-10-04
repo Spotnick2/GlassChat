@@ -47,6 +47,27 @@ function Deploy-Addon {
     $tex = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "Media") -File | Where-Object { $_.Extension -eq ".tga" }
     foreach ($t in $tex) { Copy-Item -LiteralPath $t.FullName -Destination (Join-Path $media $t.Name) -Force }
     Write-Host "  Media\  ($($tex.Count) files)"
+
+    # Each plugin is its own addon, deployed under its TOC's name (the
+    # packager's move-folders does the same for releases).
+    $pluginRoot = Join-Path $RepoRoot "Plugins"
+    if (Test-Path $pluginRoot) {
+        foreach ($dir in Get-ChildItem -LiteralPath $pluginRoot -Directory) {
+            $toc = Get-ChildItem -LiteralPath $dir.FullName -Filter "*.toc" | Select-Object -First 1
+            if (-not $toc) { Write-Host "  skipping Plugins\$($dir.Name): no .toc" -ForegroundColor DarkYellow; continue }
+            $pdest = Join-Path $AddOnsPath $toc.BaseName
+            New-Item -ItemType Directory -Force -Path $pdest | Out-Null
+            foreach ($f in Get-ChildItem -LiteralPath $dir.FullName -File) {
+                if ($f.Extension -eq ".toc") {
+                    (Get-Content -LiteralPath $f.FullName -Raw) -replace '## Version: @project-version@', '## Version: dev' |
+                        Set-Content -LiteralPath (Join-Path $pdest $f.Name) -NoNewline
+                } else {
+                    Copy-Item -LiteralPath $f.FullName -Destination (Join-Path $pdest $f.Name) -Force
+                }
+            }
+            Write-Host "  plugin $($toc.BaseName)"
+        }
+    }
 }
 
 function Deploy-Probe {

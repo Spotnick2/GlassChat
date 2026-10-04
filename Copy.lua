@@ -125,24 +125,30 @@ local function windowName(f)
     return f:GetName()
 end
 
--- Open the copy window on a chat window's lines, selected.
-function Copy.Open(f)
-    f = f or Copy.CurrentFrame()
-    if not f then return end
+-- The window itself, for any plain text (the spam plugin's hidden-lines log
+-- uses it too): title, text selected for Ctrl+C, a status line.
+function Copy.Show(title, text, status)
     if not win then build() end
-    local lines, hidden, total = Copy.Lines(f)
-    win.text = table.concat(lines, "\n")
-    win.title:SetText("Copy: " .. windowName(f))
+    win.text = text
+    win.title:SetText(title)
     win.hint:SetText("Selected. Press Ctrl+C to copy, then Esc to close.")
-    local status = #lines .. " lines"
-    if total > Copy.MAX then status = status .. " (the newest " .. Copy.MAX .. " of " .. total .. ")" end
-    if hidden > 0 then status = status .. ", " .. hidden .. " hidden (can't be read)" end
-    win.status:SetText(status)
+    win.status:SetText(status or "")
     win.scroll:SetVerticalScroll(0)
     win:Show()
     win.edit:SetText(win.text)
     win.edit:SetFocus()
     win.edit:HighlightText()
+end
+
+-- Open the copy window on a chat window's lines, selected.
+function Copy.Open(f)
+    f = f or Copy.CurrentFrame()
+    if not f then return end
+    local lines, hidden, total = Copy.Lines(f)
+    local status = #lines .. " lines"
+    if total > Copy.MAX then status = status .. " (the newest " .. Copy.MAX .. " of " .. total .. ")" end
+    if hidden > 0 then status = status .. ", " .. hidden .. " hidden (can't be read)" end
+    Copy.Show("Copy: " .. windowName(f), table.concat(lines, "\n"), status)
 end
 
 -- The Copy button: a grey copy icon at the right end of each window's tab strip,

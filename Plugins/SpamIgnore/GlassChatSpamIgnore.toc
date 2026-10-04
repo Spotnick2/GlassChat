@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: |cff7fd4ffGlass|r Chat |cFF0099FF[Spam & Ignore]|r
+## Notes: Muted phrases, repeats, CJK posts, and one ignore list for all your characters. /gchat spam
+## Author: Spotnick
+## Version: @project-version@
+## Group: GlassChat
+## Dependencies: GlassChat
+## SavedVariables: GlassChatSpamIgnoreDB
+## SavedVariablesPerCharacter: GlassChatSpamIgnoreCharDB
+
+Text.lua
+SpamIgnore.lua
+UI.lua

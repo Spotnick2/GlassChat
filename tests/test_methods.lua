@@ -25,7 +25,9 @@ f:close()
 loadAddon()
 WoW.fireAllRegistered()
 WoW.tick()
-for _, cmd in ipairs({ "", "failures", "version", "copy", "tune" }) do SlashCmdList.GLASSCHAT(cmd) end
+for _, cmd in ipairs({ "", "failures", "version", "copy", "tune", "spam icon on", "spam log", "spam", "mutes", "ignores" }) do
+    SlashCmdList.GLASSCHAT(cmd)
+end
 
 local n = 0
 for name in pairs(WoW.methodsCalled) do
