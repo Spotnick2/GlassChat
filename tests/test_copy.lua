@@ -52,6 +52,10 @@ check(b ~= nil, "each chat window has a Copy button")
 eq(b:GetParent(), GC.Skin.Panel(ChatFrame2).panel, "on its glass panel, so it shows and hides with it")
 eq(b:GetFrameStrata(), "MEDIUM", "raised to the tabs' strata")
 eq(#b.icon.lines, 8, "a copy icon: two page outlines, four lines each")
+-- The front sheet covers the back one: one layer, back lines < fill < front lines.
+local rear, front, fill = b.icon.lines[1], b.icon.lines[8], b.icon.fill
+check(rear._layer == fill._layer and fill._layer == front._layer, "the icon's parts share one draw layer")
+check(rear._sublevel < fill._sublevel and fill._sublevel < front._sublevel, "back outline, then the front fill, then the front outline")
 eq(b.icon.lines[1]._color[1], GC.Skin.TAB_GREY[1], "grey at rest, like the tab names")
 b._scripts.OnEnter(b)
 eq(b.icon.lines[1]._color[2], GC.Skin.TAB_GOLD[2], "gold on hover")

@@ -158,10 +158,13 @@ local buttons = setmetatable({}, { __mode = "k" })   -- chat frame -> button
 -- outlines drawn from 1 px lines, no art file, so it's crisp at any UI
 -- scale and recolours with the tab palette. The front page is filled with
 -- the panel's charcoal so the back one passes behind it.
-local function page(b, x, y, lines)
+-- One draw layer, increasing sublevels: back outline (1), front fill (2),
+-- front outline (3), so the front sheet covers the back one's lines (Codex,
+-- #12: an ARTWORK fill drew under both OVERLAY outlines).
+local function page(b, x, y, lines, sublevel)
     local W, H = Copy.PAGE_W, Copy.PAGE_H
     local function line(px, py, w, h)
-        local t = b:CreateTexture(nil, "OVERLAY")
+        local t = b:CreateTexture(nil, "OVERLAY", nil, sublevel)
         t:SetPoint("TOPLEFT", b, "CENTER", x + px, y - py)
         t:SetSize(w, h)
         lines[#lines + 1] = t
@@ -189,13 +192,13 @@ function Copy.Button(f)
     local icon = { lines = {} }
     -- Back page up-left, front page down-right over it.
     local left, top = -(W + o) / 2, (H + o) / 2
-    page(b, left, top, icon.lines)
-    local fill = b:CreateTexture(nil, "ARTWORK")
+    page(b, left, top, icon.lines, 1)
+    local fill = b:CreateTexture(nil, "OVERLAY", nil, 2)
     fill:SetPoint("TOPLEFT", b, "CENTER", left + o, top - o)
     fill:SetSize(W, H)
     fill:SetColorTexture(GC.Skin.TINT[1], GC.Skin.TINT[2], GC.Skin.TINT[3], 1)
     icon.fill = fill
-    page(b, left + o, top - o, icon.lines)
+    page(b, left + o, top - o, icon.lines, 3)
     local grey, gold = GC.Skin.TAB_GREY, GC.Skin.TAB_GOLD
     paintIcon(icon, grey)
     b:SetScript("OnEnter", function(self)
