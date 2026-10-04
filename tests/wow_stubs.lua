@@ -418,6 +418,10 @@ TextToSpeechButton._level = 6
 for _, k in ipairs({ "_normal", "_pushed", "_highlight" }) do TextToSpeechButton[k] = newWidget("Texture", TextToSpeechButton) end
 TextToSpeechButton.Background = newWidget("Texture", TextToSpeechButton)
 rawset(TextToSpeechButton, "UpdateHighlight", function(self) self._highlight._alpha = 1 end)
+-- The shared tooltip (records its owner and text).
+GameTooltip = newWidget("GameTooltip", UIParent, "GameTooltip")
+GameTooltip._shown = false
+function Methods.SetOwner(tt, owner) tt._owner = owner end
 -- FrameXML's list of frames Escape closes.
 UISpecialFrames = {}
 -- The name-suggestion list under the edit box (Blizzard_AutoComplete).
