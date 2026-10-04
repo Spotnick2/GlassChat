@@ -87,15 +87,13 @@ end
 -- The account list, lname -> name, without your own characters.
 function Mirror.Wanted()
     local want = {}
-    local function add(name)
-        if type(name) ~= "string" then return end
-        local l = name:lower()
-        if not Spam.OwnByName(l) then want[l] = name end
-    end
+    -- A GUID entry: its GUID decides. A pending one (no GUID yet): its name.
     for guid, e in pairs(Spam.db.ignore) do
-        if not Spam.IsOwn(guid) then add(e.name) end
+        if type(e.name) == "string" and not Spam.IsOwn(guid) then want[e.name:lower()] = e.name end
     end
-    for _, e in pairs(Spam.db.pending) do add(e.name) end
+    for _, e in pairs(Spam.db.pending) do
+        if type(e.name) == "string" and not Spam.OwnByName(e.name:lower()) then want[e.name:lower()] = e.name end
+    end
     return want
 end
 

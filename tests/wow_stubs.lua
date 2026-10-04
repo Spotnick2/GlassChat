@@ -518,6 +518,8 @@ C_FriendList = {
     GetIgnoreName = function(i) return WoW.ignores and WoW.ignores[i] end,
 }
 function IsGuildMember(guid) return WoW.guild[guid] == true end
+-- Names unique across the region (measured true on Forever, FOREVER-PROBE 11).
+function RegionalUniqueNamesEnabled() return WoW.uniqueNames ~= false end
 C_BattleNet = { GetGameAccountInfoByGUID = function(guid) if WoW.bnet[guid] then return {} end end }
 function GetNumGroupMembers() return #WoW.group end
 function IsInRaid() return false end

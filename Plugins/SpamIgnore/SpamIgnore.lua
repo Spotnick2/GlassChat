@@ -140,35 +140,62 @@ end
 
 -- Your characters on your OTHER WoW accounts, from AltStable when it's
 -- installed (S3): its public API lists every character it has synced, by
--- GUID and full name (AltStable docs/PUBLIC-API.md, version 1). Read once at
+-- GUID and full name (AltStable docs/PUBLIC-API.md, version 1 only). Read at
 -- login and again on its CharactersChanged callback, never per chat line
 -- (GetCharacters builds fresh copies). Without AltStable this stays empty.
+-- Names count only while the client says names are unique in the region
+-- (RegionalUniqueNamesEnabled, measured true: FOREVER-PROBE 11; AltStable
+-- syncs within one region) and only with a surname: a bare first name from
+-- an older AltStable peer is never a name match (review of #34).
 local alt = { guids = {}, names = {} }
-function Spam.RefreshAltStable()
+local function altStableV1()
     local AS = rawget(_G, "AltStable")
-    if type(AS) ~= "table" or AS.PUBLIC_API_VERSION ~= 1 or type(AS.GetCharacters) ~= "function" then return end
-    local ok, list = pcall(AS.GetCharacters)
-    if not ok or type(list) ~= "table" then return end
-    local guids, names = {}, {}
+    if type(AS) == "table" and AS.PUBLIC_API_VERSION == 1 then return AS end
+end
+local function namesUnique()
+    local fn = rawget(_G, "RegionalUniqueNamesEnabled")
+    if not fn then return false end
+    local ok, v = pcall(fn)
+    return ok and not API.IsSecret(v) and v == true
+end
+local function readAltStable(AS)
+    local list = AS.GetCharacters()
+    if type(list) ~= "table" then return end
+    local guids, names, unique = {}, {}, namesUnique()
     for _, c in ipairs(list) do
-        local g, n = plainString(c.guid), plainString(c.name)
-        if g and g:sub(1, 7) == "Player-" then
-            guids[g] = n or true
-            if n then names[n:lower()] = true end
+        if type(c) == "table" then
+            local g, n = plainString(c.guid), plainString(c.name)
+            if g and g:sub(1, 7) == "Player-" then
+                guids[g] = true
+                if unique and n and n:find("%S %S") then names[n:lower()] = true end
+            end
         end
     end
     alt.guids, alt.names = guids, names
 end
+function Spam.RefreshAltStable()
+    local AS = altStableV1()
+    if not AS or type(AS.GetCharacters) ~= "function" then return end
+    local ok, err = pcall(readAltStable, AS)
+    if not ok then API.Fail("spam altstable read", err) end
+end
 local altHooked = false
 local function hookAltStable()
-    local AS = rawget(_G, "AltStable")
-    if altHooked or type(AS) ~= "table" or AS.PUBLIC_API_VERSION ~= 1 or type(AS.RegisterCallback) ~= "function" then return end
-    altHooked = pcall(AS.RegisterCallback, "CharactersChanged", function() Spam.RefreshAltStable() end)
+    local AS = altStableV1()
+    if altHooked or not AS or type(AS.RegisterCallback) ~= "function" then return end
+    local ok, err = pcall(AS.RegisterCallback, "CharactersChanged", function()
+        Spam.RefreshAltStable()
+        -- A character just learned to be yours may be linked on Blizzard's list here.
+        if GC.SpamMirror then GC.SpamMirror.Check("altstable") end
+    end)
+    if ok then altHooked = true else API.Fail("spam altstable hook", err) end
 end
 
 local function isOwn(guid)
     return guid == playerGUID() or Spam.db.own[guid] ~= nil or alt.guids[guid] ~= nil
 end
+-- With a GUID known, only the GUID says whose a character is; a name is the
+-- fallback for a player not seen yet (pending). Key on the GUID (CLAUDE.md).
 
 local function ownByName(lname)
     if alt.names[lname] then return true end
@@ -240,7 +267,7 @@ function Spam.Judge(event, text, sender, guid, stateless)
     -- Explicit ignores: every player-chat event, never your own characters.
     if not isOwn(guid) then
         if Spam.db.ignore[guid] then return "ignored" end
-        if lname and Spam.db.pending[lname] and not ownByName(lname) then
+        if lname and Spam.db.pending[lname] then   -- the GUID isn't ours (above): the name can't make it so
             -- A pending ignore (imported, or typed before we saw them) meets
             -- its GUID: from now on it's by GUID.
             Spam.db.ignore[guid] = { name = sender, added = time(), note = Spam.db.pending[lname].note }
@@ -303,7 +330,7 @@ end
 function Spam.Ignore(name)
     if name == "" then return "/gchat ignore <First Surname>" end
     local guid, shown = Spam.Resolve(name)
-    if (guid and isOwn(guid)) or ownByName(name:lower()) then
+    if (guid and isOwn(guid)) or (not guid and ownByName(name:lower())) then
         return "that's one of your own characters: not ignored"
     end
     if guid then
@@ -337,7 +364,7 @@ function Spam.Import()
         do
             local lname = name:lower()
             local guid = names[lname]
-            if (guid and isOwn(guid)) or ownByName(lname) then
+            if (guid and isOwn(guid)) or (not guid and ownByName(lname)) then
                 own = own + 1
             elseif guid then
                 Spam.db.ignore[guid] = { name = name, added = time(), note = "imported" }
@@ -387,10 +414,10 @@ f:SetScript("OnEvent", function(_, event, arg1)
         if GC.SpamMirror then GC.SpamMirror.Start() end
         if GC.SpamUI then GC.SpamUI.Start() end
     elseif event == "PLAYER_LOGIN" then
-        hookAltStable()
-        Spam.RefreshAltStable()
         Spam.RecordSelf()
         Spam.RefreshGroup()
+        hookAltStable()
+        Spam.RefreshAltStable()
     elseif event == "GROUP_ROSTER_UPDATE" then
         Spam.RefreshGroup()
     end

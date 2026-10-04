@@ -313,8 +313,12 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     The rules are in `docs/PLAN-SPAM.md`.
   - **Your characters on other WoW accounts** come from AltStable when it's installed
     (`## OptionalDeps: AltStable`). `AltStable.GetCharacters()` (public API **v1 only**) is read
-    at login and on its `CharactersChanged` callback into a GUID/name cache that `isOwn` /
-    `ownByName` consult. The list sync between accounts waits for AltStable#190.
+    at login and on its `CharactersChanged` callback (which also re-runs the mirror's check)
+    into a GUID/name cache that `isOwn` / `ownByName` consult.
+    - Names count only while `RegionalUniqueNamesEnabled()` is true (measured on Forever) and
+      only with a surname.
+    - **A known GUID always decides.** `ownByName` is only the fallback for a pending entry
+      that has no GUID yet. The list sync between accounts waits for AltStable#190.
   - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** tab-strip icon
     (`/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
     unreplaced) and an eye in a release, and the debug log shows the event too.

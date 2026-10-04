@@ -191,7 +191,11 @@ local function ignores()
         local own = Spam.IsOwn(guid) and " |cffff6060(one of your own characters: skipped, /gchat unignore it)|r" or ""
         say("ignored: " .. e.name .. own)
     end
-    for _, e in pairs(Spam.db.pending) do any = true; say("ignored (pending): " .. e.name) end
+    for l, e in pairs(Spam.db.pending) do
+        any = true
+        local own = Spam.OwnByName(l) and " |cffff6060(one of your own characters: skipped, /gchat unignore it)|r" or ""
+        say("ignored (pending): " .. e.name .. own)
+    end
     for key, name in pairs(GC.SpamMirror.Failed()) do
         local what = key:sub(1, 4) == "add:" and "added to" or "removed from"
         say("|cffffd100" .. name .. ": couldn't be " .. what .. " Blizzard's ignore list on this character" ..

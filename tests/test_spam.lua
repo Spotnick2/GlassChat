@@ -274,6 +274,51 @@ table.insert(altList, { guid = "Player-9-NEWALT", name = "Fresh Alt" })
 check(not Spam.IsOwn("Player-9-NEWALT"), "not before AltStable's callback")
 altCallback("CharactersChanged")
 check(Spam.IsOwn("Player-9-NEWALT") and Spam.OwnByName("fresh alt"), "after it, by GUID and by name")
+-- Names: only with a surname, only while names are unique; a known GUID decides.
+table.insert(altList, { guid = "Player-9-OLDPEER", name = "Karuzo" })   -- an older peer's record
+altCallback("CharactersChanged")
+check(Spam.IsOwn("Player-9-OLDPEER"), "a record without a surname is still yours by GUID")
+check(not Spam.OwnByName("karuzo"), "but its bare first name is never a name match")
+newChat()
+say(SAY, "hi", "Karuzo Memphisto", "Player-1-STRANGER")   -- a stranger with that name, seen in chat
+SlashCmdList.GLASSCHAT("ignore Karuzo Memphisto")
+check(db.ignore["Player-1-STRANGER"], "a player whose GUID is known isn't refused for sharing a name with your alt")
+db.ignore["Player-1-STRANGER"] = nil
+WoW.uniqueNames = false
+altCallback("CharactersChanged")
+check(not Spam.OwnByName("fresh alt"), "names count only while the client says they're unique")
+WoW.uniqueNames = nil
+altCallback("CharactersChanged")
+-- A pending entry naming one of yours is flagged.
+db.pending["fresh alt"] = { name = "Fresh Alt" }
+newChat()
+SlashCmdList.GLASSCHAT("ignores")
+check(chatHas("Fresh Alt.*one of your own characters"), "a pending entry for one of yours is flagged")
+db.pending["fresh alt"] = nil
+-- The callback brings Blizzard's list in step too.
+local checks, realCheck = 0, GC.SpamMirror.Check
+GC.SpamMirror.Check = function(...) checks = checks + 1; return realCheck(...) end
+altCallback("CharactersChanged")
+eq(checks, 1, "AltStable's update re-runs the ignore-list sync")
+GC.SpamMirror.Check = realCheck
+-- A broken list or callback is recorded, never thrown; this character still recorded.
+rawset(_G, "AltStable", { PUBLIC_API_VERSION = 1, GetCharacters = function() return { "not a table", 5, { guid = "Player-9-GOOD", name = "Good Alt" } } end,
+    RegisterCallback = function() error("renamed") end })
+Spam._test.reset()
+db.own["Player-1-ME"] = nil
+WoW.fire("PLAYER_LOGIN")
+check(db.own["Player-1-ME"], "this character is still recorded")
+check(Spam.IsOwn("Player-9-GOOD"), "a good entry beside malformed ones still counts")
+check(GC.failures["spam altstable hook"], "a failing RegisterCallback is recorded")
+GC.failures["spam altstable hook"] = nil
+rawset(_G, "AltStable", { PUBLIC_API_VERSION = 1, GetCharacters = function() error("boom") end })
+Spam.RefreshAltStable()
+check(GC.failures["spam altstable read"], "a failing GetCharacters is recorded")
+GC.failures["spam altstable read"] = nil
+rawset(_G, "AltStable", { PUBLIC_API_VERSION = 1, GetCharacters = function() return altList end })
+Spam.RefreshAltStable()
+check(not Spam.OwnByName("not a player"), "a non-player entry's name is never yours")
+
 -- Another API version is never read.
 rawset(_G, "AltStable", { PUBLIC_API_VERSION = 2, GetCharacters = function() return {} end })   -- read, it would wipe the list
 Spam.RefreshAltStable()
