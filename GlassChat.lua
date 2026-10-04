@@ -19,6 +19,7 @@ local DEFAULTS = {
     history = 100,         -- sent lines kept (stock: 32)
     tabSize = 14,          -- tab name font size (stock GameFontNormalSmall, ~10)
     shortChannels = true,  -- "[1. General - The Barrens]" -> "[1. General]"
+    timestamps = false,    -- HH:MM:SS on every line, addon output included (owner: off by default)
 }
 
 -- Read settings. Only what the player SET is saved: everything else falls
@@ -96,6 +97,11 @@ function Settings.ResetLook()
     GC.Skin.Refresh()
 end
 
+function Settings.SetTimestamps(on)
+    GC.db.timestamps = on and true or false
+    GC.Chat.ApplyTimestamps()
+end
+
 function Settings.SetShortChannels(on)
     GC.db.shortChannels = on and true or false
 end
@@ -130,6 +136,7 @@ local function help()
     say("/gchat arrows on|off - Up/Down recall what you sent (" .. onOff(db.plainArrows) .. ")")
     say("/gchat history N - sent lines kept (" .. db.history .. ")")
     say("/gchat channels on|off - drop the zone from channel names (" .. onOff(db.shortChannels) .. ")")
+    say("/gchat stamps on|off - a time on every line, addon output too (" .. onOff(db.timestamps) .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
     say("/gchat layout - save this character's chat windows for your other characters")
     say("/gchat copy - this window's lines, selected for Ctrl+C (or the Copy button)")
@@ -144,7 +151,7 @@ local function flag(arg)
 end
 
 local TOGGLES = { glass = Settings.SetGlass, colors = Settings.SetClassColors, arrows = Settings.SetPlainArrows,
-    channels = Settings.SetShortChannels }
+    channels = Settings.SetShortChannels, stamps = Settings.SetTimestamps }
 local NUMBERS = { alpha = Settings.SetAlpha, lines = Settings.SetLines, history = Settings.SetHistory,
     tabsize = Settings.SetTabSize }
 

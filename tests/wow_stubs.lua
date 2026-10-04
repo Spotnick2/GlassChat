@@ -238,9 +238,15 @@ function Methods.GetLineHeight(fs) return (select(2, Methods.GetFont(fs))) end
 
 -- ScrollingMessageFrame: its lines, oldest first, as GetMessageInfo
 -- numbers them (ScrollingMessageFrame.lua:30-31). f._messages = { text, ... }.
-function Methods.GetNumMessages(f) return #(f._messages or {}) end
+-- Without _messages, the lines AddMessage stored (f._lines).
+function Methods.GetNumMessages(f) return #(f._messages or f._lines or {}) end
 function Methods.GetMessageInfo(f, i)
-    local m = f._messages and f._messages[i]
+    if not f._messages then
+        local e = f._lines and f._lines[i]
+        if e then return e.m, 1, 1, 1 end
+        return
+    end
+    local m = f._messages[i]
     if m ~= nil then return m, 1, 1, 1 end
 end
 function Methods.GetID(w) return w._id or 0 end
@@ -360,6 +366,11 @@ end
 WoW.tabAlphas = {}
 WoW.messageFilters = {}
 ChatFrameUtil = {
+    -- ChatFrameUtil.lua:845: the showTimestamps setting, nil for "none".
+    GetTimestampFormat = function()
+        local v = WoW.cvars.showTimestamps
+        if v ~= nil and v ~= "none" then return v end
+    end,
     AddMessageEventFilter = function(event, fn)
         WoW.messageFilters[event] = WoW.messageFilters[event] or {}
         table.insert(WoW.messageFilters[event], fn)
@@ -447,7 +458,28 @@ function Methods.AddChannel(f, c)
     table.insert(WoW.window(f._id).channels, c)
     return GetChannelName(c)
 end
+-- WoW's date() is Lua's os.date.
+date = os.date
+time = os.time
+TimeUtil = { BetterDate = function(fmt, t) return os.date(fmt, t) end }
 function Methods.ReceiveAllPrivateMessages(f) end
+-- ScrollingMessageFrame:AddMessage into the stub's _lines buffer.
+function Methods.AddMessage(f, msg, ...)
+    f._lines = f._lines or {}
+    table.insert(f._lines, { m = msg, extra = { n = select("#", ...), ... } })
+end
+-- ScrollingMessageFrame:TransformMessages over the stub's _lines buffer
+-- (entries { m = text }), as the mixin does (ScrollingMessageFrame.lua:95).
+-- Storage order: chronological, rotated by f._rot once "wrapped" (as
+-- CircularBuffer stores it: the newest lines first, then the older ones).
+function Methods.TransformMessages(f, pred, transform)
+    local lines = f._lines or {}
+    local n, rot = #lines, f._rot or 0
+    for k = 1, n do
+        local e = lines[(k - 1 + n - rot) % n + 1]
+        if pred(e.m, unpack(e.extra or {}, 1, e.extra and e.extra.n or 0)) then e.m = (transform(e.m)) end
+    end
+end
 -- The player, by GUID; their name and realm.
 WoW.playerGUID = "Player-1-AAA"
 function UnitGUID(unit) return unit == "player" and WoW.playerGUID or nil end
