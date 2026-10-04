@@ -204,9 +204,16 @@ function Methods.CreateMaskTexture(w) return newWidget("MaskTexture", w) end
 function Methods.CreateFontString(w) return newWidget("FontString", w) end
 function Methods.SetTexture(t, file) t._file = file; return true end
 function Methods.SetColorTexture(t, r, g, b, a) t._color = { r, g, b, a } end
+function Methods.SetVertexColor(t, r, g, b, a) t._vertex = { r, g, b, a } end
 function Methods.AddMaskTexture(t, m) t._masks = t._masks or {}; table.insert(t._masks, m) end
 function Methods.SetGradient(t, orientation, c1, c2) t._gradient = { orientation, c1, c2 } end
 function Methods.SetTextureSliceMargins(t, l, tp, r, b) t._slice = { l, tp, r, b } end
+-- Animations: groups record whether they play.
+function Methods.CreateAnimationGroup(w) return newWidget("AnimationGroup", w) end
+function Methods.CreateAnimation(ag, atype) return newWidget(atype or "Animation", ag) end
+function Methods.Play(ag) ag._playing = true end
+function Methods.Stop(ag) ag._playing = false end
+function Methods.IsPlaying(ag) return ag._playing == true end
 
 -- FontString: the client formats natively and accepts secrets. With any
 -- secret argument, keep the arguments unformatted instead of calling

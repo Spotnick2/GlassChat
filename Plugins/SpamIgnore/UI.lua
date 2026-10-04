@@ -20,6 +20,11 @@ GC.SpamUI = UI
 UI.BUG = "Interface\\HelpFrame\\HelpIcon-Bug"     -- Blizzard's help frame
 UI.EYE = "socialqueuing-icon-eye"                -- Blizzard's Quick Join
 UI.SIZE = 18
+-- The look (owner: "we'll adjust later"): gold on hover, like the copy icon;
+-- highlighted (gold, full strength, a soft glow) while unseen lines wait;
+-- a BLINK of BLINK_TIME seconds each time a line is blocked.
+UI.BLINK_TIME, UI.BLINK_PERIOD, UI.BLINK_LOW = 3, 0.25, 0.25
+UI.GLOW = 0.35
 
 local buttons = setmetatable({}, { __mode = "k" })   -- chat frame -> button
 
@@ -33,13 +38,33 @@ end
 local function paint(b)
     local n = Spam.unseen
     b.count:SetText(n > 0 and tostring(math.min(n, 99)) or "")
-    local c = n > 0 and GC.Skin.TAB_GOLD or GC.Skin.TAB_GREY
+    local lit = n > 0 or b.hovered
+    local c = lit and GC.Skin.TAB_GOLD or GC.Skin.TAB_GREY
     b.icon:SetVertexColor(c[1], c[2], c[3])
-    b.icon:SetAlpha(n > 0 and 1 or 0.7)
+    b.icon:SetAlpha(lit and 1 or 0.7)
+    b.glow:SetShown(n > 0)
 end
 
 function UI.PaintAll()
     for _, b in pairs(buttons) do paint(b) end
+end
+
+-- A line was just blocked: repaint, and blink every icon for BLINK_TIME s
+-- (a new block restarts it).
+local blinkToken
+function UI.Blocked()
+    UI.PaintAll()
+    for _, b in pairs(buttons) do
+        b.blink:Stop()
+        b.blink:Play()
+    end
+    local token = {}
+    blinkToken = token
+    C_Timer.After(UI.BLINK_TIME, function()
+        if blinkToken ~= token then return end
+        for _, b in pairs(buttons) do b.blink:Stop(); b.icon:SetAlpha(1) end
+        UI.PaintAll()
+    end)
 end
 
 function UI.Open()
@@ -75,10 +100,28 @@ function UI.Button(f)
         icon:SetColorTexture(1, 1, 1, 0.5)   -- no eye art on this client: a plain square
     end
     b.icon = icon
+    -- The highlight: a soft additive glow behind the icon while lines wait.
+    local glow = b:CreateTexture(nil, "ARTWORK")
+    glow:SetPoint("TOPLEFT", b, "TOPLEFT", -2, 2)
+    glow:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 2, -2)
+    glow:SetColorTexture(GC.Skin.TAB_GOLD[1], GC.Skin.TAB_GOLD[2], GC.Skin.TAB_GOLD[3], UI.GLOW)
+    glow:SetBlendMode("ADD")
+    glow:Hide()
+    b.glow = glow
+    -- The blink: the icon's alpha bouncing down and back.
+    local blink = icon:CreateAnimationGroup()
+    blink:SetLooping("BOUNCE")
+    local fade = blink:CreateAnimation("Alpha")
+    fade:SetFromAlpha(1)
+    fade:SetToAlpha(UI.BLINK_LOW)
+    fade:SetDuration(UI.BLINK_PERIOD)
+    b.blink = blink
     local count = GC.Glass.Font(b, 11, "CENTER")
     count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 2, -2)
     b.count = count
     b:SetScript("OnEnter", function(self)
+        self.hovered = true
+        paint(self)
         local tip = rawget(_G, "GameTooltip")
         if tip then
             tip:SetOwner(self, "ANCHOR_TOP")
@@ -86,7 +129,9 @@ function UI.Button(f)
             tip:Show()
         end
     end)
-    b:SetScript("OnLeave", function()
+    b:SetScript("OnLeave", function(self)
+        self.hovered = false
+        paint(self)
         local tip = rawget(_G, "GameTooltip")
         if tip then tip:Hide() end
     end)
@@ -198,7 +243,7 @@ end
 function UI.Start()
     GC.Skin.ReserveIcons(Spam.db.icon and 2 or 1)
     GC.Chat.OnEachFrame("spam icon", UI.Button)
-    Spam.onHidden = UI.PaintAll
+    Spam.onHidden = UI.Blocked
     GC.RegisterSlash("mute", mute)
     GC.RegisterSlash("unmute", unmute)
     GC.RegisterSlash("mutes", mutes)
