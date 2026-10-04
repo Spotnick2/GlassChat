@@ -200,6 +200,17 @@ GlassChatSpamIgnoreDB.ignore[guid] = { name = "First Surname", added = time(), n
 - Fields are type- and length-checked on load. Saved fields are never secrets, never packed chat
   arguments.
 
+**Never your own characters** (owner: "make sure you don't ignore the character itself when
+syncing"):
+- **The current character is never ignored**, by GUID, in the filter and in any mirror. The S2b
+  mirror never calls `AddIgnore` with its own name.
+- **GlassChat knows your own characters.** Each character records its GUID and "First Surname" at
+  `PLAYER_LOGIN` in `GlassChatSpamIgnoreDB.own`.
+  - Ignoring one of them is refused, with a message saying it's yours.
+  - The S3 snapshot carries this list, so characters on your other WoW accounts count as yours too.
+- **An entry that turns out to be one of yours** (ignored before that character was ever seen) is
+  skipped by the filter and the mirror, and flagged in `/gchat ignores` for you to remove.
+
 **Getting entries in:**
 - `/gchat ignore <name>` resolves the GUID from a name→GUID map learned from recent chat (session
   memory, capped).
