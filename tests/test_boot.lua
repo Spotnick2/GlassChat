@@ -42,4 +42,11 @@ SlashCmdList.GLASSCHAT("failures")
 lines = newChat()
 check(lines[1] and lines[1]:find("demo: boom", 1, true), "/gchat failures lists recorded failures")
 
+-- /rl reloads through C_UI.Reload (documented without restrictions).
+local reloads = 0
+rawset(_G, "C_UI", { Reload = function() reloads = reloads + 1 end })
+SlashCmdList.GLASSCHATRELOAD("")
+eq(reloads, 1, "/rl reloads the UI")
+eq(SLASH_GLASSCHATRELOAD1, "/rl", "on /rl")
+
 done("test_boot")
