@@ -10,11 +10,27 @@ enable-nolib-creation: no
 move-folders:
   GlassChat/Plugins/SpamIgnore: GlassChatSpamIgnore
 
+# The glass material. Pinned, never `tag: latest` (the packager picks the
+# newest tag by creation date and falls back to the branch HEAD). Bump the pin
+# only in a release made anyway: players get library fixes earlier through
+# whichever glass addon ships the newest copy, since LibStub runs that one.
+# CI reads the pin from here, so it is written once.
+#
+# No comment on a value line: the packager's YAML reader keeps it as part of
+# the value (measured in GlassUnitFrames #64).
+externals:
+  Libs/LibGlass-1.0:
+    url: https://github.com/Spotnick2/LibGlass
+    tag: r1
+
 manual-changelog:
   filename: CHANGELOG.md
   markup-type: markdown
 
-# YAML list, not markdown bullets.
+# YAML list, not markdown bullets. Every pattern matches the WHOLE path from
+# the package root (release.sh's match_pattern is a shell `case`), so the
+# top-level names below never reach inside Libs/: Libs/LibGlass-1.0/LICENSE
+# ships (MIT).
 ignore:
   - .github
   - .claude
@@ -24,3 +40,13 @@ ignore:
   - CLAUDE.md
   - README.md
   - CHANGELOG.md
+  # The library's own .pkgmeta ignores these, and the BigWigs packager honours
+  # that; CurseForge's packager, which builds the release, does NOT (measured
+  # in Priestly's published zip, Priestly #53). So they are named from here.
+  # CI asserts what the zip holds under Libs/LibGlass-1.0/.
+  - Libs/LibGlass-1.0/tests
+  - Libs/LibGlass-1.0/docs
+  - Libs/LibGlass-1.0/Tools
+  - Libs/LibGlass-1.0/AGENTS.md
+  - Libs/LibGlass-1.0/CLAUDE.md
+  - Libs/LibGlass-1.0/README.md
