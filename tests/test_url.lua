@@ -8,11 +8,11 @@ local Url = GC.Url
 
 -- What counts as a web address.
 for _, w in ipairs({ "https://www.wowhead.com/classic/item=19019", "http://example.org", "www.raider.io",
-    "wowhead.com", "discord.gg/abc123", "youtu.be/dQw4w9WgXcQ", "warcraftlogs.com/reports/x", "WWW.Twitch.TV" }) do
+    "wowhead.com", "discord.gg/abc123", "https://youtu.be/dQw4w9WgXcQ", "warcraftlogs.com/reports/x", "WWW.Twitch.TV" }) do
     eq(Url.Address(w), w, "an address: " .. w)
 end
 for _, w in ipairs({ "e.g.", "1.60.1.70205", "a.b", "file.lua", "Interface\\AddOns", "bob@example.com",
-    "192.168.0.1", "ok...", "3.5", "lol.ok", "foo..com" }) do
+    "192.168.0.1", "ok...", "3.5", "lol.ok", "foo..com", "No.It", "Yes.No", "ok.me", "join.us", "to.be" }) do
     eq(Url.Address(w), nil, "not an address: " .. w)
 end
 eq(Url.Address("wowhead.com."), "wowhead.com", "a sentence's full stop stays outside")
@@ -38,6 +38,15 @@ eq(Url.Wrap("|Tsite.com/icon.blp:14|t ok"), nil, "nor a texture path that looks 
 eq(Url.Wrap("|Hgarrmission:x|h[guide at wowhead.com/x here]|h"), nil, "nor an address inside another link's text")
 eq(Url.Wrap("a||b.com"), "a||" .. L("b.com"), "a literal pipe ends a word")
 eq(Url.Wrap(WoW.Secret("x")), nil, "a secret is never read")
+-- A colour code right before an address stays a colour code (review of #32).
+eq(Url.Wrap(item .. "-wowhead.com"), nil, "an address glued to a link's colour end isn't an address")
+eq(Url.Wrap("|cffff0000wowhead.com|r"), "|cffff0000" .. L("wowhead.com") .. "|r", "a coloured address: the colour kept around it")
+eq(Url.Wrap(item .. " wowhead.com"), item .. " " .. L("wowhead.com"), "and beside one")
+-- Brackets and quotes around an address stay outside it.
+eq(Url.Wrap("(wowhead.com)"), "(" .. L("wowhead.com") .. ")", "in round brackets")
+eq(Url.Wrap('"https://x.com/a"'), '"' .. L("https://x.com/a") .. '"', "in quotes")
+eq(Url.Wrap("<https://raider.io/c>"), "<" .. L("https://raider.io/c") .. ">", "in angle brackets")
+eq(Url.Wrap("[wowhead.com]"), "[" .. L("wowhead.com") .. "]", "in typed square brackets")
 
 -- The filter: false plus every argument, the first one wrapped.
 local hidden, a1, a2, a12 = Url.Filter(nil, "CHAT_MSG_SAY", "go to wowhead.com", "Bob Smith", "", "", "", "", 0, 0, "", 0, 7, "Player-1-B")
@@ -48,6 +57,19 @@ local all = { Url.Filter(nil, "CHAT_MSG_SAY", "x.com", "Bob", "", "", "", "", 0,
 eq(all[13], "Player-1-B", "all of them, the GUID included")
 eq(select("#", Url.Filter(nil, "CHAT_MSG_SAY", "plain", "Bob")), 1, "nothing to wrap: just false")
 check(WoW.messageFilters.CHAT_MSG_CHANNEL and WoW.messageFilters.CHAT_MSG_WHISPER, "registered on channels and whispers")
+check(WoW.messageFilters.CHAT_MSG_EMOTE and WoW.messageFilters.CHAT_MSG_AFK, "and emotes and AFK replies")
+
+-- One scan per line, whatever the number of windows (review of #32).
+local scans, realWrap = 0, Url.Wrap
+Url.Wrap = function(m) scans = scans + 1; return realWrap(m) end
+for _ = 1, 3 do Url.Filter(nil, "CHAT_MSG_CHANNEL", "see x.com", "Bob", "", "", "", "", 0, 0, "", 0, 4242, "Player-1-B") end
+eq(scans, 1, "a line shown in three windows is scanned once")
+local _, again = Url.Filter(nil, "CHAT_MSG_CHANNEL", "see x.com", "Bob", "", "", "", "", 0, 0, "", 0, 4242, "Player-1-B")
+eq(again, "see " .. L("x.com"), "and wrapped the same each time")
+Url.Wrap = realWrap
+
+-- Copied text has the address as typed, without the brackets on screen.
+eq(GC.Copy.Plain("see " .. L("https://x.com/a") .. " now"), "see https://x.com/a now", "copy and focus get the plain address")
 SlashCmdList.GLASSCHAT("urls off")
 eq(select("#", Url.Filter(nil, "CHAT_MSG_SAY", "x.com", "Bob")), 1, "/gchat urls off: left alone")
 SlashCmdList.GLASSCHAT("urls on")

@@ -87,6 +87,19 @@ function API.AutoHideScrollBar(scroll)
     sync(scroll)
 end
 
+-- A read-only text box in a window: Esc closes the window, and typing puts
+-- host[field] back (selected again when reselect). Copy, focus mode and the
+-- address box share it.
+function API.ReadOnly(edit, host, field, reselect)
+    edit:SetScript("OnEscapePressed", function() host:Hide() end)
+    edit:SetScript("OnTextChanged", function(self, userInput)
+        if userInput and host[field] then
+            self:SetText(host[field])
+            if reselect then self:HighlightText() end
+        end
+    end)
+end
+
 -- A glass dialog window, lifted from GlassPanel's Compat: FULLSCREEN_DIALOG,
 -- clamped, Escape closes it (UISpecialFrames, as AltStable does on
 -- Forever), an opaque backing under the glass so nothing shows through the

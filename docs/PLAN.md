@@ -220,10 +220,9 @@ The owner's picture: freeze and maximise the current tab, which reveals search a
   address another addon already linked stays as it is. A sentence's full stop stays outside the
   address.
 
-- **URLs only** (owner). A message filter wraps them in an addon link (`|Haddon:GlassChat:url:…|h`).
-  A click opens a small glass box with the URL selected (Ctrl+C), or copies it directly if probe
-  item 2 passes.
-- Drag-select copy in the normal chat (not only in focus mode), if probe item 3 passes.
+- *Original plan:* URLs only (owner), wrapped by a message filter in an addon link, with a direct
+  copy if probe item 2 passed and drag-select copy if item 3 did. Both failed, so the box above
+  is what's built.
 - Game links keep their stock behaviour.
 
 ### Later (only if asked)

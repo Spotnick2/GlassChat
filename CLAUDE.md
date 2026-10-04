@@ -266,8 +266,13 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     `|Haddon:GlassChat:url:<address>|h[<address>]|h`.
   - **What counts:** `http(s)://`, `www.`, or a bare `name.tld[/...]` whose ending is in
     `Url.TLDS`. Never e-mail addresses or bare IPs.
-  - `Url.Wrap` scans only the plain text between `|H...|h...|h` links and `|T`/`|A` escapes.
-    Words split on spaces and pipes, and trailing punctuation is trimmed.
+  - `Url.Wrap` scans only the plain text between escapes: links, textures and atlases, colour
+    codes (`|c`, `|cn`, `|r`) and `||`. Leading brackets and quotes, and trailing punctuation,
+    stay outside the address.
+  - **The filter goes in at `PLAYER_LOGIN`**, after the spam plugin's, because filters run in
+    the order they were added and mutes must see the text as typed. There's one decision per
+    (event, lineID).
+  - `Copy.Plain` turns our address links back into the plain address, without the brackets.
   - **The click:** `EventRegistry "SetItemRef"` opens a small read-only box with the address
     selected for Ctrl+C. There is no clipboard API here (probe items 2-3).
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
