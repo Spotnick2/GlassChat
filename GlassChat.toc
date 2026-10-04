@@ -13,4 +13,5 @@ Skin.lua
 History.lua
 Copy.lua
 Buttons.lua
+Layout.lua
 GlassChat.lua

@@ -131,6 +131,7 @@ local function help()
     say("/gchat history N - sent lines kept (" .. db.history .. ")")
     say("/gchat channels on|off - drop the zone from channel names (" .. onOff(db.shortChannels) .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
+    say("/gchat layout - save this character's chat windows for your other characters")
     say("/gchat copy - this window's lines, selected for Ctrl+C (or the Copy button)")
     say("/gchat tune - adjust the panel's edge, shadow and sheen live")
     say("/gchat failures - what failed to build or register")
@@ -175,6 +176,8 @@ local function slash(msg, editBox)
     local cmd, arg = (msg or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
     if cmd == "tune" then
         tuneCmd(arg)
+    elseif cmd == "layout" then
+        GC.Layout.Command(arg)
     elseif cmd == "copy" then
         -- The window the command was typed in (an undocked one included).
         local f = editBox and editBox.GetParent and editBox:GetParent()
@@ -212,6 +215,8 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         -- scrollback; PLAYER_LOGIN and the chat-window events re-apply.
         local ok, err = pcall(GC.Chat.Start)
         if not ok then API.Fail("start", err) end
+        ok, err = pcall(GC.Layout.Start)
+        if not ok then API.Fail("start layout", err) end
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- arg1 = isInitialLogin: warn at a real login, never on /reload.
         if arg1 and API.ClientBuild() ~= GC.MEASURED_ON_BUILD then

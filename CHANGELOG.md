@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **One chat layout for every character:** `/gchat layout save` keeps this character's chat
+  windows (tabs, chat types, channels, colours, font size). Your other characters get a clickable
+  offer to apply it once, or use `/gchat layout apply`. The main window's position stays with
+  Edit Mode, and no channel is joined for you.
 - The voice buttons beside the chat are compact glass buttons with their gold symbols, instead of
   metal frames.
 - **Copy:** a Copy button in each chat window's tab strip (or `/gchat copy`) opens that window's
