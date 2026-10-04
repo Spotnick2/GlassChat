@@ -235,11 +235,31 @@ syncing"):
 - an old entry on another character would come back;
 - readiness at login isn't guaranteed (`GetIgnoreName` is nullable).
 
-**Mirroring is a later option (S2b)**, worth building only if probe 12 shows the server ignore
-gives something the filter can't (invites, duels). It would need its own reconciliation rules:
-- a server entry we added that later disappears counts as an unignore;
-- writes have a bounded pending state;
-- a write is never retried as if the name were invalid.
+**Mirroring (S2b), built** because probe 12 showed the server ignore blocks invites and duels,
+which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
+(`/gchat ignore mirror on|off`):
+- **Linked names.** A name on this character's Blizzard list that GlassChat keeps in step:
+  either GlassChat added it, or it was already there. It's kept per character, in
+  `GlassChatSpamIgnoreCharDB.linked`. GlassChat only ever removes linked names. A name that is
+  only on Blizzard's list is left alone; importing it is explicit.
+- **A linked name that leaves Blizzard's list** (removed in Blizzard's UI) **counts as an
+  unignore** on every character, and is never added back.
+- **A linked name no longer on the account list** (`/gchat unignore`, on any character) is
+  removed from this character's list at its next check.
+- **Never before the list is ready:** after an `IGNORELIST_UPDATE` this session, or 20 s after
+  login. An empty read with linked names, before any update, is never trusted.
+- **Writes are throttled** (one per 0.5 s), with one in flight per name. They are **bounded**: an
+  add not seen on the list counts as a try, and after 3 tries (counted across logins) it's
+  reported in `/gchat ignores` and not retried. It is never taken to mean the name is invalid:
+  the player stays ignored in chat.
+- **Never your own characters, nor this one**, whether by GUID or by name.
+- Blizzard's own lines about GlassChat's writes are hidden, matched by the name while that write
+  is in flight. One summary line replaces them.
+- **Unmeasured, for the in-game check:**
+  - whether `IGNORELIST_UPDATE` fires at login with a non-empty list (the 20 s delay covers it
+    if not);
+  - the wording of Blizzard's add and remove lines (the name match covers any wording);
+  - the list's size limit (a refused add is a bounded try).
 
 ### Between WoW accounts (S3)
 

@@ -213,8 +213,17 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
     per window).
   - Repeats are timed from the last *shown* post.
   - **Never your own characters:** `db.own`, recorded at `PLAYER_LOGIN`.
-  - The ignore list never writes Blizzard's server list (that's S2b). Import reads it after
-    `PLAYER_LOGIN` only.
+  - Import reads Blizzard's list after `PLAYER_LOGIN` only.
+  - **`Mirror.lua` (S2b) keeps each character's Blizzard list in step**, using linked names
+    (`charDB.linked`):
+    - removing a linked name in Blizzard's UI unignores it everywhere;
+    - an unignore anywhere removes the linked name at that character's next check;
+    - a name only on Blizzard's list is never touched;
+    - it waits until the list is ready, and writes are throttled and bounded (`MAX_TRIES`
+      across logins);
+    - never your own characters.
+
+    The rules are in `docs/PLAN-SPAM.md`.
   - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** tab-strip icon
     (`/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
     unreplaced) and an eye in a release, and the debug log shows the event too.

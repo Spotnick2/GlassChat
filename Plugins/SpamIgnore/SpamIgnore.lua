@@ -9,8 +9,8 @@
 -- and the same in every window that shows a line, so one decision per
 -- (event, lineID) serves every window; senders (arg2) are "First Surname";
 -- Blizzard's ignore list isn't readable before PLAYER_LOGIN.
--- Never: your own characters ignored, a secret read, Blizzard's server
--- list written (that's S2b).
+-- Never: your own characters ignored, a secret read. Blizzard's server list
+-- is kept in step by Mirror.lua (S2b).
 
 GlassChat = GlassChat or {}
 local GC = GlassChat
@@ -48,7 +48,9 @@ Spam.PUBLIC = { CHAT_MSG_CHANNEL = true, CHAT_MSG_SAY = true, CHAT_MSG_YELL = tr
 
 -- icon: the tab-strip icon is opt-in (owner: "disabled by default and I will
 -- turn it on"); the log is always /gchat spam log.
-local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false }
+-- mirror: keep each character's Blizzard ignore list in step (S2b; owner:
+-- "sync the Blizzard ignore list on every account").
+local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true }
 
 function Spam.Load()
     if type(GlassChatSpamIgnoreDB) ~= "table" then GlassChatSpamIgnoreDB = {} end
@@ -142,6 +144,7 @@ local function ownByName(lname)
     end
     return false
 end
+Spam.IsOwn, Spam.OwnByName = isOwn, ownByName
 
 -- Exempt from heuristics: you, friends, guild, group, Battle.net friends,
 -- the allow list. Each lookup is guarded; an error means "not exempt".
@@ -351,6 +354,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
         if ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter then
             for _, e in ipairs(Spam.IGNORE_EVENTS) do ChatFrameUtil.AddMessageEventFilter(e, Spam.Filter) end
         end
+        if GC.SpamMirror then GC.SpamMirror.Start() end
         if GC.SpamUI then GC.SpamUI.Start() end
     elseif event == "PLAYER_LOGIN" then
         Spam.RecordSelf()

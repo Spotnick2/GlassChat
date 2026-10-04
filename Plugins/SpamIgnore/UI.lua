@@ -192,13 +192,25 @@ local function ignores()
         say("ignored: " .. e.name .. own)
     end
     for _, e in pairs(Spam.db.pending) do any = true; say("ignored (pending): " .. e.name) end
+    for _, name in pairs(GC.SpamMirror.Failed()) do
+        say("|cffffd100" .. name .. ": couldn't be added to Blizzard's ignore list on this character (full, or not found); still ignored in chat|r")
+    end
     if not any then say("no one ignored (/gchat ignore <First Surname>)") end
 end
 
 local function ignore(arg)
-    if arg == "import" then say(Spam.Import()); return end
+    local mirror = arg:match("^mirror%s*(%a*)$")
+    if mirror then
+        if mirror == "on" or mirror == "off" then Spam.db.mirror = mirror == "on" end
+        say("Blizzard's ignore list kept in step on each character: " .. (Spam.db.mirror and "on" or
+            "off (lists are left as they are)") .. " (/gchat ignore mirror on|off)")
+        GC.SpamMirror.Check("setting")
+        return
+    end
+    if arg == "import" then say(Spam.Import()); GC.SpamMirror.Check("import"); return end
     if arg == "" then ignores(); return end
     say(Spam.Ignore(arg))
+    GC.SpamMirror.Check("ignore")
 end
 
 local function allow(arg)
@@ -252,12 +264,13 @@ function UI.Start()
     GC.RegisterSlash("unmute", unmute)
     GC.RegisterSlash("mutes", mutes)
     GC.RegisterSlash("ignore", ignore)
-    GC.RegisterSlash("unignore", function(arg) say(Spam.Unignore(arg)) end)
+    GC.RegisterSlash("unignore", function(arg) say(Spam.Unignore(arg)); GC.SpamMirror.Check("unignore") end)
     GC.RegisterSlash("ignores", ignores)
     GC.RegisterSlash("allow", allow)
     GC.RegisterSlash("spam", spam, {
         "/gchat mute|unmute <phrase>, /gchat mutes - muted phrases in public chat",
         "/gchat ignore|unignore <First Surname>, /gchat ignores, /gchat ignore import - on all your characters",
+        "/gchat ignore mirror on|off - keep Blizzard's ignore list in step (blocks invites and duels too)",
         "/gchat allow <First Surname> - never hide their lines",
         "/gchat spam - repeats, CJK, the log, a test",
     })
