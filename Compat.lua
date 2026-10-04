@@ -87,6 +87,34 @@ function API.AutoHideScrollBar(scroll)
     sync(scroll)
 end
 
+-- An addon's TOC Version, or nil (absent API, error, secret, not a string).
+function API.AddOnVersion(addon)
+    local get = C_AddOns and C_AddOns.GetAddOnMetadata
+    if not get then return nil end
+    local ok, v = pcall(get, addon, "Version")
+    if not ok or API.IsSecret(v) or type(v) ~= "string" then return nil end
+    return v
+end
+
+-- An installed addon's folder name as the client spells it, or nil.
+function API.AddOnName(name)
+    local info = C_AddOns and C_AddOns.GetAddOnInfo
+    if not info then return nil end
+    local ok, real = pcall(info, name)
+    if not ok or API.IsSecret(real) or type(real) ~= "string" or real == "" then return nil end
+    return real
+end
+
+-- A right-click menu (Blizzard_Menu's MenuUtil.CreateContextMenu): gen(root)
+-- fills it with root:CreateTitle / root:CreateButton. False when there's none.
+function API.ContextMenu(gen)
+    local menu = rawget(_G, "MenuUtil")
+    if not (menu and menu.CreateContextMenu) then return false end
+    local ok, err = pcall(menu.CreateContextMenu, nil, function(_, root) gen(root) end)
+    if not ok then API.Fail("context menu", err) end
+    return ok
+end
+
 -- A read-only text box in a window: Esc closes the window, and typing puts
 -- host[field] back (selected again when reselect). Copy, focus mode and the
 -- address box share it.

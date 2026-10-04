@@ -526,7 +526,15 @@ function IsInRaid() return false end
 function UnitIsPlayer(unit) return unit == "target" and WoW.targetName ~= nil end
 function GetUnitName(unit) if unit == "target" then return WoW.targetName end end
 WoW.addonVersion = "dev"
-C_AddOns = { GetAddOnMetadata = function(name, field) if field == "Version" then return WoW.addonVersion end end }
+-- Installed addons by folder name (GetAddOnInfo's first return is the folder as spelled).
+WoW.addons = { "GlassChat", "AltStable", "RestedXP", "ChatProbe" }
+C_AddOns = {
+    GetAddOnMetadata = function(name, field) if field == "Version" then return WoW.addonVersion end end,
+    GetAddOnInfo = function(name)
+        for _, a in ipairs(WoW.addons) do if a:lower() == tostring(name):lower() then return a, a end end
+        return nil
+    end,
+}
 C_Texture = { GetAtlasInfo = function(name) return name == "socialqueuing-icon-eye" and {} or nil end }
 date = os.date
 time = os.time

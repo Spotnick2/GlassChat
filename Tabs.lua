@@ -229,6 +229,9 @@ function Tabs.Linkify(msg)
     if msg ~= lastMsg or not lastSrc or not lastSrc:find("^[%w_%-]+$") then return nil end
     local color, inner, rest = msg:match("^(|c%x%x%x%x%x%x%x%x)(.-)|r(.*)$")
     if not color or inner == "" or inner:find("|", 1, true) then return nil end
+    -- A name, not a sentence: "[AltStable]" or the addon's own name ("ChatProbe").
+    -- A line coloured end to end isn't turned into one big link (review of #36).
+    if not (inner:find("^%[[^%]]+%]:?$") or inner:lower() == lastSrc:lower()) then return nil end
     return color .. "|H" .. Tabs.SRC_LINK .. lastSrc .. "|h" .. inner .. "|h|r" .. rest
 end
 
@@ -244,7 +247,9 @@ function Tabs.Route(f, msg, r, g, b)
     local src = Tabs.SourceOf()
     if not src or src == "Blizzard" or ours(src) then return false end
     remember(msg, src)
-    lastMsg, lastSrc = msg, src
+    -- lastMsg/lastSrc are set right before the line's rewrite needs them (the
+    -- returns below, the copy into its tab): a notice printed meanwhile goes
+    -- through Route itself and resets them (review of #36).
     -- Developer mode: our own probes get their tab at once, once a session.
     if not Tabs.IsRouted(src) and not devDone[src] and src:find(Tabs.PROBE) and GC.IsDev() then
         local _, never = rules()
@@ -256,9 +261,11 @@ function Tabs.Route(f, msg, r, g, b)
     end
     if not Tabs.IsRouted(src) then
         noteChatty(src)
+        lastMsg, lastSrc = msg, src
         return false
     end
     local tab = tabFor(src)
+    lastMsg, lastSrc = msg, src
     if not tab or tab == f then return false end
     moving = true
     local ok, err = pcall(tab.AddMessage, tab, msg, r, g, b)
@@ -301,7 +308,7 @@ end
 function Tabs.Request(src)
     if API.IsSecret(src) or type(src) ~= "string" or not src:find("^[%w_%-]+$") or ours(src) then return false end
     local always, never = rules()
-    if never[src] or always[src] or session[src] then return always[src] or session[src] or false end
+    if never[src] or always[src] or session[src] or devDone[src] then return Tabs.IsRouted(src) and true or false end
     if GC.IsDev() then
         devDone[src] = true
         session[src], closed[src] = true, nil
@@ -315,18 +322,13 @@ end
 -- Right-click on an addon's name: a menu of the rules for it.
 function Tabs.Menu(src)
     local always = rules()
-    local routed = always[src] or session[src]
-    local menu = rawget(_G, "MenuUtil")
-    if menu and menu.CreateContextMenu then
-        local ok, err = pcall(menu.CreateContextMenu, nil, function(_, root)
-            root:CreateTitle(src)
-            if not session[src] then root:CreateButton("Own tab for this session", function() Tabs.SetRule(src, "session") end) end
-            if not always[src] then root:CreateButton("Own tab, always", function() Tabs.SetRule(src, "always") end) end
-            if routed then root:CreateButton("Back to the main chat", function() Tabs.SetRule(src, "main") end) end
-        end)
-        if ok then return end
-        API.Fail("tab menu", err)
-    end
+    local routed = Tabs.IsRouted(src)   -- a closed tab isn't routed (review of #36)
+    if API.ContextMenu(function(root)
+        root:CreateTitle(src)
+        if not routed then root:CreateButton("Own tab for this session", function() Tabs.SetRule(src, "session") end) end
+        if not always[src] then root:CreateButton("Own tab, always", function() Tabs.SetRule(src, "always") end) end
+        if routed then root:CreateButton("Back to the main chat", function() Tabs.SetRule(src, "main") end) end
+    end) then return end
     -- No menu: the same choices as links.
     local function link(kind, text) return "|H" .. Tabs.LINK .. kind .. ":" .. src .. "|h|cff7fd4ff[" .. text .. "]|r|h" end
     say(src .. ": " .. link("session", "Own tab for this session") .. " " .. link("always", "Always"))
@@ -359,8 +361,15 @@ function Tabs.Command(arg)
     -- /gchat tabs route <Addon> [always]: a tab without the mouse (#35).
     local route = arg:match("^[Rr][Oo][Uu][Tt][Ee]%s+(.+)$")
     if route then
-        local name, forever = route:match("^(%S+)%s+[Aa][Ll][Ww][Aa][Yy][Ss]$")
-        Tabs.SetRule(known(name or route), name and "always" or "session")
+        local name = route:match("^(%S+)%s+[Aa][Ll][Ww][Aa][Yy][Ss]$")
+        local typed = name or route
+        -- The folder name as the client spells it (rules match it exactly; review of #36).
+        local real = API.AddOnName(typed) or known(typed)
+        if not real:find("^[%w_%-]+$") or ours(real) then
+            say("no tab for " .. typed .. " (an addon's folder name, not GlassChat's own)")
+            return
+        end
+        Tabs.SetRule(real, name and "always" or "session")
         return
     end
     local forget = arg:match("^[Ff][Oo][Rr][Gg][Ee][Tt]%s+(.+)$")

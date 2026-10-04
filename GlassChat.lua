@@ -110,11 +110,10 @@ end
 function GC.IsDev()
     local forced = GC.db and rawget(GC.db, "devMode")
     if forced ~= nil then return forced == true end
-    local get = C_AddOns and C_AddOns.GetAddOnMetadata
-    local ok, v = false, nil
-    if get then ok, v = pcall(get, "GlassChat", "Version") end
-    if not ok or API.IsSecret(v) or type(v) ~= "string" then return true end
-    return v == "dev" or v:find("@project%-version@") ~= nil
+    -- A version that can't be read is NOT dev (review of #36): fail closed, or
+    -- every player of a release would let addons take tabs unasked.
+    local v = API.AddOnVersion("GlassChat")
+    return v ~= nil and (v == "dev" or v:find("@project%-version@") ~= nil)
 end
 
 -- Public: an addon asks for its own chat tab (smart tabs, #35). See Tabs.Request.

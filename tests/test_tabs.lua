@@ -284,5 +284,71 @@ check(chatHas("OtherTool asks for its own chat tab") and chatHas("|Haddon:GlassC
 emit(direct("GlassProbe"), "not dev")
 check(not Tabs.IsRouted("GlassProbe"), "and probe names aren't special")
 
+-- Review of #36. Here print reaches the chat as in the client (Blizzard's
+-- print handler calls DEFAULT_CHAT_FRAME:AddMessage), so GlassChat's own
+-- notices go through the line hook too, with GlassChat's stack.
+local stubPrint = print
+print = function(...)
+    stubPrint(...)
+    local outer = WoW.stack
+    WoW.stack = table.concat({ OURS[1], OURS[2], frame("Interface/AddOns/Blizzard_PrintHandler/PrintHandler.lua", 9),
+        frame("Interface/AddOns/GlassChat/Compat.lua", 18) }, string.char(10))
+    ChatFrame1:AddMessage(table.concat({ ... }, " "), 1, 1, 1)
+    WoW.stack = outer
+end
+-- A notice printed while handling a line doesn't cost that line its link.
+GC.db.devMode = true
+Tabs._test.reset()
+emit(direct("ChatProbe"), "|cff33ff99ChatProbe|r 12 ignores at login")
+local probeTab
+for i = 4, 10 do if WoW.window(i).name == "ChatProbe" then probeTab = _G["ChatFrame" .. i] end end
+check(probeTab and probeTab._lines[#probeTab._lines].m:find("|Haddon:GlassChat:src:ChatProbe|h", 1, true),
+    "the probe's first line, moved with a dev-mode notice, keeps its right-clickable name")
+-- After "Back to the main chat", the probe's next request doesn't undo it.
+Tabs.SetRule("ChatProbe", "main")
+check(not GC.RequestTab("ChatProbe"), "a request after Back to the main chat isn't granted")
+check(not Tabs.IsRouted("ChatProbe"), "and the choice stands")
+-- A closed tab: the menu offers it again, the request says no.
+Tabs.SetRule("AltStable", "session")
+emit(direct("AltStable"), "x")
+for i = 4, 10 do if WoW.window(i).name == "AltStable" then WoW.window(i).shown, WoW.window(i).docked = false, nil end end
+emit(direct("AltStable"), "|cff33bbff[AltStable]|r after close")
+local afterClose
+for _, e in ipairs(main._lines) do if type(e.m) == "string" and e.m:find("after close", 1, true) then afterClose = e.m end end
+check(afterClose and afterClose:find("|Haddon:GlassChat:src:AltStable|h", 1, true), "the line that brings the tab-closed notice keeps its link")
+check(not GC.RequestTab("AltStable"), "a request for a closed tab says no")
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:AltStable", "[AltStable]", "RightButton")
+eq(WoW.menu.buttons[1].text, "Own tab for this session", "the menu offers the tab again after it was closed")
+for _, b in ipairs(WoW.menu.buttons) do check(b.text ~= "Back to the main chat", "and not the way back: " .. b.text) end
+GC.db.devMode = false
+-- The line that brings the chatty offer keeps its link too.
+for i = 1, Tabs.CHATTY do emit(direct("Chatter"), "|cffaaaaff[Chatter]|r line " .. i) end
+local twentieth
+for _, e in ipairs(main._lines) do
+    if type(e.m) == "string" and e.m:find("line " .. Tabs.CHATTY .. "$") then twentieth = e.m end
+end
+check(twentieth and twentieth:find("|Haddon:GlassChat:src:Chatter|h", 1, true), "the line that brings the offer keeps its link")
+-- Only a name is linked, not a sentence.
+SlashCmdList.GLASSCHAT("tabs forget AltStable")
+emit(direct("AltStable"), "|cffffff00Your bags are full, 3 items were not looted|r")
+eq(main._lines[#main._lines].m, "|cffffff00Your bags are full, 3 items were not looted|r", "a line coloured end to end isn't one big link")
+-- /gchat tabs route: the folder as spelled; never ours, never a non-name.
+SlashCmdList.GLASSCHAT("tabs route altstable always")
+eq(GC.db.routes.AltStable, true, "route resolves the folder's real spelling")
+eq(GC.db.routes.altstable, nil, "not the case as typed")
+SlashCmdList.GLASSCHAT("tabs forget AltStable")
+newChat()
+SlashCmdList.GLASSCHAT("tabs route GlassChat")
+check(chatHas("no tab for GlassChat"), "GlassChat's own is refused")
+-- Developer mode fails closed.
+GC.db.devMode = nil
+WoW.addonVersion = nil
+check(not GC.IsDev(), "a version that can't be read isn't developer mode")
+WoW.addonVersion = "1.0.0"
+check(not GC.IsDev(), "a release isn't")
+WoW.addonVersion = "dev"
+check(GC.IsDev(), "dev is")
+print = stubPrint
+
 eq(next(GC.failures), nil, "nothing failed")
 done("test_tabs")

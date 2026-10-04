@@ -173,7 +173,6 @@ local function findNewest(f, msg)
     return nil
 end
 
--- Right after a line with no chat event lands: prefix it, once.
 -- A line with no chat event that stays in this window, rewritten once:
 -- its addon's coloured prefix made a link (Chat.Linkify, set by Tabs.lua:
 -- right-click it for a tab, #35), then the timestamp. One TransformMessages
@@ -222,7 +221,7 @@ Chat.OnEachFrame("lines", function(f)
         lineCounts[f] = (lineCounts[f] or 0) + 1
         if not (f.TransformMessages and f.GetMessageInfo) then return end
         local okS, newText = pcall(decorateLine, ...)
-        if not okS then API.Fail("timestamp", newText)
+        if not okS then API.Fail("line rewrite", newText)
         elseif newText and Chat.Restamped then
             -- The buffer now holds the new text: who wrote it follows (review of #28).
             pcall(Chat.Restamped, (select(2, ...)), newText)
