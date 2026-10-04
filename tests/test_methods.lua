@@ -28,6 +28,8 @@ WoW.tick()
 for _, cmd in ipairs({ "", "failures", "version", "copy", "tune", "spam icon on", "spam log", "spam", "mutes", "ignores", "focus bags", "tabs" }) do
     SlashCmdList.GLASSCHAT(cmd)
 end
+-- A click on a web address opens its box.
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:url:https://wowhead.com")
 
 local n = 0
 for name in pairs(WoW.methodsCalled) do
