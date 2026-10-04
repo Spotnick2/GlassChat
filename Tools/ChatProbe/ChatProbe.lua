@@ -713,8 +713,12 @@ blockWatch:SetScript("OnEvent", function(_, event, a1, a2)
     end
     P.blocks[event] = (P.blocks[event] or 0) + 1
     -- CHAT_MSG_IGNORED is (text, playerName, ...); invites and duels put the
-    -- name first (70205 dump :6946, :7713, :7180). Codex, #16.
-    local sender = (event == "CHAT_MSG_IGNORED") and a2 or a1
+    -- name first (70205 dump :6946, :7713, :7180). Codex, #16. A plain branch
+    -- on the event name, never `x and a2 or a1`: that truth-tests a2, which
+    -- can be secret in chat lockdown (ChatInfoDocumentation.lua:1733), before
+    -- senderShape's guard could see it.
+    local sender = a1
+    if event == "CHAT_MSG_IGNORED" then sender = a2 end
     say("12 " .. event .. " (from " .. senderShape(sender) .. ")")
 end)
 for _, e in ipairs({ "IGNORELIST_UPDATE", "CHAT_MSG_IGNORED", "PARTY_INVITE_REQUEST", "DUEL_REQUESTED" }) do
