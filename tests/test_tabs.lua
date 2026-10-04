@@ -14,7 +14,11 @@ function FCF_OpenNewWindow(name, noDefaultChannels)
             opened = opened + 1
             w.name, w.shown, w.docked = name, true, i
             WoW.makeChatFrames(i)
-            return _G["ChatFrame" .. i]
+            local f = _G["ChatFrame" .. i]
+            -- As the client does (FloatingChatFrame.lua:847-849): select it, make its box active.
+            FCFDock_SelectWindow(GENERAL_CHAT_DOCK, f)
+            ChatFrameUtil.SetLastActiveWindow(f.editBox or f)
+            return f
         end
     end
 end
@@ -22,7 +26,8 @@ end
 -- Stacks as the client prints them (FOREVER-PROBE 7): our hook first, then
 -- the plumbing, then the writer; a frame line names its file twice.
 local function frame(path, line) return "[" .. path .. "]:" .. line .. ": in function <" .. path .. ":" .. (line - 2) .. ">" end
-local OURS = { frame("Interface/AddOns/GlassChat/Tabs.lua", 60), frame("Interface/AddOns/GlassChat/Chat.lua", 200) }
+local OURS = { frame("Interface/AddOns/GlassChat/Tabs.lua", 60) .. "\n(tail call): ?\n[C]: in function `pcall'",
+    frame("Interface/AddOns/GlassChat/Chat.lua", 200) }
 local function direct(addon)
     return table.concat({ OURS[1], OURS[2], frame("Interface/AddOns/Blizzard_SharedXML/ScrollingMessageFrame.lua", 12),
         frame("Interface/AddOns/" .. addon .. "/Probe.lua", 40), "[C]: ?" }, "\n")
@@ -69,6 +74,9 @@ WoW.stack = table.concat({ OURS[1], OURS[2], frame("Interface/AddOns/Blizzard_Ch
 eq(Tabs.SourceOf(), "Blizzard", "only Blizzard's code: Blizzard")
 WoW.stack = table.concat({ OURS[1], OURS[2], frame("Interface/AddOns/GlassChatSpamIgnore/UI.lua", 9) }, "\n")
 eq(Tabs.SourceOf(), "GlassChatSpamIgnore", "our plugin, past our own leading frames")
+WoW.stack = table.concat({ OURS[1], OURS[2], frame("Interface/AddOns/Ace3/AceConsole-3.0/AceConsole-3.0.lua", 50),
+    frame("Interface/AddOns/RealAddon/Core.lua", 9) }, "\n")
+eq(Tabs.SourceOf(), "RealAddon", "a standalone library isn't the writer: the addon that called it is")
 WoW.stack = nil
 
 -- Chatty: 20 lines within a minute brings one offer.
@@ -95,10 +103,13 @@ check(not chatHas("printed 20 lines"), "no offer for a slow addon, Blizzard, Gla
 -- This session: the next lines move to a new "ASProbe" tab.
 emit(direct("ASProbe"), "same text")   -- an identical older line, before routing
 emit(direct("OtherAddon"), "between")
+GENERAL_CHAT_DOCK._selected, WoW.lastActive = main, "main box"
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:session:ASProbe")
 emit(direct("ASProbe"), "same text")
 local tab = ChatFrame4
 eq(opened, 1, "one tab opened")
+eq(FCFDock_GetSelectedWindow(GENERAL_CHAT_DOCK), main, "the player's selected tab is put back")
+eq(WoW.lastActive, "main box", "and their active edit box")
 eq(WoW.window(4).name, "ASProbe", "named after the addon")
 check(has(tab, "same text"), "the line is in its tab")
 local n = 0
@@ -140,6 +151,31 @@ emit(direct("Crowded"), "crowded line")
 check(has(main, "crowded line") and chatHas("no room for another chat tab"), "no room: the line stays, and that's said")
 WoW.noRoom = false
 
+-- The combat log is never walked.
+local walked = 0
+local realSource = Tabs.SourceOf
+Tabs.SourceOf = function() walked = walked + 1; return realSource() end
+COMBATLOG = ChatFrame2
+for i = 1, 5 do emit(direct("ASProbe"), "combat " .. i, ChatFrame2) end
+eq(walked, 0, "no stack walk for combat log lines")
+Tabs.SourceOf, COMBATLOG = realSource, nil
+
+-- An error opening a tab is recorded, not reported as "no room".
+local realOpen = FCF_OpenNewWindow
+FCF_OpenNewWindow = function() error("boom") end
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:session:Broken")
+newChat()
+emit(direct("Broken"), "broken line")
+check(GC.failures["tab open"] ~= nil, "an error opening a tab goes to /gchat failures")
+check(not chatHas("no room"), "and isn't called no room")
+GC.failures["tab open"] = nil
+FCF_OpenNewWindow = realOpen
+
+-- No after a tab rule: the rule goes too.
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:session:Flipper")
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:never:Flipper")
+check(not Tabs.IsRouted("Flipper"), "No after Own tab: no longer routed")
+
 -- Never: not asked again; /gchat tabs lists and forgets.
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:never:Spammy")
 eq(GC.db.routeNever.Spammy, true, "No is saved")
@@ -149,8 +185,8 @@ check(not chatHas("Spammy printed"), "and Spammy isn't offered")
 newChat()
 SlashCmdList.GLASSCHAT("tabs")
 check(chatHas("own tab, always: ASProbe") and chatHas("never asked: Spammy"), "/gchat tabs lists the rules")
-SlashCmdList.GLASSCHAT("tabs forget ASProbe")
-check(GC.db.routes.ASProbe == nil, "/gchat tabs forget drops the rule")
+SlashCmdList.GLASSCHAT("tabs Forget asprobe")
+check(GC.db.routes.ASProbe == nil, "/gchat tabs forget drops the rule, in any case")
 emit(direct("ASProbe"), "forgotten")
 check(has(main, "forgotten"), "and its lines stay in the main chat again")
 

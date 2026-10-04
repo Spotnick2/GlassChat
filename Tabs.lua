@@ -33,8 +33,10 @@ local function say(msg) API.Print(msg) end
 -- Who wrote this line
 --------------------------------------------------------------------------------
 
+-- Not the writer: Blizzard's plumbing, and standalone libraries (Ace3,
+-- LibStub-style folders) an addon calls to print (review of #26).
 local function plumbing(name)
-    return name:find("^Blizzard_") ~= nil
+    return name:find("^Blizzard_") ~= nil or name:find("^Ace") ~= nil or name:find("^Lib") ~= nil
 end
 local function ours(name)
     return name == "GlassChat" or name:find("^GlassChat") ~= nil
@@ -42,7 +44,9 @@ end
 
 -- The addon folder behind the current AddMessage call, "Blizzard" when only
 -- Blizzard's code is above us, or nil. Our own frames come first (the hook,
--- debugstack still lists its caller): that leading run is skipped.
+-- debugstack still lists its caller): that leading run is skipped, with the
+-- frames between them that name no addon, "[C]: in function `pcall'" and
+-- "(tail call)" (review of #26: stopping at those credited GlassChat).
 function Tabs.SourceOf()
     if not debugstack then return nil end
     local ok, stack = pcall(debugstack, 2, 20, 0)
@@ -50,7 +54,7 @@ function Tabs.SourceOf()
     local leading, blizzard = true, false
     for line in stack:gmatch("[^\n]+") do
         local name = line:match("AddOns[/\\]([^/\\]+)[/\\]")
-        if leading and name ~= "GlassChat" then leading = false end
+        if leading and name and name ~= "GlassChat" then leading = false end
         if not leading and name then
             if not plumbing(name) then return name end
             blizzard = true
@@ -101,7 +105,7 @@ local function tabFor(src)
     local f = tabs[src]
     if f then
         local ok, wname, _, _, _, _, _, shown, _, docked = pcall(GetChatWindowInfo, f:GetID())
-        if ok and wname == src and (shown or docked) then return f end
+        if ok and not API.IsSecret(wname) and wname == src and (shown or docked) then return f end
         -- Closed by the player: back to the main chat for this session.
         tabs[src], closed[src] = nil, true
         say(src .. "'s tab was closed: its lines go back to the main chat for this session (/gchat tabs)")
@@ -109,14 +113,29 @@ local function tabFor(src)
     end
     f = openWindow(src)
     if not f and FCF_OpenNewWindow then
+        -- FCF_OpenNewWindow selects the new tab and makes its edit box the
+        -- active one (FloatingChatFrame.lua:847-849): put back what the player
+        -- had, so routing never switches their chat (review of #26).
+        local dock = rawget(_G, "GENERAL_CHAT_DOCK")
+        local selected = dock and FCFDock_GetSelectedWindow and FCFDock_GetSelectedWindow(dock)
+        local active = ChatFrameUtil and ChatFrameUtil.GetLastActiveWindow and ChatFrameUtil.GetLastActiveWindow()
         local ok, made = pcall(FCF_OpenNewWindow, src, true)
-        if ok then f = made end
-        if not f then
+        if ok then f = made else API.Fail("tab open", made) end
+        if f and selected and selected ~= f and FCFDock_SelectWindow then
+            local okS, err = pcall(FCFDock_SelectWindow, dock, selected)
+            if not okS then API.Fail("tab reselect", err) end
+        end
+        if f and active and ChatFrameUtil.SetLastActiveWindow then
+            local okA, err = pcall(ChatFrameUtil.SetLastActiveWindow, active)
+            if not okA then API.Fail("tab active box", err) end
+        end
+        if not f and ok then
             closed[src] = true
             say("no room for another chat tab for " .. src .. " (the game allows " .. GC.Chat.MaxWindows() ..
                 "); its lines stay in the main chat")
             return nil
         end
+        if not f then closed[src] = true; return nil end
     end
     tabs[src] = f
     return f
@@ -128,19 +147,15 @@ end
 
 local moving = false
 
+-- One pass: RemoveIf walks oldest to newest, so the line just added is the
+-- last entry (each pass rebuilds the buffer, so not two; review of #26).
 local function removeNewest(f, msg)
-    local function same(m) return not API.IsSecret(m) and m == msg end
-    local matches, seen = 0, 0
+    local n = f:GetNumMessages()
+    if API.IsSecret(n) or type(n) ~= "number" or n < 1 then return false end
+    local i, removed = 0, false
     f:RemoveMessagesByPredicate(function(m)
-        if same(m) then matches = matches + 1 end
-        return false
-    end)
-    if matches == 0 then return false end
-    local removed = false
-    f:RemoveMessagesByPredicate(function(m)
-        if not same(m) then return false end
-        seen = seen + 1
-        if seen == matches then removed = true; return true end
+        i = i + 1
+        if i == n and not API.IsSecret(m) and m == msg then removed = true; return true end
         return false
     end)
     return removed
@@ -172,6 +187,9 @@ end
 -- Returns true when the line was moved to its addon's tab.
 function Tabs.Route(f, msg, r, g, b)
     if moving then return false end
+    -- The combat log writes every entry this way (Blizzard_CombatLog.lua:1699):
+    -- never walk the stack for it.
+    if f == rawget(_G, "COMBATLOG") then return false end
     if API.IsSecret(msg) or type(msg) ~= "string" or msg == "" then return false end
     local src = Tabs.SourceOf()
     if not src or src == "Blizzard" or ours(src) then return false end
@@ -206,15 +224,26 @@ function Tabs.OnLink(_, link)
         always[src], closed[src] = true, nil
         say(src .. " gets its own tab on all your characters (/gchat tabs forget " .. src .. " to stop)")
     elseif kind == "never" then
-        never[src] = true
+        never[src], always[src], session[src] = true, nil, nil
         say("ok, " .. src .. " stays in the main chat; GlassChat won't ask again (/gchat tabs forget " .. src .. ")")
     end
 end
 
+-- An addon's name as its rule spells it (case-insensitive), else as typed.
+local function known(name)
+    local always, never = rules()
+    local l = name:lower()
+    for _, t in ipairs({ always, never, session }) do
+        for k in pairs(t) do if k:lower() == l then return k end end
+    end
+    return name
+end
+
 function Tabs.Command(arg)
     local always, never = rules()
-    local forget = arg:match("^forget%s+(.+)$")
+    local forget = arg:match("^[Ff][Oo][Rr][Gg][Ee][Tt]%s+(.+)$")
     if forget then
+        forget = known(forget)
         local was = always[forget] or never[forget] or session[forget]
         always[forget], never[forget], session[forget], offered[forget] = nil, nil, nil, nil
         say(was and ("forgot " .. forget .. ": its lines stay in the main chat, and it may be offered a tab again")

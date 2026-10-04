@@ -373,6 +373,9 @@ end
 WoW.tabAlphas = {}
 WoW.messageFilters = {}
 ChatFrameUtil = {
+    -- The edit box Enter opens (ChatFrameUtil.lua:500, 570).
+    GetLastActiveWindow = function() return WoW.lastActive end,
+    SetLastActiveWindow = function(editBox) WoW.lastActive = editBox end,
     -- ChatFrameUtil.lua:845: the showTimestamps setting, nil for "none".
     GetTimestampFormat = function()
         local v = WoW.cvars.showTimestamps
@@ -406,6 +409,7 @@ function FCFDock_SetPrimary(dock, chatFrame)
 end
 function FCFDock_GetChatFrames(dock) return dock._docked end
 function FCFDock_GetSelectedWindow(dock) return dock._selected or ChatFrame1 end
+function FCFDock_SelectWindow(dock, chatFrame) dock._selected = chatFrame end
 -- Window names by index (GetChatWindowInfo's first return).
 WoW.windowNames = { "General", "Combat Log", "Whispers" }
 -- Chat-window settings as the client keeps them per character
