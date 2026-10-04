@@ -214,10 +214,13 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
 - **`Focus.lua`** (M4): focus mode.
   - **Opening it:** `/gchat focus [text]`, or the magnifier on the tab strip, slot 2 after the
     copy icon. `Skin.CORE_ICONS = 2`, and a plugin's icon comes after them.
-  - **A frozen snapshot of the window** (`Focus.Snapshot`: `GetMessageInfo`). Each line keeps its
-    kind, from the chat event Blizzard passed to `AddMessage` (no event = Addons), and for addon
-    lines the addon that wrote it (`Tabs.SourceFor`, a capped text → source map that `Tabs.Route`
-    fills).
+  - **A frozen snapshot of the window** (`Focus.Snapshot`, through `Copy.Read`, the one
+    secret-safe reader both windows use). Each line keeps its kind, from the chat event Blizzard
+    passed to `AddMessage`. A line with no event is System when it carries a chat-type id
+    (Blizzard's system, loot, money and XP lines: ChatFrameOverrides.lua:211-537), else Addons.
+    An addon line also keeps the addon that wrote it: `Tabs.SourceFor`, a two-generation
+    text → source map that `Tabs.Route` fills, re-keyed by `Chat.Restamped` when the line is
+    stamped.
   - **`Focus.Filter`:**
     - kinds: a set, empty = all;
     - one source;

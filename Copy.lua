@@ -43,25 +43,36 @@ function Copy.Plain(text)
     return s
 end
 
--- A window's lines, oldest first: the newest Copy.MAX of them. Returns the
--- lines, how many were hidden (secret), and the window's total. A line that
--- fails to read for another reason is a failure, not a secret.
-function Copy.Lines(f)
+-- A window's lines, oldest first: the newest Copy.MAX of them, as
+-- { text, raw, hidden, id, event } (GetMessageInfo's 1st, 5th and 8th
+-- returns: ScrollingMessageFrame's UnpackageEntry of AddMessage's
+-- arguments). Returns the entries, how many were hidden (secret), and the
+-- window's total. A line that fails to read for another reason is a
+-- failure, not a secret. Copy and focus mode both read through this.
+function Copy.Read(f, key)
     local out, hidden = {}, 0
     local ok, n = pcall(f.GetNumMessages, f)
-    if not ok or type(n) ~= "number" then return out, 0, 0 end
+    if not ok or API.IsSecret(n) or type(n) ~= "number" then return out, 0, 0 end
     for i = math.max(1, n - Copy.MAX + 1), n do
-        local okM, text = pcall(f.GetMessageInfo, f, i)
+        local okM, text, _, _, _, id, _, _, event = pcall(f.GetMessageInfo, f, i)
         if not okM then
-            API.Fail("copy read", text)
+            API.Fail(key or "copy read", text)
         elseif API.IsSecret(text) then
             hidden = hidden + 1
-            out[#out + 1] = Copy.HIDDEN
+            out[#out + 1] = { text = Copy.HIDDEN, hidden = true }
         else
             local plain = Copy.Plain(text)
-            if plain then out[#out + 1] = plain end
+            if plain then out[#out + 1] = { text = plain, raw = text, id = id, event = event } end
         end
     end
+    return out, hidden, n
+end
+
+-- Just the text of Copy.Read's lines.
+function Copy.Lines(f)
+    local entries, hidden, n = Copy.Read(f)
+    local out = {}
+    for i, e in ipairs(entries) do out[i] = e.text end
     return out, hidden, n
 end
 

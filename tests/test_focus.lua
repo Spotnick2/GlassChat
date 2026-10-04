@@ -20,7 +20,7 @@ local function addon(name, text) WoW.stack = by(name); main:AddMessage(text, 1, 
 chat("[Bob]: hello there", "CHAT_MSG_SAY")
 chat("[Guildie]: raid at 8", "CHAT_MSG_GUILD")
 chat("[1. General] [Ann]: |cffa335ee|Hitem:19019|h[Thunderfury]|h|r anyone?", "CHAT_MSG_CHANNEL")
-chat("You receive loot: [Linen Cloth].", "CHAT_MSG_LOOT")
+main:AddMessage("You receive loot: [Linen Cloth].", 0, 0.67, 0, 23)   -- as Blizzard adds it: info.id, no event
 addon("ASProbe", "[ASProbe] scan 1: 12 bags")
 addon("ASProbe", "[ASProbe] scan 2: 13 bags")
 addon("OtherAddon", "Other says hi")
@@ -34,7 +34,7 @@ eq(snap[1].kind, "Say", "SAY is Say")
 eq(snap[2].kind, "Guild", "GUILD is Guild")
 eq(snap[3].kind, "Channel", "CHANNEL is Channel")
 eq(snap[3].text, "[1. General] [Ann]: [Thunderfury] anyone?", "plain text: colours and links out, the link's text kept")
-eq(snap[4].kind, "System", "LOOT is System")
+eq(snap[4].kind, "System", "a Blizzard line with no event but a chat-type id is System, not Addons")
 eq(snap[5].kind, "Addons", "no event: Addons")
 eq(snap[5].source, "ASProbe", "with the addon that wrote it")
 eq(snap[7].source, "OtherAddon", "each its own")
@@ -61,7 +61,7 @@ check(win:IsShown(), "/gchat focus opens it")
 eq(win.search:GetText(), "Bags", "with the search, as typed")
 eq(win.edit:GetText(), "[ASProbe] scan 1: 12 bags\n[ASProbe] scan 2: 13 bags\n[Bob]: bags are full", "showing the matches")
 check(win.status:GetText():find("^3 of 9 lines"), "and how many")
-win.search:SetText("")
+win.search:SetText(""); WoW.flushTimers()
 win.chips.Say._scripts.OnClick(win.chips.Say)
 eq(win.edit:GetText(), "[Bob]: hello there\n[Bob]: bags are full", "a kind chip filters")
 eq(win.chips.Guild:GetAlpha(), 0.4, "unselected chips are dimmed")
@@ -85,6 +85,23 @@ win.newer._scripts.OnClick(win.newer)
 check(win.edit:GetText():find("and another"), "clicking it takes them in")
 check(not win.newer:IsShown(), "and hides it")
 
+-- Typing: one rebuild after the pause, not one per keystroke.
+local sets, realSet = 0, win.edit.SetText
+win.edit.SetText = function(self, t) sets = sets + 1; return realSet(self, t) end
+for _, t in ipairs({ "b", "ba", "bag", "bags" }) do win.search:SetText(t) end
+eq(sets, 0, "no rebuild while typing")
+WoW.flushTimers()
+eq(sets, 1, "one rebuild after the pause")
+win.edit.SetText = nil
+win.search:SetText(""); WoW.flushTimers()
+
+-- Select all, then a new view: the hint no longer says "Selected".
+win.select._scripts.OnClick(win.select)
+check(win.hint:GetText():find("^Selected"), "Select all says it's selected")
+win.chips.Say._scripts.OnClick(win.chips.Say)
+check(not win.hint:GetText():find("^Selected"), "a new view clears that")
+win.chips.Say._scripts.OnClick(win.chips.Say)
+
 -- Read-only: typing puts the text back.
 local before = win.edit:GetText()
 win.edit._text = "typed over"
@@ -92,19 +109,37 @@ win.edit._scripts.OnTextChanged(win.edit, true)
 eq(win.edit:GetText(), before, "the view is read-only")
 
 -- Export: the filtered view, plain lines, no secrets.
-win.search:SetText("bags")
+win.search:SetText("bags"); WoW.flushTimers()
 win.export._scripts.OnClick(win.export)
 local ex = GC.db.export
 eq(#ex.lines, 3, "export writes the lines shown")
 eq(ex.search, "bags", "with the search")
 eq(ex.kinds, "all", "and the filters")
 for _, l in ipairs(ex.lines) do check(type(l) == "string", "plain strings only") end
-win.search:SetText("")
+win.search:SetText(""); WoW.flushTimers()
 win.export._scripts.OnClick(win.export)
 for _, l in ipairs(GC.db.export.lines) do check(l ~= GC.Copy.HIDDEN, "a hidden line is never exported") end
 
+-- With timestamps on, addon lines keep their writer (review of #28).
+SlashCmdList.GLASSCHAT("stamps on")
+addon("ASProbe", "[ASProbe] scan 3: stamped")
+SlashCmdList.GLASSCHAT("stamps off")
+local snap2 = Focus.Snapshot(main)
+local last = snap2[#snap2]
+check(last.text:find("^%[%d%d:%d%d:%d%d%] %[ASProbe%] scan 3"), "the line is stamped")
+eq(last.source, "ASProbe", "and still credited to ASProbe")
+
+-- A line moved to its own tab isn't a new line in this window.
+win.newer._scripts.OnClick(win.newer)
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:session:Mover")
+function FCF_OpenNewWindow(name) WoW.window(5).name, WoW.window(5).shown, WoW.window(5).docked = name, true, 5
+    WoW.makeChatFrames(5); return ChatFrame5 end
+addon("Mover", "moved away")
+win._scripts.OnUpdate(win, 1)
+check(not win.newer:IsShown(), "a line routed to its tab doesn't count as new here")
+
 -- The chat behind it is untouched.
-eq(#main._lines, 11, "the chat window still has every line")
+eq(#main._lines, 12, "the chat window still has every line (the moved one gone)")
 
 -- The magnifier, left of the copy icon; the tabs leave room for both.
 local b = Focus._test.buttons[ChatFrame1]

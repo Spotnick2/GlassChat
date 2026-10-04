@@ -185,6 +185,7 @@ local function stampLine(f, msg, r, g, b, id, accessID, typeID, event)
         i = i + 1
         return i == target
     end, function(m, ...) return stamp .. m, ... end)
+    return stamp .. msg
 end
 
 -- One AddMessage post-hook per window, for lines with no chat event: first
@@ -207,13 +208,17 @@ Chat.OnEachFrame("lines", function(f)
     if lineHooked[f] or not f.AddMessage then return end
     lineHooked[f] = true
     hooksecurefunc(f, "AddMessage", function(...)
-        lineCounts[f] = (lineCounts[f] or 0) + 1
         local ok, moved = pcall(routeLine, ...)
         if not ok then API.Fail("tab route", moved); moved = false end
-        if moved then return end
+        if moved then return end   -- it left this window: not a new line here
+        lineCounts[f] = (lineCounts[f] or 0) + 1
         if not (f.TransformMessages and f.GetMessageInfo) then return end
-        local okS, err = pcall(stampLine, ...)
-        if not okS then API.Fail("timestamp", err) end
+        local okS, stampedText = pcall(stampLine, ...)
+        if not okS then API.Fail("timestamp", stampedText)
+        elseif stampedText and Chat.Restamped then
+            -- The buffer now holds the stamped text: who wrote it follows (review of #28).
+            pcall(Chat.Restamped, (select(2, ...)), stampedText)
+        end
     end)
 end)
 

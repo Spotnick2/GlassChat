@@ -21,9 +21,12 @@ local Focus = {}
 GC.Focus = Focus
 
 Focus.CONTEXT = 2          -- lines kept around each match "with context"
-Focus.EXPORT_MAX = 2000
+Focus.TYPING_DELAY = 0.15  -- s after the last keystroke before the view is rebuilt
 
--- Kinds by chat event (API values, not display text). No event: addon output.
+-- Kinds by chat event (API values, not display text). A line with no event
+-- is Blizzard's own when it carries a chat-type id (system, loot, money,
+-- XP, channel notices: ChatFrameOverrides.lua:211-537 pass info.id and no
+-- event), else addon output (review of #28).
 Focus.KINDS = { "Say", "Yell", "Emote", "Party", "Raid", "Guild", "Whisper", "Channel", "System", "Addons" }
 local KIND_OF = {
     CHAT_MSG_SAY = "Say", CHAT_MSG_YELL = "Yell", CHAT_MSG_EMOTE = "Emote", CHAT_MSG_TEXT_EMOTE = "Emote",
@@ -35,9 +38,13 @@ local KIND_OF = {
     CHAT_MSG_BN_WHISPER_INFORM = "Whisper", CHAT_MSG_AFK = "Whisper", CHAT_MSG_DND = "Whisper",
     CHAT_MSG_CHANNEL = "Channel",
 }
-function Focus.KindOf(event)
-    if event == nil then return "Addons" end
-    if API.IsSecret(event) or type(event) ~= "string" then return "System" end
+function Focus.KindOf(event, id)
+    if API.IsSecret(event) then return "System" end   -- before any other use
+    if event == nil then
+        if API.IsSecret(id) or id ~= nil then return "System" end
+        return "Addons"
+    end
+    if type(event) ~= "string" then return "System" end
     return KIND_OF[event] or "System"
 end
 
@@ -45,25 +52,20 @@ end
 -- The snapshot and the view
 --------------------------------------------------------------------------------
 
--- The window's lines, oldest first, the newest Copy.MAX of them:
+-- The window's lines, oldest first, the newest Copy.MAX of them (Copy.Read):
 -- { text, kind, source, hidden }.
 function Focus.Snapshot(f)
-    local out = {}
-    local ok, n = pcall(f.GetNumMessages, f)
-    if not ok or API.IsSecret(n) or type(n) ~= "number" then return out end
-    for i = math.max(1, n - GC.Copy.MAX + 1), n do
-        local okM, text, _, _, _, _, _, _, event = pcall(f.GetMessageInfo, f, i)
-        if not okM then
-            API.Fail("focus read", text)
-        elseif API.IsSecret(text) then
-            out[#out + 1] = { text = GC.Copy.HIDDEN, kind = "System", hidden = true }
-        elseif type(text) == "string" then
-            local kind = Focus.KindOf(event)
-            out[#out + 1] = { text = GC.Copy.Plain(text) or "", kind = kind,
-                              source = kind == "Addons" and GC.Tabs.SourceFor(text) or nil }
+    local entries = GC.Copy.Read(f, "focus read")
+    for _, e in ipairs(entries) do
+        if e.hidden then
+            e.kind = "System"
+        else
+            e.kind = Focus.KindOf(e.event, e.id)
+            if e.kind == "Addons" then e.source = GC.Tabs.SourceFor(e.raw) end
         end
+        e.raw, e.id, e.event = nil, nil, nil
     end
-    return out
+    return entries
 end
 
 -- The lines the filters let through: kinds (a set; empty = all), source
@@ -106,7 +108,10 @@ end
 local win
 local state = { frame = nil, lines = {}, kinds = {}, source = nil, context = false, count = 0, shown = {} }
 
+local HINT = "Frozen. Search and filter below; Select all then Ctrl+C copies what's shown."
+
 local function render()
+    win.hint:SetText(HINT)   -- a new view clears any selection (review of #28)
     local shown = Focus.Filter(state.lines, state.kinds, state.source, win.search:GetText(), state.context)
     state.shown = shown
     local texts = {}
@@ -148,7 +153,14 @@ local function build()
     search:SetSize(260, 20)
     search:SetAutoFocus(false)
     search:SetPoint("TOPLEFT", win.hint, "BOTTOMLEFT", 6, -10)
-    search:HookScript("OnTextChanged", function() render() end)
+    -- Rebuilt once typing pauses, not per keystroke: the view can be Copy.MAX lines.
+    local typing
+    search:HookScript("OnTextChanged", function()
+        if win.quiet then return end
+        local token = {}
+        typing = token
+        C_Timer.After(Focus.TYPING_DELAY, function() if typing == token then render() end end)
+    end)
     win.search = search
     win.from = API.Button(win, "From: any", 160, function()
         local list = sources(state.lines)
@@ -242,9 +254,10 @@ function Focus.Open(f, search)
     if not win then build() end
     state.frame, state.kinds, state.source, state.context = f, {}, nil, false
     win.title:SetText("Focus: " .. GC.Copy.WindowName(f))
-    win.hint:SetText("Frozen. Search and filter below; Select all then Ctrl+C copies what's shown.")
     win:Show()
+    win.quiet = true   -- set the search without a render; snapshot renders once
     win.search:SetText(search or "")
+    win.quiet = false
     snapshot()
     win.scroll:SetVerticalScroll(0)
 end
@@ -252,9 +265,8 @@ end
 -- The view, as plain lines, into SavedVariables for after a /reload.
 function Focus.Export()
     if not win then return end
-    local out = {}
-    for i = math.max(1, #state.shown - Focus.EXPORT_MAX + 1), #state.shown do
-        local e = state.shown[i]
+    local out = {}   -- at most Copy.MAX lines: the snapshot's size
+    for _, e in ipairs(state.shown) do
         if not e.hidden then out[#out + 1] = e.text end
     end
     local kinds = {}
