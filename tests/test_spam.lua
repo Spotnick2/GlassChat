@@ -143,11 +143,11 @@ Spam.RebuildMutes()
 
 -- The log, the icon (opt-in, off by default) and the debug wording.
 check(UI._test.buttons[ChatFrame1] == nil, "no tab-strip icon by default")
-eq(GC.Skin.DOCK_RESERVE, 56, "and the tabs keep their room")
+eq(GC.Skin.DOCK_RESERVE, 82, "and the tabs keep their room")
 SlashCmdList.GLASSCHAT("spam icon on")
 local b = UI._test.buttons[ChatFrame1]
 check(b and b:IsShown(), "/gchat spam icon on adds it")
-eq(GC.Skin.DOCK_RESERVE, 82, "with room for two icons")
+eq(GC.Skin.DOCK_RESERVE, 108, "with room for a third icon")
 eq(b.icon._file, UI.BUG, "a bug in a dev build")
 check(b.count:GetText() ~= "", "showing how many lines were hidden")
 -- Highlighted while lines wait; gold on hover; a blink for 3 s per block.
@@ -177,7 +177,7 @@ b._scripts.OnLeave(b)
 eq(b.icon._vertex[1], GC.Skin.TAB_GREY[1], "grey again after")
 SlashCmdList.GLASSCHAT("spam icon off")
 check(not b:IsShown(), "/gchat spam icon off hides it")
-eq(GC.Skin.DOCK_RESERVE, 56, "and gives the tabs their room back")
+eq(GC.Skin.DOCK_RESERVE, 82, "and gives the tabs their room back")
 WoW.addonVersion = "1.2.0"
 check(not Spam.IsDebug(), "a release isn't a debug build")
 db.debug = true

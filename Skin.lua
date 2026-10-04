@@ -400,8 +400,9 @@ end
 Skin.LiftTab = liftTab
 -- px kept free at the dock's right end for the tab-strip icons (copy, and a
 -- plugin's, such as Spam & Ignore's eye): Copy.BUTTON_W + its margin each.
-Skin.DOCK_RESERVE = 56
 Skin.STRIP_ICON_STEP = 26   -- px between icons, right to left
+Skin.CORE_ICONS = 2         -- copy, then focus; a plugin's icon comes after them
+Skin.DOCK_RESERVE = 30 + Skin.CORE_ICONS * Skin.STRIP_ICON_STEP
 -- n icons at the strip's right end (1 = the copy icon alone, the default).
 function Skin.ReserveIcons(n)
     Skin.DOCK_RESERVE = 30 + n * Skin.STRIP_ICON_STEP

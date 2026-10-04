@@ -198,11 +198,16 @@ local function routeLine(f, msg, r, g, b, id, accessID, typeID, event)
     return Chat.Route(f, msg, r, g, b)
 end
 
+-- Lines added to each window, every kind (focus mode's "N new lines").
+local lineCounts = setmetatable({}, { __mode = "k" })
+function Chat.LineCount(f) return f and lineCounts[f] or 0 end
+
 local lineHooked = setmetatable({}, { __mode = "k" })
 Chat.OnEachFrame("lines", function(f)
     if lineHooked[f] or not f.AddMessage then return end
     lineHooked[f] = true
     hooksecurefunc(f, "AddMessage", function(...)
+        lineCounts[f] = (lineCounts[f] or 0) + 1
         local ok, moved = pcall(routeLine, ...)
         if not ok then API.Fail("tab route", moved); moved = false end
         if moved then return end

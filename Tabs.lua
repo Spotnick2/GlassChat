@@ -155,6 +155,22 @@ end
 
 local moving = false
 
+-- Who wrote each recent addon line, by its text (focus mode's "From"
+-- filter): the newest SOURCE_CAP texts.
+Tabs.SOURCE_CAP = 2000
+local sourceOf, sourceOrder = {}, {}
+local function remember(msg, src)
+    if sourceOf[msg] == nil then
+        sourceOrder[#sourceOrder + 1] = msg
+        if #sourceOrder > Tabs.SOURCE_CAP then sourceOf[table.remove(sourceOrder, 1)] = nil end
+    end
+    sourceOf[msg] = src
+end
+function Tabs.SourceFor(msg)
+    if API.IsSecret(msg) or type(msg) ~= "string" then return nil end
+    return sourceOf[msg]
+end
+
 -- One pass: RemoveIf walks oldest to newest, so the line just added is the
 -- last entry (each pass rebuilds the buffer, so not two; review of #26).
 local function removeNewest(f, msg)
@@ -200,6 +216,7 @@ function Tabs.Route(f, msg, r, g, b)
     if f == rawget(_G, "COMBATLOG") then return false end
     if API.IsSecret(msg) or type(msg) ~= "string" or msg == "" then return false end
     local src = Tabs.SourceOf()
+    if src then remember(msg, src) end
     if not src or src == "Blizzard" or ours(src) then return false end
     if not Tabs.IsRouted(src) then
         noteChatty(src)
@@ -278,4 +295,5 @@ end
 
 Tabs._test = {
     reset = function() session, closed, tabs, offered, recent, moving = {}, {}, {}, {}, {}, false end,
+    sources = function() return sourceOf end,
 }

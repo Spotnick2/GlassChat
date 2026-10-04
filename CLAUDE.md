@@ -47,14 +47,14 @@ this client each one taints chat. The research behind this is in `docs/PLAN.md`.
 
 **Status: M0-M3 done (readable glass, class colours, scrollback, sent history, one layout,
 smart tabs), plus timestamps and the Spam & Ignore plugin.** The probe results are in
-`docs/FOREVER-PROBE.md`; the plan is `docs/PLAN.md`. Next: M4 (focus mode), then M5 (URL
+`docs/FOREVER-PROBE.md`; the plan is `docs/PLAN.md`. M4 (focus mode) is built; next: M5 (URL
 copy). Work goes through
 GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
 
 ## Layout
 
 TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `GlassChat.lua`.
+`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -211,6 +211,22 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
     active one hides the box being typed in, and its `OnHide` clears the draft (Codex, #26).
   - It never offers Blizzard, GlassChat or its plugins, and never moves a secret line. A closed
     tab sends that addon's lines back to the main chat for the session.
+- **`Focus.lua`** (M4): focus mode.
+  - **Opening it:** `/gchat focus [text]`, or the magnifier on the tab strip, slot 2 after the
+    copy icon. `Skin.CORE_ICONS = 2`, and a plugin's icon comes after them.
+  - **A frozen snapshot of the window** (`Focus.Snapshot`: `GetMessageInfo`). Each line keeps its
+    kind, from the chat event Blizzard passed to `AddMessage` (no event = Addons), and for addon
+    lines the addon that wrote it (`Tabs.SourceFor`, a capped text → source map that `Tabs.Route`
+    fills).
+  - **`Focus.Filter`:**
+    - kinds: a set, empty = all;
+    - one source;
+    - a plain, case-insensitive search, optionally with ±`CONTEXT` lines.
+  - The view is a read-only EditBox, so Select all + Ctrl+C copies what's shown. "N new lines"
+    comes from `Chat.LineCount` (counted in the shared `AddMessage` hook).
+  - **Export** writes the view's plain lines to `GlassChatDB.export`.
+  - **Secret lines** are `Copy.HIDDEN`, never matched or exported. The chat behind it is never
+    touched.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It

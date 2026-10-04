@@ -1,0 +1,321 @@
+-- Focus.lua (M4): freeze a chat window into a large glass window, with
+-- search, filters and copy.
+--
+-- The chat behind it is never touched: a snapshot of the window's lines
+-- (GetMessageInfo, 1 = oldest) is read once, so nothing scrolls away while
+-- you read; "N new lines" refreshes it. Each line keeps its kind (from the
+-- chat event Blizzard passed to AddMessage: ChatFrameOverrides.lua) and, for
+-- addon output, the addon that wrote it (Tabs.SourceFor, from M3's
+-- attribution). Secret lines show as Copy.HIDDEN and are never matched,
+-- copied or exported.
+--
+-- The view is a read-only EditBox like the copy window's, so whatever is
+-- shown is already copyable (Ctrl+A, Ctrl+C); addons can't write the
+-- clipboard here (probe items 2-3). Export writes the view to
+-- GlassChatDB.export, readable from SavedVariables after a /reload.
+
+GlassChat = GlassChat or {}
+local GC = GlassChat
+local API, Glass = GC.API, GC.Glass
+local Focus = {}
+GC.Focus = Focus
+
+Focus.CONTEXT = 2          -- lines kept around each match "with context"
+Focus.EXPORT_MAX = 2000
+
+-- Kinds by chat event (API values, not display text). No event: addon output.
+Focus.KINDS = { "Say", "Yell", "Emote", "Party", "Raid", "Guild", "Whisper", "Channel", "System", "Addons" }
+local KIND_OF = {
+    CHAT_MSG_SAY = "Say", CHAT_MSG_YELL = "Yell", CHAT_MSG_EMOTE = "Emote", CHAT_MSG_TEXT_EMOTE = "Emote",
+    CHAT_MSG_PARTY = "Party", CHAT_MSG_PARTY_LEADER = "Party",
+    CHAT_MSG_RAID = "Raid", CHAT_MSG_RAID_LEADER = "Raid", CHAT_MSG_RAID_WARNING = "Raid",
+    CHAT_MSG_INSTANCE_CHAT = "Raid", CHAT_MSG_INSTANCE_CHAT_LEADER = "Raid",
+    CHAT_MSG_GUILD = "Guild", CHAT_MSG_OFFICER = "Guild", CHAT_MSG_GUILD_ACHIEVEMENT = "Guild",
+    CHAT_MSG_WHISPER = "Whisper", CHAT_MSG_WHISPER_INFORM = "Whisper", CHAT_MSG_BN_WHISPER = "Whisper",
+    CHAT_MSG_BN_WHISPER_INFORM = "Whisper", CHAT_MSG_AFK = "Whisper", CHAT_MSG_DND = "Whisper",
+    CHAT_MSG_CHANNEL = "Channel",
+}
+function Focus.KindOf(event)
+    if event == nil then return "Addons" end
+    if API.IsSecret(event) or type(event) ~= "string" then return "System" end
+    return KIND_OF[event] or "System"
+end
+
+--------------------------------------------------------------------------------
+-- The snapshot and the view
+--------------------------------------------------------------------------------
+
+-- The window's lines, oldest first, the newest Copy.MAX of them:
+-- { text, kind, source, hidden }.
+function Focus.Snapshot(f)
+    local out = {}
+    local ok, n = pcall(f.GetNumMessages, f)
+    if not ok or API.IsSecret(n) or type(n) ~= "number" then return out end
+    for i = math.max(1, n - GC.Copy.MAX + 1), n do
+        local okM, text, _, _, _, _, _, _, event = pcall(f.GetMessageInfo, f, i)
+        if not okM then
+            API.Fail("focus read", text)
+        elseif API.IsSecret(text) then
+            out[#out + 1] = { text = GC.Copy.HIDDEN, kind = "System", hidden = true }
+        elseif type(text) == "string" then
+            local kind = Focus.KindOf(event)
+            out[#out + 1] = { text = GC.Copy.Plain(text) or "", kind = kind,
+                              source = kind == "Addons" and GC.Tabs.SourceFor(text) or nil }
+        end
+    end
+    return out
+end
+
+-- The lines the filters let through: kinds (a set; empty = all), source
+-- (nil = any), search (plain, case-insensitive), with ±CONTEXT lines around
+-- each match when context is on.
+function Focus.Filter(lines, kinds, source, search, context)
+    local passed = {}
+    for _, e in ipairs(lines) do
+        if (not next(kinds) or kinds[e.kind]) and (not source or e.source == source) then passed[#passed + 1] = e end
+    end
+    if not search or search == "" then return passed end
+    local needle = search:lower()
+    local keep = {}
+    for i, e in ipairs(passed) do
+        if not e.hidden and e.text:lower():find(needle, 1, true) then
+            local lo, hi = i, i
+            if context then lo, hi = math.max(1, i - Focus.CONTEXT), math.min(#passed, i + Focus.CONTEXT) end
+            for j = lo, hi do keep[j] = true end
+        end
+    end
+    local out = {}
+    for i, e in ipairs(passed) do if keep[i] then out[#out + 1] = e end end
+    return out
+end
+
+-- The sources present in a snapshot, sorted, for the "From" button.
+local function sources(lines)
+    local seen, out = {}, {}
+    for _, e in ipairs(lines) do
+        if e.source and not seen[e.source] then seen[e.source] = true; out[#out + 1] = e.source end
+    end
+    table.sort(out)
+    return out
+end
+
+--------------------------------------------------------------------------------
+-- The window
+--------------------------------------------------------------------------------
+
+local win
+local state = { frame = nil, lines = {}, kinds = {}, source = nil, context = false, count = 0, shown = {} }
+
+local function render()
+    local shown = Focus.Filter(state.lines, state.kinds, state.source, win.search:GetText(), state.context)
+    state.shown = shown
+    local texts = {}
+    for i, e in ipairs(shown) do texts[i] = e.text end
+    win.text = table.concat(texts, "\n")
+    win.edit:SetText(win.text)
+    win.status:SetText(#shown .. " of " .. #state.lines .. " lines")
+    for _, kind in ipairs(Focus.KINDS) do
+        win.chips[kind]:SetAlpha((not next(state.kinds) or state.kinds[kind]) and 1 or 0.4)
+    end
+    win.from:SetText("From: " .. (state.source or "any"))
+    win.context:SetText(state.context and "With context" or "Matches only")
+end
+
+local function snapshot()
+    state.lines = Focus.Snapshot(state.frame)
+    state.count = GC.Chat.LineCount(state.frame)
+    if state.source then
+        local present = false
+        for _, s in ipairs(sources(state.lines)) do if s == state.source then present = true end end
+        if not present then state.source = nil end
+    end
+    win.newer:Hide()
+    render()
+end
+
+local function build()
+    local pw, ph = 1000, 700
+    local okW, w = pcall(UIParent.GetWidth, UIParent)
+    local okH, h = pcall(UIParent.GetHeight, UIParent)
+    if okW and type(w) == "number" and w > 0 then pw = math.floor(w * 0.85) end
+    if okH and type(h) == "number" and h > 0 then ph = math.floor(h * 0.8) end
+    win = API.Window("GlassChatFocusWindow", pw, ph)
+    win:ClearAllPoints()
+    win:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+
+    -- Row 1: search, the source, matches/context.
+    local search = CreateFrame("EditBox", nil, win, "SearchBoxTemplate")
+    search:SetSize(260, 20)
+    search:SetAutoFocus(false)
+    search:SetPoint("TOPLEFT", win.hint, "BOTTOMLEFT", 6, -10)
+    search:HookScript("OnTextChanged", function() render() end)
+    win.search = search
+    win.from = API.Button(win, "From: any", 160, function()
+        local list = sources(state.lines)
+        local nextOne
+        if not state.source then nextOne = list[1] else
+            for i, s in ipairs(list) do if s == state.source then nextOne = list[i + 1] end end
+        end
+        state.source = nextOne
+        render()
+    end)
+    win.from:SetPoint("LEFT", search, "RIGHT", 12, 0)
+    win.context = API.Button(win, "Matches only", 120, function()
+        state.context = not state.context
+        render()
+    end)
+    win.context:SetPoint("LEFT", win.from, "RIGHT", 8, 0)
+
+    -- Row 2: the kinds. A click selects or deselects one; none selected = all.
+    win.chips = {}
+    local prev
+    for _, kind in ipairs(Focus.KINDS) do
+        local b = API.Button(win, kind, 70, function()
+            state.kinds[kind] = not state.kinds[kind] or nil
+            render()
+        end)
+        if prev then b:SetPoint("LEFT", prev, "RIGHT", 4, 0)
+        else b:SetPoint("TOPLEFT", search, "BOTTOMLEFT", -6, -10) end
+        win.chips[kind] = b
+        prev = b
+    end
+
+    -- The view: read-only, copyable.
+    local scroll = CreateFrame("ScrollFrame", nil, win, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", win.chips[Focus.KINDS[1]], "BOTTOMLEFT", 0, -10)
+    scroll:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -34, 44)
+    local edit = CreateFrame("EditBox", nil, scroll)
+    edit:SetMultiLine(true)
+    edit:SetAutoFocus(false)
+    edit:SetFontObject("ChatFontNormal")
+    edit:SetWidth(pw - 70)
+    edit:SetMaxLetters(0)
+    if rawget(_G, "ScrollingEdit_OnCursorChanged") then
+        edit:SetScript("OnCursorChanged", ScrollingEdit_OnCursorChanged)
+        edit:SetScript("OnUpdate", ScrollingEdit_OnUpdate)
+    end
+    edit:SetScript("OnEscapePressed", function() win:Hide() end)
+    edit:SetScript("OnTextChanged", function(self, userInput)
+        if userInput and win.text then self:SetText(win.text) end
+    end)
+    scroll:SetScrollChild(edit)
+    API.AutoHideScrollBar(scroll)
+    win.scroll, win.edit = scroll, edit
+
+    -- Bottom: the count; new lines, export, select, close.
+    win.status = Glass.Font(win, 11, "LEFT")
+    win.status:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 14, 16)
+    win.status:SetTextColor(0.75, 0.75, 0.75)
+    win.close = API.Button(win, "Close", 90, function() win:Hide() end)
+    win.close:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -12, 10)
+    win.select = API.Button(win, "Select all", 100, function()
+        win.edit:SetFocus()
+        win.edit:HighlightText()
+        win.hint:SetText("Selected. Press Ctrl+C to copy.")
+    end)
+    win.select:SetPoint("RIGHT", win.close, "LEFT", -8, 0)
+    win.export = API.Button(win, "Export", 90, function() Focus.Export() end)
+    win.export:SetPoint("RIGHT", win.select, "LEFT", -8, 0)
+    win.newer = API.Button(win, "New lines", 130, function() snapshot() end)
+    win.newer:SetPoint("RIGHT", win.export, "LEFT", -8, 0)
+    win.newer:Hide()
+
+    -- New lines arrive behind the frozen view: say how many, twice a second.
+    local acc = 0
+    win:SetScript("OnUpdate", function(_, elapsed)
+        acc = acc + (elapsed or 0)
+        if acc < 0.5 then return end
+        acc = 0
+        local n = GC.Chat.LineCount(state.frame) - state.count
+        if n > 0 then
+            win.newer:SetText(n .. " new line" .. (n == 1 and "" or "s"))
+            win.newer:Show()
+        end
+    end)
+end
+
+-- Open focus mode on a chat window (the one in view by default), with an
+-- optional search.
+function Focus.Open(f, search)
+    f = f or GC.Copy.CurrentFrame()
+    if not f then return end
+    if not win then build() end
+    state.frame, state.kinds, state.source, state.context = f, {}, nil, false
+    win.title:SetText("Focus: " .. GC.Copy.WindowName(f))
+    win.hint:SetText("Frozen. Search and filter below; Select all then Ctrl+C copies what's shown.")
+    win:Show()
+    win.search:SetText(search or "")
+    snapshot()
+    win.scroll:SetVerticalScroll(0)
+end
+
+-- The view, as plain lines, into SavedVariables for after a /reload.
+function Focus.Export()
+    if not win then return end
+    local out = {}
+    for i = math.max(1, #state.shown - Focus.EXPORT_MAX + 1), #state.shown do
+        local e = state.shown[i]
+        if not e.hidden then out[#out + 1] = e.text end
+    end
+    local kinds = {}
+    for k in pairs(state.kinds) do kinds[#kinds + 1] = k end
+    table.sort(kinds)
+    GC.db.export = {
+        at = date("%Y-%m-%d %H:%M:%S"),
+        window = GC.Copy.WindowName(state.frame),
+        search = win.search:GetText(),
+        kinds = #kinds > 0 and table.concat(kinds, ",") or "all",
+        source = state.source or "any",
+        lines = out,
+    }
+    API.Print("exported " .. #out .. " lines to GlassChatDB.export: after a /reload or logout it's in " ..
+        "WTF\\Account\\<account>\\SavedVariables\\GlassChat.lua")
+end
+
+--------------------------------------------------------------------------------
+-- The magnifier on the tab strip, left of the copy icon
+--------------------------------------------------------------------------------
+
+Focus.ICON = "common-search-magnifyingglass"
+local buttons = setmetatable({}, { __mode = "k" })
+
+function Focus.Button(f)
+    if buttons[f] then return end
+    local p = GC.Skin.Panel(f)
+    if not p then return end
+    local b = CreateFrame("Button", nil, p.panel)
+    b:SetFrameStrata("MEDIUM")
+    b:SetSize(GC.Copy.BUTTON_W, GC.Copy.BUTTON_H)
+    b:SetPoint("TOPRIGHT", p.panel, "TOPRIGHT", -14 - GC.Skin.STRIP_ICON_STEP, -9)
+    local icon = b:CreateTexture(nil, "OVERLAY")
+    icon:SetSize(14, 14)
+    icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+    local get = C_Texture and C_Texture.GetAtlasInfo
+    local okA, info = false, nil
+    if get then okA, info = pcall(get, Focus.ICON) end
+    if okA and info and not API.IsSecret(info) then icon:SetAtlas(Focus.ICON) else icon:SetColorTexture(1, 1, 1, 0.5) end
+    icon:SetDesaturated(true)
+    local grey, gold = GC.Skin.TAB_GREY, GC.Skin.TAB_GOLD
+    icon:SetVertexColor(grey[1], grey[2], grey[3])
+    b:SetScript("OnEnter", function(self)
+        icon:SetVertexColor(gold[1], gold[2], gold[3])
+        local tip = rawget(_G, "GameTooltip")
+        if tip then
+            tip:SetOwner(self, "ANCHOR_TOP")
+            tip:SetText("Focus: freeze, search and filter this window")
+            tip:Show()
+        end
+    end)
+    b:SetScript("OnLeave", function()
+        icon:SetVertexColor(grey[1], grey[2], grey[3])
+        local tip = rawget(_G, "GameTooltip")
+        if tip then tip:Hide() end
+    end)
+    b:SetScript("OnClick", function() Focus.Open(f) end)
+    b.icon = icon
+    buttons[f] = b
+end
+
+GC.Chat.OnEachFrame("focus", Focus.Button)
+
+Focus._test = { window = function() return win end, state = state, buttons = buttons }

@@ -15,4 +15,5 @@ Copy.lua
 Buttons.lua
 Layout.lua
 Tabs.lua
+Focus.lua
 GlassChat.lua

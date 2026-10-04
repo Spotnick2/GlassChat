@@ -116,7 +116,7 @@ end
 -- A window's name for the title. FCF_GetChatWindowInfo covers the
 -- temporary whisper windows too (FloatingChatFrame.lua:543); a whisper tab's
 -- text can be secret, so that is checked before anything else.
-local function windowName(f)
+function Copy.WindowName(f)
     local get = rawget(_G, "FCF_GetChatWindowInfo") or rawget(_G, "GetChatWindowInfo")
     if get then
         local ok, name = pcall(get, f:GetID())
@@ -148,7 +148,7 @@ function Copy.Open(f)
     local status = #lines .. " lines"
     if total > Copy.MAX then status = status .. " (the newest " .. Copy.MAX .. " of " .. total .. ")" end
     if hidden > 0 then status = status .. ", " .. hidden .. " hidden (can't be read)" end
-    Copy.Show("Copy: " .. windowName(f), table.concat(lines, "\n"), status)
+    Copy.Show("Copy: " .. Copy.WindowName(f), table.concat(lines, "\n"), status)
 end
 
 -- The Copy button: a grey copy icon at the right end of each window's tab strip,

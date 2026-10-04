@@ -86,7 +86,7 @@ function UI.Button(f)
     local b = CreateFrame("Button", nil, p.panel)
     b:SetFrameStrata("MEDIUM")
     b:SetSize(UI.SIZE + 4, UI.SIZE + 2)
-    b:SetPoint("TOPRIGHT", p.panel, "TOPRIGHT", -14 - GC.Skin.STRIP_ICON_STEP, -9)
+    b:SetPoint("TOPRIGHT", p.panel, "TOPRIGHT", -14 - GC.Skin.CORE_ICONS * GC.Skin.STRIP_ICON_STEP, -9)
     local icon = b:CreateTexture(nil, "OVERLAY")
     icon:SetSize(UI.SIZE, UI.SIZE)
     icon:SetPoint("CENTER", b, "CENTER", 0, 0)
@@ -241,7 +241,7 @@ local function spam(arg)
     elseif cmd == "icon" then
         if rest == "on" or rest == "off" then
             Spam.db.icon = rest == "on"
-            GC.Skin.ReserveIcons(Spam.db.icon and 2 or 1)
+            GC.Skin.ReserveIcons(GC.Skin.CORE_ICONS + (Spam.db.icon and 1 or 0))
             GC.Chat.Scan()
         end
         say("tab-strip icon: " .. (Spam.db.icon and "shown" or "hidden") .. " (/gchat spam icon on|off)")
@@ -259,7 +259,7 @@ local function spam(arg)
 end
 
 function UI.Start()
-    GC.Skin.ReserveIcons(Spam.db.icon and 2 or 1)
+    GC.Skin.ReserveIcons(GC.Skin.CORE_ICONS + (Spam.db.icon and 1 or 0))
     GC.Chat.OnEachFrame("spam icon", UI.Button)
     Spam.onHidden = UI.Blocked
     GC.RegisterSlash("mute", mute)
