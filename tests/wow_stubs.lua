@@ -518,6 +518,8 @@ C_FriendList = {
     GetIgnoreName = function(i) return WoW.ignores and WoW.ignores[i] end,
 }
 function IsGuildMember(guid) return WoW.guild[guid] == true end
+-- Names unique across the region (measured true on Forever, FOREVER-PROBE 11).
+function RegionalUniqueNamesEnabled() return WoW.uniqueNames ~= false end
 C_BattleNet = { GetGameAccountInfoByGUID = function(guid) if WoW.bnet[guid] then return {} end end }
 function GetNumGroupMembers() return #WoW.group end
 function IsInRaid() return false end
@@ -675,7 +677,7 @@ WoW.reset()
 -- addon's own globals that are legitimately nil before first assignment.
 -- LibStub: the embedded library's own loader reads _G.LibStub before creating it.
 local allowNil = { GlassChat = true, GlassChatDB = true, GlassChatCharDB = true, ChatProbeDB = true,
-    GlassChatSpamIgnoreDB = true, GlassChatSpamIgnoreCharDB = true, LibStub = true }
+    GlassChatSpamIgnoreDB = true, GlassChatSpamIgnoreCharDB = true, LibStub = true, AltStable = true }
 -- Client string alias (in the dump's _G walk); LibStub's version check uses it.
 strmatch = string.match
 setmetatable(_G, { __index = function(_, k)

@@ -274,6 +274,19 @@ which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
 
 ### Between WoW accounts (S3)
 
+**Status (#33):**
+- **Built:** your characters on other WoW accounts count as your own when AltStable is
+  installed. `AltStable.GetCharacters()` (public API v1) lists every character it has synced, by
+  GUID and full name. GlassChat reads it at login and on AltStable's `CharactersChanged` callback,
+  never per chat line, and only for API version 1. Those characters are never ignored, muted,
+  repeat-hidden or added to Blizzard's list.
+- **Waiting on AltStable:** the snapshot copy below needs a way to message your own accounts.
+  It's requested as Spotnick2/AltStable#190: `SendToOwnAccounts(addon, payload)` and an
+  `OwnAccountMessage` callback, over its proven own-account Battle.net channel. GlassChat's side
+  is built once that API exists.
+
+**The design:**
+
 - `GlassChatSpamIgnoreDB` is per WoW account, so another WoW account on the same Battle.net sees
   none of it.
 - **Explicit snapshot copy:**

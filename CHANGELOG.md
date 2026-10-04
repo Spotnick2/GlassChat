@@ -31,6 +31,8 @@
   - **One ignore list for all your characters:** `/gchat ignore First Surname`, `/gchat unignore`,
     `/gchat ignores`, and `/gchat ignore import` for this character's Blizzard list. It covers
     chat and whispers, in guild and group too, and never ignores your own characters.
+  - **With AltStable installed, your characters on your other WoW accounts count as yours:**
+    they're never ignored, muted or added to Blizzard's ignore list.
   - **Blizzard's ignore list kept in step** on each character, so ignored players can't invite
     or duel you either (`/gchat ignore mirror off` to stop). Removing someone GlassChat added
     from Blizzard's ignore list unignores them everywhere. Names you put on Blizzard's list
