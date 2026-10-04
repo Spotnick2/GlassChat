@@ -215,12 +215,13 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   - **Never your own characters:** `db.own`, recorded at `PLAYER_LOGIN`.
   - Import reads Blizzard's list after `PLAYER_LOGIN` only.
   - **`Mirror.lua` (S2b) keeps each character's Blizzard list in step**, using linked names
-    (`charDB.linked`):
+    (`charDB.linked`, only names GlassChat added):
     - removing a linked name in Blizzard's UI unignores it everywhere;
     - an unignore anywhere removes the linked name at that character's next check;
-    - a name only on Blizzard's list is never touched;
-    - it waits until the list is ready, and writes are throttled and bounded (`MAX_TRIES`
-      across logins);
+    - a name that was already on Blizzard's list is never touched by a sync;
+    - **nothing changes on an untrusted read**: not ready, an unreadable entry, empty with
+      names linked, or more than `MASS_LOSS` linked names gone at once;
+    - writes are throttled, checked against the list, and bounded (`MAX_TRIES` across logins);
     - never your own characters.
 
     The rules are in `docs/PLAN-SPAM.md`.

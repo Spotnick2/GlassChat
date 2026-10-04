@@ -31,6 +31,7 @@ local function plainString(v)
     if API.IsSecret(v) or type(v) ~= "string" then return nil end
     return v
 end
+Spam.PlainString = plainString
 local function plainNumber(v)
     if API.IsSecret(v) or type(v) ~= "number" then return nil end
     return v
@@ -61,6 +62,9 @@ function Spam.Load()
     -- Saved entries are checked on load: plain types and lengths only.
     for guid, e in pairs(db.ignore) do
         if type(guid) ~= "string" or type(e) ~= "table" or type(e.name) ~= "string" then db.ignore[guid] = nil end
+    end
+    for l, e in pairs(db.pending) do
+        if type(l) ~= "string" or type(e) ~= "table" or type(e.name) ~= "string" then db.pending[l] = nil end
     end
     local mutes = {}
     for _, m in ipairs(db.mutes) do
@@ -297,14 +301,11 @@ end
 -- Explicit import of this character's Blizzard list (never before
 -- PLAYER_LOGIN: measured nil at ADDON_LOADED).
 function Spam.Import()
-    local okN, n = pcall(C_FriendList.GetNumIgnores)
-    n = okN and plainNumber(n) or nil
-    if not n then return "Blizzard's ignore list isn't ready yet; try again in a moment" end
+    local list = GC.SpamMirror.ReadServer()
+    if not list then return "Blizzard's ignore list isn't ready yet; try again in a moment" end
     local added, pending, own = 0, 0, 0
-    for i = 1, n do
-        local ok, name = pcall(C_FriendList.GetIgnoreName, i)
-        name = ok and plainString(name) or nil
-        if name then
+    for _, name in pairs(list) do
+        do
             local lname = name:lower()
             local guid = names[lname]
             if (guid and isOwn(guid)) or ownByName(lname) then

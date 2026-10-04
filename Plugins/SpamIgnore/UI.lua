@@ -192,14 +192,16 @@ local function ignores()
         say("ignored: " .. e.name .. own)
     end
     for _, e in pairs(Spam.db.pending) do any = true; say("ignored (pending): " .. e.name) end
-    for _, name in pairs(GC.SpamMirror.Failed()) do
-        say("|cffffd100" .. name .. ": couldn't be added to Blizzard's ignore list on this character (full, or not found); still ignored in chat|r")
+    for key, name in pairs(GC.SpamMirror.Failed()) do
+        local what = key:sub(1, 4) == "add:" and "added to" or "removed from"
+        say("|cffffd100" .. name .. ": couldn't be " .. what .. " Blizzard's ignore list on this character" ..
+            (what == "added to" and " (full, or not found); still ignored in chat|r" or "|r"))
     end
     if not any then say("no one ignored (/gchat ignore <First Surname>)") end
 end
 
 local function ignore(arg)
-    local mirror = arg:match("^mirror%s*(%a*)$")
+    local mirror = (arg == "mirror" and "") or arg:match("^mirror (on)$") or arg:match("^mirror (off)$")
     if mirror then
         if mirror == "on" or mirror == "off" then Spam.db.mirror = mirror == "on" end
         say("Blizzard's ignore list kept in step on each character: " .. (Spam.db.mirror and "on" or
@@ -264,7 +266,7 @@ function UI.Start()
     GC.RegisterSlash("unmute", unmute)
     GC.RegisterSlash("mutes", mutes)
     GC.RegisterSlash("ignore", ignore)
-    GC.RegisterSlash("unignore", function(arg) say(Spam.Unignore(arg)); GC.SpamMirror.Check("unignore") end)
+    GC.RegisterSlash("unignore", function(arg) say(Spam.Unignore(arg)); GC.SpamMirror.UnignoreHere(arg) end)
     GC.RegisterSlash("ignores", ignores)
     GC.RegisterSlash("allow", allow)
     GC.RegisterSlash("spam", spam, {

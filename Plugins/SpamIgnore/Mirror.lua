@@ -3,46 +3,49 @@
 -- what a chat filter can't: invites and duels (docs/FOREVER-PROBE.md 12).
 --
 -- The rules (docs/PLAN-SPAM.md, S2b; why a plain login mirror is unsafe):
--- - LINKED entries: names on this character's Blizzard list that GlassChat
---   keeps in step (it added them, or found them already there). Only those
---   are ever removed by GlassChat; a name only on Blizzard's list is left
---   alone (import is explicit, /gchat ignore import).
+-- - LINKED entries: names GlassChat itself added to this character's
+--   Blizzard list. Only those are ever removed by a sync; a name that was
+--   already there is the player's own and is left alone (review of #24).
+--   The one exception is explicit: /gchat unignore on THIS character also
+--   takes the name off this character's list.
 -- - A linked name that leaves Blizzard's list (removed in Blizzard's UI)
 --   counts as an UNIGNORE, on every character: it is never added back.
 -- - A linked name no longer on the account list (/gchat unignore, on any
 --   character) is removed from this character's list at its next check.
--- - Never before the list is READY: an IGNORELIST_UPDATE seen this session,
---   or READY_DELAY seconds after login (measured: nil at ADDON_LOADED); an
---   empty read with linked entries before then is never trusted.
--- - Writes are throttled, at most one in flight per name, and BOUNDED: a
---   name not on the list WRITE_WAIT s after its add is a try; after
---   MAX_TRIES (kept across logins) it's reported, not retried, and never
---   taken to mean the name is invalid (it stays ignored in chat).
--- - Never your own characters, nor this one (owner).
--- Blizzard's own "is now being ignored" lines for our writes are hidden
--- (by the name, while that write is in flight); one summary line instead.
+-- - A read is TRUSTED only when every entry from 1 to GetNumIgnores() reads
+--   as a plain name, the list is ready (an IGNORELIST_UPDATE this session,
+--   or READY_DELAY s after login; measured: nil at ADDON_LOADED), it isn't
+--   empty while names are linked, and no more than MASS_LOSS linked names
+--   vanish at once. A distrusted read changes nothing (review of #24: one
+--   bad read must never unignore the whole list).
+-- - Writes are throttled, at most one in flight per name, and checked: a
+--   write counts once the list shows it, and a write that hasn't shown up
+--   WRITE_WAIT s later is a try. After MAX_TRIES (kept across logins) it's
+--   reported, not retried, and never taken to mean the name is invalid (it
+--   stays ignored in chat).
+-- - Never your own characters (owner): db.own, which holds this one too.
+-- Blizzard's own lines about our writes are hidden while they're in flight;
+-- one summary line instead.
 
 GlassChat = GlassChat or {}
 local GC = GlassChat
 local API = GC.API
 local Spam = GC.Spam
+local plainString = Spam.PlainString
 local Mirror = {}
 GC.SpamMirror = Mirror
 
 Mirror.READY_DELAY = 20
 Mirror.WRITE_GAP = 0.5
 Mirror.WRITE_WAIT = 10
+Mirror.QUIET = 3          -- s after a write during which its system lines are hidden
 Mirror.MAX_TRIES = 3
+Mirror.MASS_LOSS = 3      -- more linked names than this gone at once: distrust the read
 
-local function plainString(v)
-    if API.IsSecret(v) or type(v) ~= "string" then return nil end
-    return v
-end
-
-local ready, sawUpdate, loggedIn = false, false, false
-local wrote = {}                    -- lname -> true: added by us this session, not yet seen
-local queue, inFlight = {}, {}      -- queue: { op, lname, name }; inFlight[lname] = GetTime() of the write
-local busy = false
+local ready, loggedIn = false, false
+local queue = {}          -- { op = "add"|"del", lname, name }
+local inFlight = {}       -- lname -> { op, at }
+local busy, warnedMass = false, false
 local summary = { added = 0, removed = 0, unignored = {} }
 
 local function charDB()
@@ -52,7 +55,8 @@ local function charDB()
     return c
 end
 
--- This character's Blizzard list, lname -> name; nil if unreadable.
+-- This character's Blizzard list, lname -> name, and its size; nil unless
+-- every entry read as a plain name (GetIgnoreName is nullable).
 function Mirror.ReadServer()
     local FL = C_FriendList
     if not (FL and FL.GetNumIgnores and FL.GetIgnoreName) then return nil end
@@ -62,19 +66,19 @@ function Mirror.ReadServer()
     for i = 1, n do
         local okN, name = pcall(FL.GetIgnoreName, i)
         name = okN and plainString(name) or nil
-        if name then list[name:lower()] = name end
+        if not name then return nil end
+        list[name:lower()] = name
     end
     return list, n
 end
 
--- The account list, lname -> name, without your own characters or this one.
+-- The account list, lname -> name, without your own characters.
 function Mirror.Wanted()
     local want = {}
-    local me = plainString(UnitName("player"))
-    me = me and me:lower()
     local function add(name)
+        if type(name) ~= "string" then return end
         local l = name:lower()
-        if l ~= me and not Spam.OwnByName(l) then want[l] = name end
+        if not Spam.OwnByName(l) then want[l] = name end
     end
     for guid, e in pairs(Spam.db.ignore) do
         if not Spam.IsOwn(guid) then add(e.name) end
@@ -96,34 +100,30 @@ local function flushSummary()
     summary = { added = 0, removed = 0, unignored = {} }
 end
 
-local pump
-local function schedule(delay, fn)
-    if C_Timer and C_Timer.After then C_Timer.After(delay, fn) end
+local function canRun()
+    return C_Timer and C_Timer.After and C_FriendList and C_FriendList.AddIgnore and C_FriendList.DelIgnore
+end
+
+local function guarded(why, fn)
+    local ok, err = pcall(fn)
+    if not ok then API.Fail("ignore mirror " .. why, err) end
 end
 
 -- One write per WRITE_GAP; the check that follows sees what took.
+local pump
 pump = function()
     local w = table.remove(queue, 1)
     if not w then
         busy = false
-        schedule(Mirror.WRITE_WAIT, function() Mirror.Check("after writes") end)
+        C_Timer.After(Mirror.WRITE_WAIT, function() Mirror.Check("after writes") end)
         return
     end
     busy = true
-    local FL = C_FriendList
-    if w.op == "add" then
-        inFlight[w.lname] = GetTime()
-        wrote[w.lname] = true
-        local ok, res = pcall(FL.AddIgnore, w.name)
-        if not ok then API.Fail("ignore mirror add", res) end
-    else
-        inFlight[w.lname] = GetTime()
-        local ok, res = pcall(FL.DelIgnore, w.name)
-        if not ok then API.Fail("ignore mirror remove", res) end
-        charDB().linked[w.lname] = nil
-        summary.removed = summary.removed + 1
-    end
-    schedule(Mirror.WRITE_GAP, pump)
+    inFlight[w.lname] = { op = w.op, at = GetTime() }
+    local fn = w.op == "add" and C_FriendList.AddIgnore or C_FriendList.DelIgnore
+    local ok, res = pcall(fn, w.name)
+    if not ok then API.Fail("ignore mirror " .. w.op, res) end
+    C_Timer.After(Mirror.WRITE_GAP, function() guarded("pump", pump) end)
 end
 
 local function enqueue(op, lname, name)
@@ -131,81 +131,144 @@ local function enqueue(op, lname, name)
     queue[#queue + 1] = { op = op, lname = lname, name = name }
 end
 
--- Compare and act. Runs on IGNORELIST_UPDATE, once ready, and after writes.
-function Mirror.Check(why)
-    if not (loggedIn and Spam.db and Spam.db.mirror) then return end
-    if not ready then return end
-    if busy then return end
+-- A try for this write; false once MAX_TRIES are used (kept across logins).
+local function try(c, key, name)
+    local t = c.tries[key]
+    if t and t.n >= Mirror.MAX_TRIES then return false end
+    c.tries[key] = { name = name, n = (t and t.n or 0) + 1 }
+    return true
+end
+
+local function check(why)
+    if not (loggedIn and ready and not busy and Spam.db and Spam.db.mirror and canRun()) then return end
     local server, n = Mirror.ReadServer()
     if not server then return end
     local c = charDB()
-    if n == 0 and next(c.linked) and not sawUpdate then return end   -- not trusted yet
+    if n == 0 and next(c.linked) then return end   -- never trusted: a list not loaded yet reads empty
+
+    -- Writes in flight: done once the list shows them, a lapsed try after WRITE_WAIT.
     local t = GetTime()
-    for l, at in pairs(inFlight) do
-        if t - at >= Mirror.WRITE_WAIT or server[l] ~= nil then inFlight[l] = nil end
-    end
-    local want = Mirror.Wanted()
-
-    -- Writes that took, and adds that didn't (a try each).
-    for l in pairs(c.tries) do
-        if server[l] then c.tries[l] = nil end
-    end
-
-    for l, name in pairs(c.linked) do
-        if not inFlight[l] then
-            if not server[l] then
-                -- Removed in Blizzard's UI: an unignore, everywhere.
+    for l, w in pairs(inFlight) do
+        local landed = (w.op == "add") == (server[l] ~= nil)
+        if landed then
+            inFlight[l] = nil
+            c.tries[w.op .. ":" .. l] = nil
+            if w.op == "add" then
+                c.linked[l] = server[l]
+                summary.added = summary.added + 1
+            else
                 c.linked[l] = nil
-                if want[l] then
-                    Spam.Unignore(name)
-                    want[l] = nil
-                    table.insert(summary.unignored, name)
-                end
-            elseif not want[l] then
-                enqueue("del", l, server[l])
+                summary.removed = summary.removed + 1
             end
+        elseif t - w.at >= Mirror.WRITE_WAIT then
+            inFlight[l] = nil
         end
     end
 
+    -- Linked names gone from the list: removed in Blizzard's UI. Too many at
+    -- once is a bad read, not the player's doing: change nothing.
+    local gone = {}
+    for l in pairs(c.linked) do
+        if not server[l] and not inFlight[l] then gone[#gone + 1] = l end
+    end
+    if #gone > Mirror.MASS_LOSS then
+        if not warnedMass then
+            warnedMass = true
+            say("|cffffd100Blizzard's ignore list here is missing " .. #gone ..
+                " names GlassChat added; not syncing until it reads back fully.|r")
+        end
+        return
+    end
+
+    local want = Mirror.Wanted()
+    for _, l in ipairs(gone) do
+        local name = c.linked[l]
+        c.linked[l] = nil
+        if want[l] then
+            Spam.Unignore(want[l])
+            want[l] = nil
+            table.insert(summary.unignored, name)
+        end
+    end
+
+    -- Linked names off the account list: remove them here.
+    for l in pairs(c.linked) do
+        if server[l] and not want[l] and not inFlight[l] and try(c, "del:" .. l, server[l]) then
+            enqueue("del", l, server[l])
+        end
+    end
+
+    -- Wanted names not on the list: add them. Already there: the player's own, left alone.
     for l, name in pairs(want) do
-        if server[l] then
-            if wrote[l] and not c.linked[l] then summary.added = summary.added + 1 end
-            wrote[l] = nil
-            c.linked[l] = server[l]
-        elseif not inFlight[l] then
-            local tries = c.tries[l]
-            if not (tries and tries.n >= Mirror.MAX_TRIES) then
-                c.tries[l] = { name = name, n = (tries and tries.n or 0) + 1 }
-                enqueue("add", l, name)
-            end
+        if not server[l] and not inFlight[l] and try(c, "add:" .. l, name) then
+            enqueue("add", l, name)
         end
     end
-    -- A try that's no longer wanted is forgotten.
-    for l in pairs(c.tries) do if not want[l] then c.tries[l] = nil end end
 
-    if #queue > 0 then
-        pump()
-    else
-        flushSummary()
+    -- Tries for names no longer in question are forgotten.
+    for key in pairs(c.tries) do
+        local op, l = key:match("^(%a+):(.*)$")
+        if not op or (op == "add" and (server[l] or not want[l])) or (op == "del" and not server[l]) then
+            c.tries[key] = nil
+        end
     end
+
+    if #queue > 0 then pump() else flushSummary() end
 end
 
--- Names GlassChat couldn't add here (for /gchat ignores).
+-- Compare and act. Runs on IGNORELIST_UPDATE, once ready, after writes and commands.
+function Mirror.Check(why) guarded(why or "check", function() check(why) end) end
+
+-- /gchat unignore on this character: also off this character's list, if
+-- it's there, linked or not (an explicit request, here).
+function Mirror.UnignoreHere(name)
+    if not (Spam.db.mirror and canRun()) then return end
+    local server = Mirror.ReadServer()
+    local l = name:lower()
+    if server and server[l] and not inFlight[l] then
+        charDB().linked[l] = server[l]   -- so the check removes it
+    end
+    Mirror.Check("unignore")
+end
+
+-- Names GlassChat couldn't add or remove here (for /gchat ignores).
 function Mirror.Failed()
     local out = {}
     if not Spam.charDB then return out end
-    for l, e in pairs(charDB().tries) do
-        if e.n >= Mirror.MAX_TRIES then out[l] = e.name end
+    for key, e in pairs(charDB().tries) do
+        if type(e) == "table" and e.n >= Mirror.MAX_TRIES then out[key] = e.name end
     end
     return out
 end
 
--- Hide Blizzard's own line about a write in flight (matched by its name).
+-- Blizzard's own lines about a write in flight. With its strings available,
+-- only those exact lines for that name; else lines naming it. Lines that
+-- name no one (list full, not found) are hidden only within QUIET s.
+local function blizzardLines(name)
+    local out = {}
+    for _, key in ipairs({ "ERR_IGNORE_ADDED_S", "ERR_IGNORE_REMOVED_S", "ERR_IGNORE_ALREADY_S" }) do
+        local fmt = rawget(_G, key)
+        if type(fmt) == "string" and not API.IsSecret(fmt) then out[#out + 1] = fmt:format(name) end
+    end
+    for _, key in ipairs({ "ERR_IGNORE_FULL", "ERR_IGNORE_NOT_FOUND", "ERR_IGNORE_SELF", "ERR_IGNORE_AMBIGUOUS" }) do
+        local s = rawget(_G, key)
+        if type(s) == "string" and not API.IsSecret(s) then out[#out + 1] = s end
+    end
+    return out
+end
+
 function Mirror.SystemFilter(_, _, text)
     if API.IsSecret(text) or type(text) ~= "string" or not next(inFlight) then return false end
     local t, lower = GetTime(), text:lower()
-    for l, at in pairs(inFlight) do
-        if t - at < Mirror.WRITE_WAIT and lower:find(l, 1, true) then return true end
+    for l, w in pairs(inFlight) do
+        if t - w.at < Mirror.QUIET then
+            local exact = blizzardLines(l)
+            if #exact > 0 then
+                for _, s in ipairs(exact) do if s:lower() == lower then return true end end
+            elseif lower:find(l, 1, true) then
+                return true
+            end
+        end
     end
     return false
 end
@@ -218,13 +281,15 @@ function Mirror.Start()
     f:SetScript("OnEvent", function(_, event)
         if event == "PLAYER_LOGIN" then
             loggedIn = true
-            schedule(Mirror.READY_DELAY, function()
-                ready = true
-                Mirror.Check("ready")
-            end)
+            if C_Timer and C_Timer.After then
+                C_Timer.After(Mirror.READY_DELAY, function()
+                    ready = true
+                    Mirror.Check("ready")
+                end)
+            end
         elseif event == "IGNORELIST_UPDATE" then
             if not loggedIn then return end
-            sawUpdate, ready = true, true
+            ready = true
             Mirror.Check("update")
         end
     end)
@@ -233,8 +298,8 @@ end
 
 Mirror._test = {
     reset = function()
-        ready, sawUpdate, loggedIn, busy = false, false, false, false
-        queue, inFlight, wrote = {}, {}, {}
+        ready, loggedIn, busy, warnedMass = false, false, false, false
+        queue, inFlight = {}, {}
         summary = { added = 0, removed = 0, unignored = {} }
     end,
     inFlight = function() return inFlight end,

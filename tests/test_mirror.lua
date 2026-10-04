@@ -21,7 +21,7 @@ end
 
 -- The server list: AddIgnore / DelIgnore change it and fire IGNORELIST_UPDATE.
 WoW.ignores = {}
-local refuse, writes = {}, {}
+local refuse, refuseDel, writes = {}, {}, {}
 local function serverHas(name)
     for _, n in ipairs(WoW.ignores) do if n == name then return true end end
     return false
@@ -35,6 +35,7 @@ C_FriendList.AddIgnore = function(name)
 end
 C_FriendList.DelIgnore = function(name)
     writes[#writes + 1] = "del " .. name
+    if refuseDel[name] then return false end
     for i, n in ipairs(WoW.ignores) do
         if n == name then table.remove(WoW.ignores, i); WoW.fire("IGNORELIST_UPDATE"); return true end
     end
@@ -61,7 +62,9 @@ local db = {
 }
 db.ignore["Player-1-ME"] = { name = "Karuzo Elegia" }   -- and one for this character
 db.ignore["Player-1-ALT2"] = { name = "Alt Two" }       -- your alt by GUID only
-WoW.ignores = { "Blizzard Only" }
+db.ignore["Player-1-AT"] = { name = "Already There" }   -- also on Blizzard's list already
+db.pending["broken"] = { note = "no name" }               -- a corrupt saved entry
+WoW.ignores = { "Blizzard Only", "Already There" }
 local GC = loadAddon({ spamDB = db })
 local Spam, Mirror = GC.Spam, GC.SpamMirror
 local c = GlassChatSpamIgnoreCharDB
@@ -81,16 +84,25 @@ check(not serverHas("Karuzo Elegia"), "nor this character")
 check(serverHas("Blizzard Only"), "a name only on Blizzard's list is left alone")
 check(c.linked["annoying person"] and c.linked["future pest"], "the names added are linked")
 check(c.linked["blizzard only"] == nil, "the Blizzard-only one isn't")
+check(c.linked["already there"] == nil, "nor a wanted name that was already there (the player's own)")
+check(db.pending["broken"] == nil, "a corrupt saved entry is dropped on load")
 check(chatHas("added 4"), "one summary line")
 
 -- Blizzard's own "is now being ignored" lines are hidden while the write is in flight.
 writes = {}
 SlashCmdList.GLASSCHAT("ignore Future Pest")   -- already there: no write
 eq(#writes, 0, "an entry already on the list isn't written again")
-Mirror._test.inFlight()["new pest"] = WoW.now
+Mirror._test.inFlight()["new pest"] = { op = "add", at = WoW.now }
 check(Mirror.SystemFilter(nil, "CHAT_MSG_SYSTEM", "New Pest is now being ignored."), "Blizzard's line for our write is hidden")
 check(not Mirror.SystemFilter(nil, "CHAT_MSG_SYSTEM", "Someone has come online."), "other system lines aren't")
 check(not Mirror.SystemFilter(nil, "CHAT_MSG_SYSTEM", WoW.Secret("x")), "a secret line passes")
+-- With Blizzard's own strings: only those exact lines, not others naming them.
+rawset(_G, "ERR_IGNORE_ADDED_S", "%s is now being ignored.")
+check(Mirror.SystemFilter(nil, "CHAT_MSG_SYSTEM", "New Pest is now being ignored."), "the exact line is hidden")
+check(not Mirror.SystemFilter(nil, "CHAT_MSG_SYSTEM", "New Pest has come online."), "another line naming them isn't")
+rawset(_G, "ERR_IGNORE_ADDED_S", nil)
+advance(Mirror.QUIET)
+check(not Mirror.SystemFilter(nil, "CHAT_MSG_SYSTEM", "New Pest is now being ignored."), "and only for a few seconds")
 Mirror._test.inFlight()["new pest"] = nil
 
 -- Removed in Blizzard's UI: an unignore everywhere, never added back.
@@ -106,6 +118,17 @@ SlashCmdList.GLASSCHAT("unignore Annoying Person")
 advance(60)
 check(not serverHas("Annoying Person"), "/gchat unignore removes the linked name from Blizzard's list")
 check(c.linked["annoying person"] == nil, "and unlinks it")
+
+-- A name that was already on Blizzard's list: another character's unignore
+-- leaves it alone; an unignore on this character removes it here.
+db.ignore["Player-1-AT"] = nil
+Mirror.Check("test")
+advance(60)
+check(serverHas("Already There"), "an unignore elsewhere leaves the player's own Blizzard entry alone")
+db.ignore["Player-1-AT"] = { name = "Already There" }
+SlashCmdList.GLASSCHAT("unignore Already There")
+advance(60)
+check(not serverHas("Already There"), "/gchat unignore on this character takes it off here")
 
 -- Another character's unignore reaches this one at its next login.
 table.insert(WoW.ignores, "Gone Elsewhere")
@@ -130,6 +153,56 @@ table.insert(WoW.ignores, "Kept Ignored")
 WoW.fire("IGNORELIST_UPDATE")
 advance(60)
 check(db.ignore["Player-1-K"] ~= nil and serverHas("Kept Ignored"), "and once it arrives, all is in step")
+
+-- A bad read changes nothing: an unreadable entry, or many linked names gone at once.
+for _, n in ipairs({ "M One", "M Two", "M Three", "M Four", "M Five" }) do
+    db.ignore["Player-1-" .. n] = { name = n }
+end
+Mirror.Check("test")
+advance(60)
+check(serverHas("M Five") and c.linked["m five"], "five more added and linked")
+local realGet = C_FriendList.GetIgnoreName
+C_FriendList.GetIgnoreName = function(i) if WoW.ignores[i] == "M One" then return nil end return realGet(i) end
+WoW.fire("IGNORELIST_UPDATE")
+C_FriendList.GetIgnoreName = realGet
+check(db.ignore["Player-1-M One"] and c.linked["m one"], "an unreadable entry (a linked one): no one unignored")
+local keep = WoW.ignores
+local short = {}
+for _, n in ipairs(keep) do if not n:find("^M ") then short[#short + 1] = n end end
+WoW.ignores = short
+newChat()
+WoW.fire("IGNORELIST_UPDATE")
+local still = 0
+for _, n in ipairs({ "M One", "M Two", "M Three", "M Four", "M Five" }) do
+    if db.ignore["Player-1-" .. n] then still = still + 1 end
+end
+eq(still, 5, "five linked names gone at once: no one unignored")
+check(chatHas("not syncing until it reads back fully"), "and that's said")
+WoW.ignores = keep
+WoW.fire("IGNORELIST_UPDATE")
+advance(60)
+
+-- A refused delete is kept linked and bounded, never forgotten silently.
+refuseDel["M One"] = true
+db.ignore["Player-1-M One"] = nil
+writes = {}
+for _ = 1, Mirror.MAX_TRIES + 1 do
+    Mirror._test.reset()
+    WoW.fire("PLAYER_LOGIN")
+    advance(120)
+end
+local dels = 0
+for _, w in ipairs(writes) do if w == "del M One" then dels = dels + 1 end end
+eq(dels, Mirror.MAX_TRIES, "a refused delete is tried MAX_TRIES times")
+check(c.linked["m one"], "and stays linked")
+newChat()
+SlashCmdList.GLASSCHAT("ignores")
+check(chatHas("M One: couldn't be removed"), "/gchat ignores reports it")
+
+-- /gchat ignore mirror only takes on|off: anything else is a name.
+SlashCmdList.GLASSCHAT("ignore mirror smith")
+check(db.pending["mirror smith"] ~= nil, "'/gchat ignore mirror smith' ignores Mirror Smith")
+db.pending["mirror smith"] = nil
 
 -- A refused add is bounded: MAX_TRIES across logins, then reported, never dropped.
 refuse["Full Up"] = true

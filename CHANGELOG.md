@@ -14,8 +14,9 @@
     `/gchat ignores`, and `/gchat ignore import` for this character's Blizzard list. It covers
     chat and whispers, in guild and group too, and never ignores your own characters.
   - **Blizzard's ignore list kept in step** on each character, so ignored players can't invite
-    or duel you either (`/gchat ignore mirror off` to stop). Removing someone in Blizzard's
-    ignore list unignores them everywhere. Names you only put on Blizzard's list are left alone.
+    or duel you either (`/gchat ignore mirror off` to stop). Removing someone GlassChat added
+    from Blizzard's ignore list unignores them everywhere. Names you put on Blizzard's list
+    yourself are left alone.
   - **What was hidden:** `/gchat spam log`, or an optional tab-strip icon (`/gchat spam icon on`).
 - **Timestamps** (off by default): `/gchat stamps on` puts [HH:MM:SS] on every line, addon output
   and system lines included. It uses Blizzard's own chat timestamps, and turning it off gives
