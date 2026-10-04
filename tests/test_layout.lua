@@ -1,0 +1,179 @@
+-- M2: one chat layout for every character. Saved on one, offered once and
+-- applied on another through Blizzard's own setters; the main window's
+-- place is never touched; nothing is joined.
+dofile("tests/wow_stubs.lua")
+dofile("tests/harness.lua")
+
+local GC = loadAddon({ windows = 10 })   -- the client has all ten
+local Layout = GC.Layout
+
+-- Character A: General (say, guild; General and Trade), Combat Log, and a
+-- Whispers tab docked third; a floating window 4.
+WoW.chatWindows[1] = { name = "General", size = 18, r = 0, g = 0, b = 0, a = 0.4, shown = true, locked = true,
+    docked = 1, uninteractable = false, messages = { "SAY", "GUILD" }, channels = { "General", "Trade" },
+    point = "BOTTOMLEFT", x = 0.1, y = 0.1, width = 400, height = 200 }
+WoW.chatWindows[3] = { name = "Whispers", size = 16, r = 0, g = 0, b = 0, a = 0.4, shown = true, locked = false,
+    docked = 3, uninteractable = false, messages = { "WHISPER", "BN_WHISPER" }, channels = {} }
+WoW.chatWindows[4] = { name = "Loot", size = 0, r = 0, g = 0, b = 0, a = 0.2, shown = true, locked = false,
+    docked = nil, uninteractable = false, messages = { "LOOT" }, channels = {},
+    point = "CENTER", x = 0.2, y = -0.1, width = 300, height = 150 }
+WoW.joined = { General = true, Trade = true }
+
+Layout.Save()
+local saved = GlassChatDB.layout
+check(saved and saved.windows[3].name == "Whispers", "the layout is saved account-wide")
+eq(table.concat(saved.windows[1].messages, ","), "SAY,GUILD", "with each window's chat types")
+eq(table.concat(saved.windows[1].channels, ","), "General,Trade", "and channel names (zone IDs dropped)")
+eq(saved.windows[1].point, nil, "the main window's place is never saved (Edit Mode owns it)")
+eq(saved.windows[4].point, "CENTER", "a floating window's place is")
+eq(saved.from, "Karuzo (Doomhowl)", "it says where it came from")
+eq(saved.windows[4].fontSize, 14, "a 'default size' 0 is saved as the real default, never 0")
+GlassChatCharDB.layoutAnswered = nil   -- the GUID alone must keep it from asking,
+WoW.chatWindows[3].shown = false        -- even after its windows changed since
+check(not Layout.Offer(), "the character that saved it isn't offered it")
+WoW.chatWindows[3].shown = true
+
+-- Character B: a new character with the stock windows, and only General joined.
+WoW.chatWindows = {}
+WoW.playerGUID, WoW.playerName = "Player-1-BBB", "Kaleid"
+WoW.joined = { General = true }
+GlassChatCharDB = {}
+GC.charDB = GlassChatCharDB
+newChat()
+check(Layout.Offer(), "another character is offered the layout")
+local offer = newChat()[1] or ""
+check(offer:find("|Haddon:GlassChat:layout:apply|h", 1, true), "as a clickable [Apply it] link")
+check(offer:find("|Haddon:GlassChat:layout:no|h", 1, true), "and a [Not here] one")
+
+-- Even a saved place for the main window (an older save, or edited by
+-- hand) is never applied: Edit Mode owns it.
+saved.windows[1].point, saved.windows[1].x, saved.windows[1].y = "TOP", 0, 0
+saved.windows[1].width, saved.windows[1].height = 900, 900
+
+-- The click, through EventRegistry "SetItemRef" (no hook).
+WoW.layoutCalls, WoW.windowUpdates = {}, {}
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:layout:apply")
+eq(WoW.window(3).name, "Whispers", "the Whispers tab is set up")
+eq(WoW.window(3).docked, 3, "docked third")
+eq(table.concat(WoW.window(3).messages, ","), "WHISPER,BN_WHISPER", "with its chat types")
+eq(select(2, ChatFrame1:GetFont()), 18, "General's font size is applied")
+eq(table.concat(WoW.window(1).channels, ","), "General", "a joined channel is added, Trade (not joined) isn't")
+check(chatHas("1 channel%(s%) skipped"), "Trade (not joined here) is skipped and said so")
+eq(WoW.window(4).point, "CENTER", "the floating window gets its place")
+local touchedMain = false
+for _, c in ipairs(WoW.layoutCalls) do if c == "pos1" or c == "dims1" then touchedMain = true end end
+check(not touchedMain, "the main window's place and size are left to Edit Mode")
+eq(#WoW.windowUpdates, GC.Chat.MaxWindows() - 1, "Blizzard's FloatingChatFrame_Update applies every window but the main one")
+for _, i in ipairs(WoW.windowUpdates) do check(i ~= 1, "never on the main window (Edit Mode's)") end
+for _, c in ipairs(WoW.layoutCalls) do
+    check(c ~= "locked1" and c ~= "docked1" and c ~= "shown1", "the main window's lock, dock and shown state are left alone: " .. c)
+end
+check((WoW.dockSaves or 0) >= 1, "the real dock order is recorded afterwards (FCF_SaveDock)")
+eq(GlassChatCharDB.layoutAnswered, saved.id, "and the character remembers which save it answered")
+eq(WoW.shownNames[1], "General", "the main window's tab shows its saved name (not only saved)")
+check(WoW.shownAlpha and WoW.shownAlpha[1] == 1 and WoW.shownAlpha[2] == 0.4, "and its opacity is shown")
+check(not Layout.Offer(), "so it isn't offered again")
+
+-- "Not here" is remembered too.
+GlassChatCharDB = {}
+GC.charDB = GlassChatCharDB
+WoW.chatWindows = {}
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:layout:no")
+eq(GlassChatCharDB.layoutAnswered, saved.id, "[Not here] is remembered")
+check(not Layout.Offer(), "and not asked again")
+
+-- A NEW save is offered again, even to a character that answered the old one.
+local oldId = saved.id
+WoW.playerGUID = "Player-1-AAA"   -- back on the saver, who changes a tab and saves
+WoW.chatWindows = {}
+WoW.chatWindows[3] = { name = "Whispers2", size = 14, shown = true, docked = 3, messages = { "WHISPER" }, channels = {} }
+GlassChatCharDB.layoutAnswered = nil
+Layout.Save()
+saved = GlassChatDB.layout
+check(saved.id ~= oldId, "a new save gets a new id")
+WoW.playerGUID = "Player-1-BBB"
+GlassChatCharDB = { layoutAnswered = oldId }
+GC.charDB = GlassChatCharDB
+WoW.chatWindows = {}
+check(Layout.Offer(), "a character that answered the old save is offered the new one")
+
+-- Forget + save never reuses an id another character already answered.
+WoW.playerGUID = "Player-1-AAA"
+local before = GlassChatDB.layout.id
+Layout.Forget()
+WoW.chatWindows = {}
+WoW.chatWindows[3] = { name = "Whispers", size = 14, shown = true, docked = 3, messages = { "WHISPER" }, channels = {} }
+Layout.Save()
+check(GlassChatDB.layout.id > before, "a save after forget gets a fresh id")
+WoW.playerGUID = "Player-1-BBB"
+GlassChatCharDB = { layoutAnswered = before }
+GC.charDB = GlassChatCharDB
+WoW.chatWindows = {}
+check(Layout.Offer(), "so a character that answered the forgotten save is offered the new one")
+saved = GlassChatDB.layout
+
+-- A character that already matches isn't asked.
+GlassChatCharDB = {}
+GC.charDB = GlassChatCharDB
+for i, w in pairs(saved.windows) do
+    WoW.chatWindows[i] = { name = w.name, size = w.fontSize, r = w.r, g = w.g, b = w.b, a = w.a, shown = w.shown,
+        locked = w.locked, docked = w.docked, uninteractable = w.uninteractable, messages = { unpack(w.messages) }, channels = {} }
+end
+check(not Layout.Offer(), "a character whose windows already match isn't asked")
+-- A closed window's leftover name doesn't count, but an open one's channels do.
+WoW.chatWindows[7] = { name = "Old closed tab", size = 14, shown = false, docked = nil, messages = {}, channels = {} }
+check(not Layout.Offer(), "a closed window's name never makes a mismatch")
+for _, w in pairs(saved.windows) do
+    if w.shown and #w.channels == 0 then w.channels = { "General" }; break end
+end
+check(Layout.Offer(), "a different channel list on an open window does")
+
+-- A floating window's size counts too.
+for i, w in pairs(saved.windows) do
+    WoW.chatWindows[i] = { name = w.name, size = w.fontSize, r = w.r, g = w.g, b = w.b, a = w.a, shown = w.shown,
+        locked = w.locked, docked = w.docked, uninteractable = w.uninteractable, messages = { unpack(w.messages) },
+        channels = { unpack(w.channels) }, width = w.width, height = w.height, point = w.point, x = w.x, y = w.y }
+end
+WoW.chatWindows[9] = { name = "Float", size = 14, shown = true, docked = nil, messages = {}, channels = {},
+    width = 400, height = 200, point = "CENTER", x = 0, y = 0 }
+saved.windows[9] = Layout.CaptureWindow(9)
+check(not Layout.Offer(), "matching windows, floating one included: not asked")
+WoW.chatWindows[9].width, WoW.chatWindows[9].height = 250, 120
+check(Layout.Offer(), "a floating window of another size: asked")
+WoW.chatWindows[9].width, WoW.chatWindows[9].height = 400, 200
+check(not Layout.Offer(), "back to the saved size: matching again")
+-- Every other applied setting counts too (Codex follow-up on #10).
+local function differs(field, value, label)
+    local old = WoW.chatWindows[9][field]
+    WoW.chatWindows[9][field] = value
+    check(Layout.Offer(), label)
+    WoW.chatWindows[9][field] = old
+end
+differs("a", 0.9, "another opacity: asked")
+differs("r", 0.5, "another colour: asked")
+differs("locked", true, "another lock state: asked")
+differs("uninteractable", true, "another click-through setting: asked")
+check(not Layout.Offer(), "and identical again: not asked")
+-- The main window's lock isn't applied, so it doesn't count.
+local mainLocked = WoW.chatWindows[1].locked
+WoW.chatWindows[1].locked = not mainLocked
+check(not Layout.Offer(), "the main window's lock (Edit Mode's) doesn't count")
+WoW.chatWindows[1].locked = mainLocked
+
+-- Never in combat; a secret window name is never saved.
+WoW.combat = true
+check(not Layout.Apply(), "no layout changes in combat")
+WoW.combat = false
+WoW.MarkSecret("Secret Tab Name")
+WoW.chatWindows[5] = { name = "Secret Tab Name", size = 14, shown = false, messages = {}, channels = {} }
+Layout.Save()
+eq(GlassChatDB.layout.windows[5].name, nil, "a secret window name is never saved")
+
+-- /gchat layout.
+SlashCmdList.GLASSCHAT("layout forget")
+eq(GlassChatDB.layout, nil, "/gchat layout forget drops it")
+SlashCmdList.GLASSCHAT("layout apply")
+check(chatHas("no chat layout saved yet"), "apply with nothing saved says how to save one")
+
+eq(next(GC.failures), nil, "nothing failed")
+done("test_layout")

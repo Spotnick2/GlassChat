@@ -145,13 +145,40 @@ function Copy.Open(f)
     win.edit:HighlightText()
 end
 
--- The Copy button: a grey label at the right end of each window's tab strip,
+-- The Copy button: a grey copy icon at the right end of each window's tab strip,
 -- on its glass panel (so it shows and hides with it: glass off is the stock
 -- look, and /gchat copy still works). Its own frame is raised to MEDIUM, the
 -- tabs' strata, and the dock stops Skin.DOCK_RESERVE px short of it, so no
 -- tab or overflow arrow sits under it.
-Copy.BUTTON_W, Copy.BUTTON_H = 44, 18
+Copy.BUTTON_W, Copy.BUTTON_H = 22, 20
+Copy.PAGE_W, Copy.PAGE_H, Copy.PAGE_OFFSET = 9, 11, 4
 local buttons = setmetatable({}, { __mode = "k" })   -- chat frame -> button
+
+-- The copy icon (owner: "a cut and paste icon"): two overlapping page
+-- outlines drawn from 1 px lines, no art file, so it's crisp at any UI
+-- scale and recolours with the tab palette. The front page is filled with
+-- the panel's charcoal so the back one passes behind it.
+-- One draw layer, increasing sublevels: back outline (1), front fill (2),
+-- front outline (3), so the front sheet covers the back one's lines (Codex,
+-- #12: an ARTWORK fill drew under both OVERLAY outlines).
+local function page(b, x, y, lines, sublevel)
+    local W, H = Copy.PAGE_W, Copy.PAGE_H
+    local function line(px, py, w, h)
+        local t = b:CreateTexture(nil, "OVERLAY", nil, sublevel)
+        t:SetPoint("TOPLEFT", b, "CENTER", x + px, y - py)
+        t:SetSize(w, h)
+        lines[#lines + 1] = t
+        return t
+    end
+    line(0, 0, W, 1)        -- top
+    line(0, H - 1, W, 1)    -- bottom
+    line(0, 0, 1, H)        -- left
+    line(W - 1, 0, 1, H)    -- right
+end
+
+local function paintIcon(icon, c)
+    for _, t in ipairs(icon.lines) do t:SetColorTexture(c[1], c[2], c[3], 1) end
+end
 
 function Copy.Button(f)
     if buttons[f] then return end
@@ -160,15 +187,36 @@ function Copy.Button(f)
     local b = CreateFrame("Button", nil, p.panel)
     b:SetFrameStrata("MEDIUM")
     b:SetSize(Copy.BUTTON_W, Copy.BUTTON_H)
-    b:SetPoint("TOPRIGHT", p.panel, "TOPRIGHT", -12, -10)
-    local label = Glass.Font(b, 13, "CENTER")
-    label:SetPoint("CENTER", b, "CENTER", 0, 0)
-    label:SetText("Copy")
+    b:SetPoint("TOPRIGHT", p.panel, "TOPRIGHT", -14, -9)
+    local o, W, H = Copy.PAGE_OFFSET, Copy.PAGE_W, Copy.PAGE_H
+    local icon = { lines = {} }
+    -- Back page up-left, front page down-right over it.
+    local left, top = -(W + o) / 2, (H + o) / 2
+    page(b, left, top, icon.lines, 1)
+    local fill = b:CreateTexture(nil, "OVERLAY", nil, 2)
+    fill:SetPoint("TOPLEFT", b, "CENTER", left + o, top - o)
+    fill:SetSize(W, H)
+    fill:SetColorTexture(GC.Skin.TINT[1], GC.Skin.TINT[2], GC.Skin.TINT[3], 1)
+    icon.fill = fill
+    page(b, left + o, top - o, icon.lines, 3)
     local grey, gold = GC.Skin.TAB_GREY, GC.Skin.TAB_GOLD
-    label:SetTextColor(grey[1], grey[2], grey[3])
-    b:SetScript("OnEnter", function() label:SetTextColor(gold[1], gold[2], gold[3]) end)
-    b:SetScript("OnLeave", function() label:SetTextColor(grey[1], grey[2], grey[3]) end)
+    paintIcon(icon, grey)
+    b:SetScript("OnEnter", function(self)
+        paintIcon(icon, gold)
+        local tip = rawget(_G, "GameTooltip")
+        if tip then
+            tip:SetOwner(self, "ANCHOR_TOP")
+            tip:SetText("Copy this window")
+            tip:Show()
+        end
+    end)
+    b:SetScript("OnLeave", function()
+        paintIcon(icon, grey)
+        local tip = rawget(_G, "GameTooltip")
+        if tip then tip:Hide() end
+    end)
     b:SetScript("OnClick", function() Copy.Open(f) end)
+    b.icon = icon   -- our own frame: a field on it is fine
     buttons[f] = b
 end
 

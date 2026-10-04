@@ -53,7 +53,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 ## Layout
 
 TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `Buttons.lua` → `GlassChat.lua`.
+`Copy.lua` → `Buttons.lua` → `Layout.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -158,6 +158,37 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   - The chat-menu bubble (frame baked into one texture) and the friends button (animated
     atlases) wait for an in-game atlas check.
   - Run after every scan through `Chat.AfterScan`.
+- **`Layout.lua`** (M2, #9): one chat layout for every character. Chat windows are saved per
+  character (measured).
+  - `/gchat layout save` records each window through `FCF_GetChatWindowInfo`, which maps the
+    client's "default size" 0 to the real default (a raw 0 sets an invisible font). It also records
+    `Messages` / `Channels` (names only) and, except for window 1, the saved size and place. All of
+    it goes into `GlassChatDB.layout`: account-wide, with the saver's GUID and a new `id` per save.
+    Plain values only, never a secret.
+  - **Applying** (Prat Memory's recipe, trimmed): the `SetChatWindow*` setters, the font through
+    `FCF_SetChatWindowFontSize`, then Blizzard's `FloatingChatFrame_Update(i, 1)` per window
+    (it names, colours, docks, shows or closes), then chat types and channels through the
+    window's own methods, then `FCF_DockUpdate`.
+  - **The main window (an Edit Mode system) gets only its name, font, colour and chat contents**:
+    no `FloatingChatFrame_Update`, lock, dock or shown state, and never its place or size (review of
+    #10; Prat warns that this recipe taints Edit Mode). Its name, colour and opacity are shown
+    through `FCF_SetWindowName` / `Color` / `Alpha` with doNotSave (Codex, #10).
+  - Save ids come from an account-level counter (`GlassChatDB.layoutRevision`), so forget + save
+    never reuses an id. `Matches` compares a floating window's size and place too.
+  - Tabs that are already docked keep their order: `FCF_DockFrame` / `FCFDock_AddChatFrame`
+    return early for them, and reordering would mean undocking. `FCF_SaveDock` records the real
+    order afterwards.
+  - A channel is added only if `GetChannelName(name) > 0`. `AddChannel`'s own return is 0,
+    which is truthy, for a channel the character isn't in. Nothing is joined, and the skips are
+    counted and reported. Channel names are the client's own strings, replayed on the same
+    client, never compared to English.
+  - Never in combat. Each window runs in its own `pcall`.
+  - **The offer:** once per save and character. `GlassChatCharDB.layoutAnswered` holds the save's
+    `id`, and an apply only counts when no window failed. It runs from the boot frame's
+    first-login branch, after `OFFER_DELAY`, as a clickable `|Haddon:GlassChat:layout:apply|h` /
+    `:no` line through `EventRegistry "SetItemRef"`. It's never offered to the saver (GUID), nor
+    to a character that already matches. Closed windows don't count towards a match, while an open
+    window's font and channels do.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It

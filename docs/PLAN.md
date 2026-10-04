@@ -1,6 +1,6 @@
 # GlassChat plan
 
-Status: M0 merged (#2); **M1 in progress** (#3).
+Status: M0 (#2), M1 (#4), copy (#6) and glass buttons (#8) merged; **M2 in progress** (#9).
 Probe items are numbered as in `Tools/ChatProbe` (`/cprobe help`).
 
 ## What the owner wants

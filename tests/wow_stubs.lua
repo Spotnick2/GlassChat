@@ -390,14 +390,82 @@ function FCFDock_GetChatFrames(dock) return dock._docked end
 function FCFDock_GetSelectedWindow(dock) return dock._selected or ChatFrame1 end
 -- Window names by index (GetChatWindowInfo's first return).
 WoW.windowNames = { "General", "Combat Log", "Whispers" }
-function GetChatWindowInfo(i) return WoW.windowNames[i] or "", 14, 1, 1, 1, 1, true, false, true, false end
+-- Chat-window settings as the client keeps them per character
+-- (GetChatWindowInfo's 10 returns, messages, channels, saved size and place).
+-- WoW.chatWindows[i] overrides the defaults built from WoW.windowNames.
+WoW.chatWindows = {}
+function WoW.window(i)
+    local w = WoW.chatWindows[i]
+    if not w then
+        w = { name = WoW.windowNames[i] or "", size = 14, r = 0, g = 0, b = 0, a = 0.25,
+              shown = i <= 3, locked = false, docked = i <= 3 and i or nil, uninteractable = false,
+              messages = {}, channels = {} }
+        WoW.chatWindows[i] = w
+    end
+    return w
+end
+function GetChatWindowInfo(i)
+    local w = WoW.window(i)
+    return w.name, w.size, w.r, w.g, w.b, w.a, w.shown, w.locked, w.docked, w.uninteractable
+end
+function GetChatWindowMessages(i) return unpack(WoW.window(i).messages) end
+function GetChatWindowChannels(i)
+    local out = {}
+    for n, c in ipairs(WoW.window(i).channels) do out[#out + 1] = c; out[#out + 1] = n end
+    return unpack(out)
+end
+function GetChatWindowSavedDimensions(i) local w = WoW.window(i); return w.width, w.height end
+function GetChatWindowSavedPosition(i) local w = WoW.window(i); return w.point, w.x, w.y end
+WoW.layoutCalls = {}
+local function setter(field) return function(i, v) WoW.window(i)[field] = v; table.insert(WoW.layoutCalls, field .. i) end end
+SetChatWindowName, SetChatWindowAlpha = setter("name"), setter("a")
+SetChatWindowDocked, SetChatWindowLocked = setter("docked"), setter("locked")
+SetChatWindowUninteractable, SetChatWindowShown = setter("uninteractable"), setter("shown")
+function SetChatWindowColor(i, r, g, b) local w = WoW.window(i); w.r, w.g, w.b = r, g, b end
+function SetChatWindowSavedDimensions(i, w, h) local c = WoW.window(i); c.width, c.height = w, h; table.insert(WoW.layoutCalls, "dims" .. i) end
+function SetChatWindowSavedPosition(i, p, x, y) local c = WoW.window(i); c.point, c.x, c.y = p, x, y; table.insert(WoW.layoutCalls, "pos" .. i) end
+WoW.windowUpdates = {}
+function FloatingChatFrame_Update(i) table.insert(WoW.windowUpdates, i) end
+function FCF_DockUpdate() WoW.dockUpdates = (WoW.dockUpdates or 0) + 1 end
+function FCF_SaveDock() WoW.dockSaves = (WoW.dockSaves or 0) + 1 end
+-- The per-window display helpers (FloatingChatFrame.lua:1088-1158), recorded.
+WoW.shownNames = {}
+function FCF_SetWindowName(frame, name) WoW.shownNames[frame:GetID()] = name end
+function FCF_SetWindowColor(frame, r, g, b) WoW.shownColor = { frame:GetID(), r, g, b } end
+function FCF_SetWindowAlpha(frame, a) WoW.shownAlpha = { frame:GetID(), a } end
+-- The window's own methods (ChatFrameMixin, ChatFrame.lua:69-233); a channel
+-- adds only if the character is in it (WoW.joined).
+WoW.joined = {}
+function Methods.RemoveAllMessageGroups(f) WoW.window(f._id).messages = {} end
+function Methods.AddMessageGroup(f, g) table.insert(WoW.window(f._id).messages, g) end
+function Methods.RemoveAllChannels(f) WoW.window(f._id).channels = {} end
+-- Like the client (ChatFrame.lua:149-167): the channel is added whether or
+-- not the character is in it, and the return is GetChannelName's id, 0 (a
+-- truthy value) for one it isn't in.
+function GetChannelName(c) return WoW.joined[c] and 1 or 0 end
+function Methods.AddChannel(f, c)
+    table.insert(WoW.window(f._id).channels, c)
+    return GetChannelName(c)
+end
+function Methods.ReceiveAllPrivateMessages(f) end
+-- The player, by GUID; their name and realm.
+WoW.playerGUID = "Player-1-AAA"
+function UnitGUID(unit) return unit == "player" and WoW.playerGUID or nil end
+function UnitName(unit) if unit == "player" then return WoW.playerName or "Karuzo", "Morphisto" end end
+function GetRealmName() return "Doomhowl" end
+-- EventRegistry callbacks, recorded by event.
+WoW.callbacks = {}
+EventRegistry = { RegisterCallback = function(self, event, fn, owner) WoW.callbacks[event] = fn end }
 -- FrameXML's per-window wrapper; temporary windows (id > 10) answer from their tab.
 function FCF_GetChatWindowInfo(i)
     if i > 10 then
         local tab = rawget(_G, "ChatFrame" .. i .. "Tab")
         return tab and tab._tabText or "", 14, 1, 1, 1, 1, true, false, false, false
     end
-    return GetChatWindowInfo(i)
+    -- The client's "default size" 0 becomes the real default (line 557).
+    local name, size, r, g, b, a, shown, locked, docked, unint = GetChatWindowInfo(i)
+    if size == 0 then size = 14 end
+    return name, size, r, g, b, a, shown, locked, docked, unint
 end
 function ScrollingEdit_OnCursorChanged() end
 function ScrollingEdit_OnUpdate() end
@@ -418,6 +486,10 @@ TextToSpeechButton._level = 6
 for _, k in ipairs({ "_normal", "_pushed", "_highlight" }) do TextToSpeechButton[k] = newWidget("Texture", TextToSpeechButton) end
 TextToSpeechButton.Background = newWidget("Texture", TextToSpeechButton)
 rawset(TextToSpeechButton, "UpdateHighlight", function(self) self._highlight._alpha = 1 end)
+-- The shared tooltip (records its owner and text).
+GameTooltip = newWidget("GameTooltip", UIParent, "GameTooltip")
+GameTooltip._shown = false
+function Methods.SetOwner(tt, owner) tt._owner = owner end
 -- FrameXML's list of frames Escape closes.
 UISpecialFrames = {}
 -- The name-suggestion list under the edit box (Blizzard_AutoComplete).
