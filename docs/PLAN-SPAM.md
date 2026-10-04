@@ -235,11 +235,42 @@ syncing"):
 - an old entry on another character would come back;
 - readiness at login isn't guaranteed (`GetIgnoreName` is nullable).
 
-**Mirroring is a later option (S2b)**, worth building only if probe 12 shows the server ignore
-gives something the filter can't (invites, duels). It would need its own reconciliation rules:
-- a server entry we added that later disappears counts as an unignore;
-- writes have a bounded pending state;
-- a write is never retried as if the name were invalid.
+**Mirroring (S2b), built** because probe 12 showed the server ignore blocks invites and duels,
+which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
+(`/gchat ignore mirror on|off`):
+- **Linked names.** Names GlassChat itself added to this character's Blizzard list, kept per
+  character in `GlassChatSpamIgnoreCharDB.linked`. A sync only ever removes linked names. A name
+  that was already on Blizzard's list is the player's own, and is left alone even when it's on
+  the account list too (review of #24). The one exception is explicit: `/gchat unignore` on this
+  character also takes the name off this character's list.
+- **A linked name that leaves Blizzard's list** (removed in Blizzard's UI) **counts as an
+  unignore** on every character, and is never added back.
+- **A linked name no longer on the account list** (`/gchat unignore`, on any character) is
+  removed from this character's list at its next check.
+- **A read must be trusted before anything changes** (review of #24: one bad read must never
+  unignore the whole list). That means:
+  - the list is ready: after an `IGNORELIST_UPDATE` this session, or 20 s after login;
+  - every entry from 1 to `GetNumIgnores()` reads as a plain name;
+  - an empty list with names linked is trusted only once the list is settled: an update 20 s or
+    more after login, or one GlassChat's own write caused. Before that, GlassChat asks for the
+    list (`ShowFriends`) and waits;
+  - no more than 3 linked names vanish at once (with a warning).
+  A distrusted read changes nothing.
+- **Writes are throttled** (one per 0.5 s), with one in flight per name, and **checked**: an add
+  or a removal counts only once the list shows it. Each attempt is a try, and after 3 tries
+  (counted across logins) it's reported in `/gchat ignores` and not retried. A failed add is
+  never taken to mean the name is invalid: the player stays ignored in chat. A failed removal
+  stays linked. Writes in flight are saved per character, so a reload between an add and its
+  check still knows the name is GlassChat's. Turning the mirror off stops the queue.
+- **Never your own characters, nor this one**, whether by GUID or by name.
+- Blizzard's own lines about GlassChat's writes are hidden for 3 s after each write. These are
+  the exact `ERR_IGNORE_*` lines where those strings exist, and lines naming the player
+  otherwise. One summary line replaces them.
+- **Unmeasured, for the in-game check:**
+  - whether `IGNORELIST_UPDATE` fires at login with a non-empty list (the 20 s delay covers it
+    if not);
+  - the wording of Blizzard's add and remove lines (the name match covers any wording);
+  - the list's size limit (a refused add is a bounded try).
 
 ### Between WoW accounts (S3)
 

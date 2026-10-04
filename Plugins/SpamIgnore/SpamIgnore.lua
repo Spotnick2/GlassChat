@@ -9,8 +9,8 @@
 -- and the same in every window that shows a line, so one decision per
 -- (event, lineID) serves every window; senders (arg2) are "First Surname";
 -- Blizzard's ignore list isn't readable before PLAYER_LOGIN.
--- Never: your own characters ignored, a secret read, Blizzard's server
--- list written (that's S2b).
+-- Never: your own characters ignored, a secret read. Blizzard's server list
+-- is kept in step by Mirror.lua (S2b).
 
 GlassChat = GlassChat or {}
 local GC = GlassChat
@@ -31,6 +31,7 @@ local function plainString(v)
     if API.IsSecret(v) or type(v) ~= "string" then return nil end
     return v
 end
+Spam.PlainString = plainString
 local function plainNumber(v)
     if API.IsSecret(v) or type(v) ~= "number" then return nil end
     return v
@@ -48,7 +49,9 @@ Spam.PUBLIC = { CHAT_MSG_CHANNEL = true, CHAT_MSG_SAY = true, CHAT_MSG_YELL = tr
 
 -- icon: the tab-strip icon is opt-in (owner: "disabled by default and I will
 -- turn it on"); the log is always /gchat spam log.
-local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false }
+-- mirror: keep each character's Blizzard ignore list in step (S2b; owner:
+-- "sync the Blizzard ignore list on every account").
+local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true }
 
 function Spam.Load()
     if type(GlassChatSpamIgnoreDB) ~= "table" then GlassChatSpamIgnoreDB = {} end
@@ -59,6 +62,9 @@ function Spam.Load()
     -- Saved entries are checked on load: plain types and lengths only.
     for guid, e in pairs(db.ignore) do
         if type(guid) ~= "string" or type(e) ~= "table" or type(e.name) ~= "string" then db.ignore[guid] = nil end
+    end
+    for l, e in pairs(db.pending) do
+        if type(l) ~= "string" or type(e) ~= "table" or type(e.name) ~= "string" then db.pending[l] = nil end
     end
     local mutes = {}
     for _, m in ipairs(db.mutes) do
@@ -142,6 +148,7 @@ local function ownByName(lname)
     end
     return false
 end
+Spam.IsOwn, Spam.OwnByName = isOwn, ownByName
 
 -- Exempt from heuristics: you, friends, guild, group, Battle.net friends,
 -- the allow list. Each lookup is guarded; an error means "not exempt".
@@ -294,14 +301,11 @@ end
 -- Explicit import of this character's Blizzard list (never before
 -- PLAYER_LOGIN: measured nil at ADDON_LOADED).
 function Spam.Import()
-    local okN, n = pcall(C_FriendList.GetNumIgnores)
-    n = okN and plainNumber(n) or nil
-    if not n then return "Blizzard's ignore list isn't ready yet; try again in a moment" end
+    local list = GC.SpamMirror.ReadServer()
+    if not list then return "Blizzard's ignore list isn't ready yet; try again in a moment" end
     local added, pending, own = 0, 0, 0
-    for i = 1, n do
-        local ok, name = pcall(C_FriendList.GetIgnoreName, i)
-        name = ok and plainString(name) or nil
-        if name then
+    for _, name in pairs(list) do
+        do
             local lname = name:lower()
             local guid = names[lname]
             if (guid and isOwn(guid)) or ownByName(lname) then
@@ -351,6 +355,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
         if ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter then
             for _, e in ipairs(Spam.IGNORE_EVENTS) do ChatFrameUtil.AddMessageEventFilter(e, Spam.Filter) end
         end
+        if GC.SpamMirror then GC.SpamMirror.Start() end
         if GC.SpamUI then GC.SpamUI.Start() end
     elseif event == "PLAYER_LOGIN" then
         Spam.RecordSelf()
