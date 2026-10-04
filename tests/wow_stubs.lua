@@ -593,6 +593,22 @@ TextToSpeechButton._level = 6
 for _, k in ipairs({ "_normal", "_pushed", "_highlight" }) do TextToSpeechButton[k] = newWidget("Texture", TextToSpeechButton) end
 TextToSpeechButton.Background = newWidget("Texture", TextToSpeechButton)
 rawset(TextToSpeechButton, "UpdateHighlight", function(self) self._highlight._alpha = 1 end)
+-- The chat-menu button (FloatingChatFrame.xml:723): file art for normal,
+-- pushed and disabled, the frame baked in.
+function Methods.GetDisabledTexture(b) return b._disabled end
+function Methods.SetAtlas(t, name) t._atlas = name end
+ChatFrameMenuButton = newWidget("Button", UIParent, "ChatFrameMenuButton")
+ChatFrameMenuButton._level = 6
+for _, k in ipairs({ "_normal", "_pushed", "_disabled", "_highlight" }) do ChatFrameMenuButton[k] = newWidget("Texture", ChatFrameMenuButton) end
+-- The friends button (QuickJoinToast.xml:31): its FriendsButton texture, and
+-- Blizzard's press handlers swapping the framed -down/-up art (QuickJoinToast.lua:344-351).
+QuickJoinToastButton = newWidget("Button", UIParent, "QuickJoinToastButton")
+QuickJoinToastButton._level = 4
+for _, k in ipairs({ "_highlight" }) do QuickJoinToastButton[k] = newWidget("Texture", QuickJoinToastButton) end
+QuickJoinToastButton.FriendsButton = newWidget("Texture", QuickJoinToastButton)
+QuickJoinToastButton.FriendsButton._atlas = "quickjoin-button-friendslist-up"
+QuickJoinToastButton._scripts.OnMouseDown = function(self) self.FriendsButton:SetAtlas("quickjoin-button-friendslist-down") end
+QuickJoinToastButton._scripts.OnMouseUp = function(self) self.FriendsButton:SetAtlas("quickjoin-button-friendslist-up") end
 -- The shared tooltip (records its owner and text).
 GameTooltip = newWidget("GameTooltip", UIParent, "GameTooltip")
 GameTooltip._shown = false

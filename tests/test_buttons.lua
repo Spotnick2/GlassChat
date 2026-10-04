@@ -43,5 +43,28 @@ eq(TextToSpeechButton._highlight._alpha, 1, "and the full highlight")
 GC.Settings.SetGlass(true)
 eq(TextToSpeechButton._normal._alpha, 0, "glass on again")
 
+-- #7: the chat menu and the friends button.
+local M, F = ChatFrameMenuButton, QuickJoinToastButton
+check(pills[M] and pills[M].pill:IsShown(), "the chat menu sits on a glass pill")
+eq(M._normal._alpha, 0, "its framed bubble art is invisible")
+eq(M._disabled._alpha, 0, "the disabled art too")
+local parts = GC.Buttons._test.bubbles[M]
+check(parts and #parts == 4, "a drawn bubble instead")
+for _, t in ipairs(parts) do check(t:IsShown() and t._color[2] == GC.Skin.TAB_GOLD[2], "in gold") end
+check(pills[F] and pills[F].pill:IsShown(), "the friends button sits on a pill")
+eq(F.FriendsButton._atlas, "socialqueuing-icon-group", "with the frameless friends symbol (probe 13, #2)")
+F._scripts.OnMouseDown(F)
+eq(F.FriendsButton._atlas, "socialqueuing-icon-group", "and keeps it when pressed (Blizzard's framed -down art replaced after)")
+F._scripts.OnMouseUp(F)
+eq(F.FriendsButton._atlas, "socialqueuing-icon-group", "and released")
+GC.Settings.SetGlass(false)
+eq(M._normal._alpha, 1, "glass off: the chat menu's art comes back")
+for _, t in ipairs(parts) do check(not t:IsShown(), "and the drawn bubble goes") end
+eq(F.FriendsButton._atlas, "quickjoin-button-friendslist-up", "the friends button's stock art comes back")
+check(F.FriendsButton._points[1] and F.FriendsButton._points[1][1] == "ALL", "filling the button again")
+F._scripts.OnMouseDown(F)
+eq(F.FriendsButton._atlas, "quickjoin-button-friendslist-down", "and Blizzard's presses work as before")
+GC.Settings.SetGlass(true)
+
 eq(next(GC.failures), nil, "nothing failed")
 done("test_buttons")
