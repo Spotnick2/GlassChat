@@ -95,6 +95,17 @@ eq(sets, 1, "one rebuild after the pause")
 win.edit.SetText = nil
 win.search:SetText(""); WoW.flushTimers()
 
+-- Export or Select all during the pause uses the search shown (Codex, #28).
+win.search:SetText("scan 2")   -- no flush: the timer hasn't run
+win.export._scripts.OnClick(win.export)
+eq(GC.db.export.search, "scan 2", "export records the search shown")
+eq(#GC.db.export.lines, 1, "and the lines for it, not the previous view's")
+win.search:SetText("scan 1")
+win.select._scripts.OnClick(win.select)
+eq(win.edit:GetText(), "[ASProbe] scan 1: 12 bags", "Select all selects the view for the search shown")
+WoW.flushTimers()
+win.search:SetText(""); WoW.flushTimers()
+
 -- Select all, then a new view: the hint no longer says "Selected".
 win.select._scripts.OnClick(win.select)
 check(win.hint:GetText():find("^Selected"), "Select all says it's selected")

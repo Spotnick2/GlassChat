@@ -154,12 +154,13 @@ local function build()
     search:SetAutoFocus(false)
     search:SetPoint("TOPLEFT", win.hint, "BOTTOMLEFT", 6, -10)
     -- Rebuilt once typing pauses, not per keystroke: the view can be Copy.MAX lines.
-    local typing
     search:HookScript("OnTextChanged", function()
         if win.quiet then return end
         local token = {}
-        typing = token
-        C_Timer.After(Focus.TYPING_DELAY, function() if typing == token then render() end end)
+        win.typing = token
+        C_Timer.After(Focus.TYPING_DELAY, function()
+            if win.typing == token then win.typing = nil; render() end
+        end)
     end)
     win.search = search
     win.from = API.Button(win, "From: any", 160, function()
@@ -221,6 +222,7 @@ local function build()
     win.close = API.Button(win, "Close", 90, function() win:Hide() end)
     win.close:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -12, 10)
     win.select = API.Button(win, "Select all", 100, function()
+        Focus.Settle()
         win.edit:SetFocus()
         win.edit:HighlightText()
         win.hint:SetText("Selected. Press Ctrl+C to copy.")
@@ -262,9 +264,19 @@ function Focus.Open(f, search)
     win.scroll:SetVerticalScroll(0)
 end
 
+-- A search still waiting for its pause is applied now, so what's copied or
+-- exported is the view for the search shown (Codex review of #28).
+function Focus.Settle()
+    if win and win.typing then
+        win.typing = nil
+        render()
+    end
+end
+
 -- The view, as plain lines, into SavedVariables for after a /reload.
 function Focus.Export()
     if not win then return end
+    Focus.Settle()
     local out = {}   -- at most Copy.MAX lines: the snapshot's size
     for _, e in ipairs(state.shown) do
         if not e.hidden then out[#out + 1] = e.text end
