@@ -675,7 +675,7 @@ WoW.reset()
 -- addon's own globals that are legitimately nil before first assignment.
 -- LibStub: the embedded library's own loader reads _G.LibStub before creating it.
 local allowNil = { GlassChat = true, GlassChatDB = true, GlassChatCharDB = true, ChatProbeDB = true,
-    GlassChatSpamIgnoreDB = true, GlassChatSpamIgnoreCharDB = true, LibStub = true }
+    GlassChatSpamIgnoreDB = true, GlassChatSpamIgnoreCharDB = true, LibStub = true, AltStable = true }
 -- Client string alias (in the dump's _G walk); LibStub's version check uses it.
 strmatch = string.match
 setmetatable(_G, { __index = function(_, k)

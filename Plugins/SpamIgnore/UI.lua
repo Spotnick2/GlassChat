@@ -188,7 +188,7 @@ local function ignores()
     local any = false
     for guid, e in pairs(Spam.db.ignore) do
         any = true
-        local own = Spam.db.own[guid] and " |cffff6060(one of your own characters: skipped, /gchat unignore it)|r" or ""
+        local own = Spam.IsOwn(guid) and " |cffff6060(one of your own characters: skipped, /gchat unignore it)|r" or ""
         say("ignored: " .. e.name .. own)
     end
     for _, e in pairs(Spam.db.pending) do any = true; say("ignored (pending): " .. e.name) end

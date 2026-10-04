@@ -5,6 +5,7 @@
 ## Version: @project-version@
 ## Group: GlassChat
 ## Dependencies: GlassChat
+## OptionalDeps: AltStable
 ## SavedVariables: GlassChatSpamIgnoreDB
 ## SavedVariablesPerCharacter: GlassChatSpamIgnoreCharDB
 

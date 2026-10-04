@@ -244,5 +244,41 @@ eq(Spam.unseen, 0, "nor counted")
 db.mutes = {}
 Spam.RebuildMutes()
 
+-- S3: your characters on other WoW accounts, from AltStable's public API.
+local altList = { { guid = "Player-9-OTHERACC", name = "Karuzo Memphisto", realm = "R", account = "2" },
+                  { guid = "Creature-0-NOPE", name = "Not A Player" } }
+local altCallback
+rawset(_G, "AltStable", {
+    PUBLIC_API_VERSION = 1,
+    GetCharacters = function() return altList end,
+    RegisterCallback = function(event, fn) if event == "CharactersChanged" then altCallback = fn end end,
+})
+WoW.fire("PLAYER_LOGIN")
+newChat()
+SlashCmdList.GLASSCHAT("ignore Karuzo Memphisto")
+check(chatHas("one of your own characters"), "a character on another account (AltStable) can't be ignored")
+db.ignore["Player-9-OTHERACC"] = { name = "Karuzo Memphisto" }   -- ignored before AltStable knew it
+check(not say(WHISPER, "it's me", "Karuzo Memphisto", "Player-9-OTHERACC"), "and an old ignore of it is skipped")
+newChat()
+SlashCmdList.GLASSCHAT("ignores")
+check(chatHas("Karuzo Memphisto.*one of your own characters"), "/gchat ignores flags it")
+db.ignore["Player-9-OTHERACC"] = nil
+db.mutes = { { phrase = "gold" } }
+Spam.RebuildMutes()
+check(not say(CH, "gold", "Karuzo Memphisto", "Player-9-OTHERACC"), "never caught by mutes either")
+db.mutes = {}
+Spam.RebuildMutes()
+check(not Spam.IsOwn("Creature-0-NOPE"), "only player GUIDs count")
+-- A character AltStable learns later counts once it says so.
+table.insert(altList, { guid = "Player-9-NEWALT", name = "Fresh Alt" })
+check(not Spam.IsOwn("Player-9-NEWALT"), "not before AltStable's callback")
+altCallback("CharactersChanged")
+check(Spam.IsOwn("Player-9-NEWALT") and Spam.OwnByName("fresh alt"), "after it, by GUID and by name")
+-- Another API version is never read.
+rawset(_G, "AltStable", { PUBLIC_API_VERSION = 2, GetCharacters = function() return {} end })   -- read, it would wipe the list
+Spam.RefreshAltStable()
+check(Spam.IsOwn("Player-9-NEWALT"), "an unknown API version is left alone (the last good list stays)")
+rawset(_G, "AltStable", nil)
+
 eq(next(GC.failures), nil, "nothing failed")
 done("test_spam")

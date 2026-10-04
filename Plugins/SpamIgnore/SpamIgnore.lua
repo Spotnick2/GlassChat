@@ -138,11 +138,40 @@ function Spam.RecordSelf()
     Spam.db.own[g] = { name = name or "?", seen = time() }
 end
 
+-- Your characters on your OTHER WoW accounts, from AltStable when it's
+-- installed (S3): its public API lists every character it has synced, by
+-- GUID and full name (AltStable docs/PUBLIC-API.md, version 1). Read once at
+-- login and again on its CharactersChanged callback, never per chat line
+-- (GetCharacters builds fresh copies). Without AltStable this stays empty.
+local alt = { guids = {}, names = {} }
+function Spam.RefreshAltStable()
+    local AS = rawget(_G, "AltStable")
+    if type(AS) ~= "table" or AS.PUBLIC_API_VERSION ~= 1 or type(AS.GetCharacters) ~= "function" then return end
+    local ok, list = pcall(AS.GetCharacters)
+    if not ok or type(list) ~= "table" then return end
+    local guids, names = {}, {}
+    for _, c in ipairs(list) do
+        local g, n = plainString(c.guid), plainString(c.name)
+        if g and g:sub(1, 7) == "Player-" then
+            guids[g] = n or true
+            if n then names[n:lower()] = true end
+        end
+    end
+    alt.guids, alt.names = guids, names
+end
+local altHooked = false
+local function hookAltStable()
+    local AS = rawget(_G, "AltStable")
+    if altHooked or type(AS) ~= "table" or AS.PUBLIC_API_VERSION ~= 1 or type(AS.RegisterCallback) ~= "function" then return end
+    altHooked = pcall(AS.RegisterCallback, "CharactersChanged", function() Spam.RefreshAltStable() end)
+end
+
 local function isOwn(guid)
-    return guid == playerGUID() or Spam.db.own[guid] ~= nil
+    return guid == playerGUID() or Spam.db.own[guid] ~= nil or alt.guids[guid] ~= nil
 end
 
 local function ownByName(lname)
+    if alt.names[lname] then return true end
     for _, e in pairs(Spam.db.own) do
         if type(e.name) == "string" and e.name:lower() == lname then return true end
     end
@@ -358,6 +387,8 @@ f:SetScript("OnEvent", function(_, event, arg1)
         if GC.SpamMirror then GC.SpamMirror.Start() end
         if GC.SpamUI then GC.SpamUI.Start() end
     elseif event == "PLAYER_LOGIN" then
+        hookAltStable()
+        Spam.RefreshAltStable()
         Spam.RecordSelf()
         Spam.RefreshGroup()
     elseif event == "GROUP_ROSTER_UPDATE" then
@@ -369,6 +400,7 @@ API.RegisterEvents(f, { "ADDON_LOADED", "PLAYER_LOGIN", "GROUP_ROSTER_UPDATE" })
 Spam._test = {
     reset = function()
         memo, memoOrder, repeats, repeatOrder, names, nameOrder, log = {}, {}, {}, {}, {}, {}, {}
+        alt, altHooked = { guids = {}, names = {} }, false
         Spam.unseen = 0
     end,
     names = function() return names end,
