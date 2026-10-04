@@ -427,16 +427,20 @@ function SetChatWindowSavedPosition(i, p, x, y) local c = WoW.window(i); c.point
 WoW.windowUpdates = {}
 function FloatingChatFrame_Update(i) table.insert(WoW.windowUpdates, i) end
 function FCF_DockUpdate() WoW.dockUpdates = (WoW.dockUpdates or 0) + 1 end
+function FCF_SaveDock() WoW.dockSaves = (WoW.dockSaves or 0) + 1 end
 -- The window's own methods (ChatFrameMixin, ChatFrame.lua:69-233); a channel
 -- adds only if the character is in it (WoW.joined).
 WoW.joined = {}
 function Methods.RemoveAllMessageGroups(f) WoW.window(f._id).messages = {} end
 function Methods.AddMessageGroup(f, g) table.insert(WoW.window(f._id).messages, g) end
 function Methods.RemoveAllChannels(f) WoW.window(f._id).channels = {} end
+-- Like the client (ChatFrame.lua:149-167): the channel is added whether or
+-- not the character is in it, and the return is GetChannelName's id, 0 (a
+-- truthy value) for one it isn't in.
+function GetChannelName(c) return WoW.joined[c] and 1 or 0 end
 function Methods.AddChannel(f, c)
-    if not WoW.joined[c] then return nil end
     table.insert(WoW.window(f._id).channels, c)
-    return c
+    return GetChannelName(c)
 end
 function Methods.ReceiveAllPrivateMessages(f) end
 -- The player, by GUID; their name and realm.
@@ -453,7 +457,10 @@ function FCF_GetChatWindowInfo(i)
         local tab = rawget(_G, "ChatFrame" .. i .. "Tab")
         return tab and tab._tabText or "", 14, 1, 1, 1, 1, true, false, false, false
     end
-    return GetChatWindowInfo(i)
+    -- The client's "default size" 0 becomes the real default (line 557).
+    local name, size, r, g, b, a, shown, locked, docked, unint = GetChatWindowInfo(i)
+    if size == 0 then size = 14 end
+    return name, size, r, g, b, a, shown, locked, docked, unint
 end
 function ScrollingEdit_OnCursorChanged() end
 function ScrollingEdit_OnUpdate() end

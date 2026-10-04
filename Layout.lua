@@ -9,11 +9,19 @@
 --   FloatingChatFrame_Update(i, 1) applies them per window
 --   (FloatingChatFrame.lua:579): name, colour, opacity, lock, docking,
 --   shown or closed;
--- - the main window's position and size are Edit Mode's: Blizzard's own
---   restore skips DEFAULT_CHAT_FRAME (line 1476), and so do we;
+-- - the main window (DEFAULT_CHAT_FRAME, an Edit Mode system) gets only its
+--   font, colour and chat contents: no FloatingChatFrame_Update, lock or
+--   dock, and never its place or size. Prat's own note: this recipe "causes
+--   taint with DF edit mode" (review of #10);
 -- - chat types and channels through the window's own methods. A channel is
---   added only if this character is already in it: nothing is joined
---   (Prat's channel-renumbering dance is out of scope).
+--   added only if this character is in it (GetChannelName > 0; AddChannel's
+--   own return is 0, which is truthy, for one it isn't): nothing is joined.
+--   Channel names are saved as the client gives them and replayed on the
+--   same client, never compared to an English name;
+-- - tabs already docked keep their order: FCF_DockFrame and
+--   FCFDock_AddChatFrame return early for them (FloatingChatFrame.lua:1721,
+--   2311), and reordering would mean undocking. FCF_SaveDock then records
+--   the real order.
 
 GlassChat = GlassChat or {}
 local GC = GlassChat
@@ -23,6 +31,7 @@ local Layout = {}
 GC.Layout = Layout
 
 Layout.LINK = "addon:GlassChat:layout:"
+Layout.OFFER_DELAY = 3   -- s after the first login, so the chat setup has settled
 
 -- A saved value: plain strings, numbers and booleans only (never a secret).
 local function plain(v)
@@ -32,33 +41,34 @@ local function plain(v)
     return nil
 end
 
--- Every other value of a list (GetChatWindowChannels: name, zone ID, ...).
-local function odd(...)
+-- The strings of a list, every `step`-th value (GetChatWindowChannels gives
+-- name, zone ID, name, zone ID...).
+local function strings(step, ...)
     local out = {}
-    for i = 1, select("#", ...), 2 do
+    for i = 1, select("#", ...), step do
         local v = plain((select(i, ...)))
         if type(v) == "string" then out[#out + 1] = v end
     end
     return out
 end
 
-local function strings(...)
-    local out = {}
-    for i = 1, select("#", ...) do
-        local v = plain((select(i, ...)))
-        if type(v) == "string" then out[#out + 1] = v end
-    end
-    return out
+-- FCF_GetChatWindowInfo maps the client's "default size" 0 to the real
+-- default (FloatingChatFrame.lua:557); a raw 0 would set an invisible font.
+local function windowInfo(i)
+    local get = rawget(_G, "FCF_GetChatWindowInfo") or GetChatWindowInfo
+    return get(i)
 end
 
 function Layout.CaptureWindow(i)
-    local name, size, r, g, b, a, shown, locked, docked, uninteractable = GetChatWindowInfo(i)
+    local name, size, r, g, b, a, shown, locked, docked, uninteractable = windowInfo(i)
+    size = plain(size)
     local w = {
-        name = plain(name), fontSize = plain(size), r = plain(r), g = plain(g), b = plain(b), a = plain(a),
+        name = plain(name), fontSize = (type(size) == "number" and size > 0) and size or nil,
+        r = plain(r), g = plain(g), b = plain(b), a = plain(a),
         shown = plain(shown) and true or false, locked = plain(locked) and true or false,
         docked = plain(docked), uninteractable = plain(uninteractable) and true or false,
-        messages = strings(GetChatWindowMessages(i)),
-        channels = odd(GetChatWindowChannels(i)),
+        messages = strings(1, GetChatWindowMessages(i)),
+        channels = strings(2, GetChatWindowChannels(i)),
     }
     if i ~= 1 then   -- the main window's place is Edit Mode's
         w.width, w.height = GetChatWindowSavedDimensions(i)
@@ -74,20 +84,25 @@ function Layout.Capture()
     return windows
 end
 
--- Whether this character's windows already look like the saved layout:
--- the same windows shown, named, docked, with the same chat types.
 local function sameList(a, b)
     if #a ~= #b then return false end
     for i = 1, #a do if a[i] ~= b[i] then return false end end
     return true
 end
 
+-- Whether this character's windows already look like the saved layout.
+-- A window hidden and undocked on both sides is the same whatever its name;
+-- an open one must match in name, docking, font, chat types and channels.
+local function inUse(w) return w.shown or w.docked ~= nil end
 function Layout.Matches(saved)
     for i, w in pairs(saved.windows) do
         local now = Layout.CaptureWindow(i)
-        if now.shown ~= w.shown or now.name ~= w.name or (now.docked ~= nil) ~= (w.docked ~= nil)
-            or not sameList(now.messages, w.messages) then
-            return false
+        if inUse(now) ~= inUse(w) then return false end
+        if inUse(w) then
+            if now.name ~= w.name or (now.docked ~= nil) ~= (w.docked ~= nil) or now.fontSize ~= w.fontSize
+                or not sameList(now.messages, w.messages) or not sameList(now.channels, w.channels) then
+                return false
+            end
         end
     end
     return true
@@ -98,38 +113,47 @@ local function who()
     return (plain(name) or "?") .. " (" .. (plain(GetRealmName()) or "?") .. ")"
 end
 
+-- Each save gets a new id: a character's answer is to ONE save, so a newer
+-- one is offered again.
 function Layout.Save()
-    GC.db.layout = { windows = Layout.Capture(), from = who(), guid = plain(UnitGUID("player")) }
-    GC.charDB.layoutAnswered = "saved"
+    local id = ((type(GC.db.layout) == "table" and tonumber(GC.db.layout.id)) or 0) + 1
+    GC.db.layout = { id = id, windows = Layout.Capture(), from = who(), guid = plain(UnitGUID("player")) }
+    GC.charDB.layoutAnswered = id
     local n = 0
-    for _, w in pairs(GC.db.layout.windows) do if w.shown or w.docked then n = n + 1 end end
+    for _, w in pairs(GC.db.layout.windows) do if inUse(w) then n = n + 1 end end
     say("chat layout saved from " .. GC.db.layout.from .. ": " .. n .. " windows. Other characters will be offered it.")
+end
+
+local function joined(channel)
+    local ok, id = pcall(GetChannelName, channel)
+    return ok and not API.IsSecret(id) and type(id) == "number" and id > 0
 end
 
 -- One window, inside its own pcall: one failing never stops the others.
 local function applyWindow(i, w)
     local f = rawget(_G, "ChatFrame" .. i)
     if not f then return 0 end
+    local main = i == 1
     if w.name then SetChatWindowName(i, w.name) end
     if w.r then SetChatWindowColor(i, w.r, w.g, w.b) end
     if w.a then SetChatWindowAlpha(i, w.a) end
-    SetChatWindowDocked(i, w.docked)
-    SetChatWindowLocked(i, w.locked)
-    SetChatWindowUninteractable(i, w.uninteractable)
-    if i ~= 1 then
+    if not main then
+        SetChatWindowDocked(i, w.docked)
+        SetChatWindowLocked(i, w.locked)
+        SetChatWindowUninteractable(i, w.uninteractable)
         if w.width and w.height then SetChatWindowSavedDimensions(i, w.width, w.height) end
         if w.point then SetChatWindowSavedPosition(i, w.point, w.x, w.y) end
+        SetChatWindowShown(i, w.shown)
     end
-    SetChatWindowShown(i, w.shown)
     if w.fontSize and rawget(_G, "FCF_SetChatWindowFontSize") then FCF_SetChatWindowFontSize(nil, f, w.fontSize) end
-    FloatingChatFrame_Update(i, 1)
+    if not main then FloatingChatFrame_Update(i, 1) end
     local missing = 0
-    if w.shown or w.docked then
+    if inUse(w) then
         f:RemoveAllMessageGroups()
         for _, group in ipairs(w.messages) do f:AddMessageGroup(group) end
         f:RemoveAllChannels()
         for _, channel in ipairs(w.channels) do
-            if not f:AddChannel(channel) then missing = missing + 1 end
+            if joined(channel) then f:AddChannel(channel) else missing = missing + 1 end
         end
         f:ReceiveAllPrivateMessages()
     end
@@ -155,14 +179,21 @@ function Layout.Apply()
             else failed = failed + 1; API.Fail("layout window " .. i, n) end
         end
     end
-    if rawget(_G, "FCF_DockUpdate") then pcall(FCF_DockUpdate) end
-    GC.charDB.layoutAnswered = "applied"
+    for _, name in ipairs({ "FCF_DockUpdate", "FCF_SaveDock" }) do
+        local fn = rawget(_G, name)
+        if fn then
+            local ok, err = pcall(fn)
+            if not ok then API.Fail("layout " .. name, err) end
+        end
+    end
+    -- Answered only when it fully worked, so a failed apply is offered again.
+    if failed == 0 then GC.charDB.layoutAnswered = saved.id end
     GC.Chat.Scan()
     local msg = "chat layout from " .. tostring(saved.from) .. " applied"
     if missing > 0 then msg = msg .. "; " .. missing .. " channel(s) skipped (join them, then apply again)" end
     if failed > 0 then msg = msg .. "; " .. failed .. " window(s) failed (/gchat failures)" end
     say(msg .. ".")
-    return true
+    return failed == 0
 end
 
 function Layout.Forget()
@@ -170,27 +201,37 @@ function Layout.Forget()
     say("saved chat layout forgotten")
 end
 
--- The offer: once per character, a clickable line, only when there is a
--- layout from ANOTHER character and this one doesn't already match it.
+-- The offer: once per save and character, a clickable line, only for a
+-- layout from ANOTHER character that this one doesn't already match.
 function Layout.Offer()
     local saved = GC.db.layout
-    if type(saved) ~= "table" or GC.charDB.layoutAnswered then return false end
+    if type(saved) ~= "table" or GC.charDB.layoutAnswered == saved.id then return false end
     if saved.guid and saved.guid == plain(UnitGUID("player")) then return false end
     local ok, same = pcall(Layout.Matches, saved)
+    if not ok then API.Fail("layout match", same) end
     if ok and same then return false end
-    print("|cff7fd4ffGlassChat|r your chat layout from " .. tostring(saved.from) .. " isn't on this character: "
+    say("your chat layout from " .. tostring(saved.from) .. " isn't on this character: "
         .. "|cff7fd4ff|H" .. Layout.LINK .. "apply|h[Apply it]|h|r  "
         .. "|cffaaaaaa|H" .. Layout.LINK .. "no|h[Not here]|h|r")
     return true
 end
 
+-- From the boot frame's first-login branch (GlassChat.lua).
+function Layout.ScheduleOffer()
+    C_Timer.After(Layout.OFFER_DELAY, function()
+        local ok, err = pcall(Layout.Offer)
+        if not ok then API.Fail("layout offer", err) end
+    end)
+end
+
 -- Clicks on our links arrive here, with no hook (probe item 4).
 function Layout.OnLink(_, link)
-    if type(link) ~= "string" or API.IsSecret(link) then return end
+    if API.IsSecret(link) or type(link) ~= "string" then return end
     if link == Layout.LINK .. "apply" then
         Layout.Apply()
     elseif link == Layout.LINK .. "no" then
-        GC.charDB.layoutAnswered = "no"
+        local saved = GC.db.layout
+        GC.charDB.layoutAnswered = type(saved) == "table" and saved.id or true
         say("ok, not on this character (/gchat layout apply any time)")
     end
 end
@@ -218,12 +259,6 @@ function Layout.Start()
     if EventRegistry and EventRegistry.RegisterCallback then
         EventRegistry:RegisterCallback("SetItemRef", Layout.OnLink, Layout)
     end
-    -- After the first login's chat setup has settled.
-    local f = CreateFrame("Frame")
-    f:SetScript("OnEvent", function(_, _, isInitialLogin)
-        if isInitialLogin then C_Timer.After(3, function() pcall(Layout.Offer) end) end
-    end)
-    API.RegisterEvents(f, { "PLAYER_ENTERING_WORLD" })
 end
 
 Layout._test = { applyWindow = applyWindow }

@@ -218,7 +218,9 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         ok, err = pcall(GC.Layout.Start)
         if not ok then API.Fail("start layout", err) end
     elseif event == "PLAYER_ENTERING_WORLD" then
-        -- arg1 = isInitialLogin: warn at a real login, never on /reload.
+        -- arg1 = isInitialLogin: warn and offer at a real login, never on /reload.
+        if arg1 and GC.Layout then GC.Layout.ScheduleOffer() end
+        -- The build warning, likewise.
         if arg1 and API.ClientBuild() ~= GC.MEASURED_ON_BUILD then
             say("client build " .. API.ClientBuild() .. " differs from the one this addon was measured on ("
                 .. GC.MEASURED_ON_BUILD .. "). Things may misbehave until it is re-checked.")

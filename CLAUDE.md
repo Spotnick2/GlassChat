@@ -158,22 +158,32 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
   - Run after every scan through `Chat.AfterScan`.
 - **`Layout.lua`** (M2, #9): one chat layout for every character. Chat windows are saved per
   character (measured).
-  - `/gchat layout save` records `GetChatWindowInfo` / `Messages` / `Channels` (names only) and,
-    except for window 1, the saved size and place, into `GlassChatDB.layout` (account-wide, with
-    the saver's GUID). Plain values only, never a secret.
+  - `/gchat layout save` records each window through `FCF_GetChatWindowInfo`, which maps the
+    client's "default size" 0 to the real default (a raw 0 sets an invisible font). It also records
+    `Messages` / `Channels` (names only) and, except for window 1, the saved size and place. All of
+    it goes into `GlassChatDB.layout`: account-wide, with the saver's GUID and a new `id` per save.
+    Plain values only, never a secret.
   - **Applying** (Prat Memory's recipe, trimmed): the `SetChatWindow*` setters, the font through
     `FCF_SetChatWindowFontSize`, then Blizzard's `FloatingChatFrame_Update(i, 1)` per window
     (it names, colours, docks, shows or closes), then chat types and channels through the
     window's own methods, then `FCF_DockUpdate`.
-  - **The main window's place and size are never set**: Edit Mode owns them, and Blizzard's own
-    restore skips DEFAULT_CHAT_FRAME.
-  - A channel is added only if the character is already in it; nothing is joined, and the skips
-    are counted and reported.
+  - **The main window (an Edit Mode system) gets only its font, colour and chat contents**: no
+    `FloatingChatFrame_Update`, lock, dock or shown state, and never its place or size (review of
+    #10; Prat warns that this recipe taints Edit Mode).
+  - Tabs that are already docked keep their order: `FCF_DockFrame` / `FCFDock_AddChatFrame`
+    return early for them, and reordering would mean undocking. `FCF_SaveDock` records the real
+    order afterwards.
+  - A channel is added only if `GetChannelName(name) > 0`. `AddChannel`'s own return is 0,
+    which is truthy, for a channel the character isn't in. Nothing is joined, and the skips are
+    counted and reported. Channel names are the client's own strings, replayed on the same
+    client, never compared to English.
   - Never in combat. Each window runs in its own `pcall`.
-  - **The offer:** once per character (`GlassChatCharDB.layoutAnswered`), after the first login
-    settles, as a clickable `|Haddon:GlassChat:layout:apply|h` / `:no` line through
-    `EventRegistry "SetItemRef"`. Never to the saver (GUID), nor to a character that already
-    matches.
+  - **The offer:** once per save and character. `GlassChatCharDB.layoutAnswered` holds the save's
+    `id`, and an apply only counts when no window failed. It runs from the boot frame's
+    first-login branch, after `OFFER_DELAY`, as a clickable `|Haddon:GlassChat:layout:apply|h` /
+    `:no` line through `EventRegistry "SetItemRef"`. It's never offered to the saver (GUID), nor
+    to a character that already matches. Closed windows don't count towards a match, while an open
+    window's font and channels do.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It
