@@ -147,6 +147,7 @@ local function help()
     say("/gchat stamps on|off - a time on every line, addon output too (" .. onOff(db.timestamps) .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
     say("/gchat layout - save this character's chat windows for your other characters")
+    say("/gchat tabs - chatty addons with their own tab (offered in chat)")
     say("/gchat copy - this window's lines, selected for Ctrl+C (or the Copy button)")
     say("/gchat tune - adjust the panel's edge, shadow and sheen live")
     say("/gchat failures - what failed to build or register")
@@ -201,6 +202,8 @@ local function slash(msg, editBox)
         tuneCmd(arg)
     elseif cmd == "layout" then
         GC.Layout.Command(arg)
+    elseif cmd == "tabs" then
+        GC.Tabs.Command((msg or ""):match("^%s*%S+%s*(.-)%s*$") or "")   -- addon names keep their case
     elseif cmd == "copy" then
         -- The window the command was typed in (an undocked one included).
         local f = editBox and editBox.GetParent and editBox:GetParent()
@@ -250,6 +253,8 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         if not ok then API.Fail("start", err) end
         ok, err = pcall(GC.Layout.Start)
         if not ok then API.Fail("start layout", err) end
+        ok, err = pcall(GC.Tabs.Start)
+        if not ok then API.Fail("start tabs", err) end
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- arg1 = isInitialLogin: warn and offer at a real login, never on /reload.
         if arg1 and GC.Layout then GC.Layout.ScheduleOffer() end

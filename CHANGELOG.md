@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Smart tabs:** when an addon floods the chat (20 lines in a minute), GlassChat offers it its
+  own tab, with clickable choices: for this session, always, or no. Its lines then go to that
+  tab instead of the main chat. `/gchat tabs` lists your choices, and `/gchat tabs forget <Addon>`
+  drops one.
 - **Spam & Ignore** (a plugin, its own entry in the AddOns list):
   - **Muted phrases:** `/gchat mute profession kit` hides public lines containing them. It
     matches whole words, so "kit" doesn't hide "kite". `~phrase` also catches tricks like

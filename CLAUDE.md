@@ -45,15 +45,16 @@ is not: use an accessor (`FCFDock_GetChatFrames`), a hook's own arguments, or th
 test (AutoComplete.lua:360). That is how Prat works, and on
 this client each one taints chat. The research behind this is in `docs/PLAN.md`.
 
-**Status: milestone 1 (readable glass, class colours, scrollback, sent history).** M0's probe
-results are in `docs/FOREVER-PROBE.md`; the plan is `docs/PLAN.md`. Next: M2 (one chat layout
-for every character), then M3 (smart tabs), M4 (focus mode), M5 (URL copy). Work goes through
+**Status: M0-M3 done (readable glass, class colours, scrollback, sent history, one layout,
+smart tabs), plus timestamps and the Spam & Ignore plugin.** The probe results are in
+`docs/FOREVER-PROBE.md`; the plan is `docs/PLAN.md`. Next: M4 (focus mode), then M5 (URL
+copy). Work goes through
 GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
 
 ## Layout
 
 TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `Buttons.lua` → `Layout.lua` → `GlassChat.lua`.
+`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -189,6 +190,27 @@ TOC load order: `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `
     `:no` line through `EventRegistry "SetItemRef"`. It's never offered to the saver (GUID), nor
     to a character that already matches. Closed windows don't count towards a match, while an open
     window's font and channels do.
+- **`Tabs.lua`** (M3): smart tabs.
+  - An addon that writes `Tabs.CHATTY` (20) lines within `Tabs.WINDOW` (60 s) is offered, once a
+    session, its own tab. The offer is clickable `|Haddon:GlassChat:tabs:<session|always|never>:
+    <Addon>|h` links. Always and never are saved account-wide (`GlassChatDB.routes` /
+    `routeNever`); `/gchat tabs` lists and forgets them.
+  - **One `AddMessage` post-hook per window, in `Chat.lua`**, sees each line with no chat event.
+    It calls `Chat.Route` (set by Tabs) first and stamps only a line that stays.
+    `Tabs.SourceOf` names the writer from `debugstack`: it skips the leading `GlassChat` frames
+    (and the `pcall` / tail-call frames between them, which name no addon), then any `Blizzard_*`
+    plumbing and standalone `Ace*` / `Lib*` library folders, so `print` (via `Blizzard_PrintHandler`) and direct
+    `AddMessage` are both covered. Probe 7: ASProbe uses `AddMessage`.
+  - **A move** copies the line to the tab (`FCF_OpenNewWindow(addon, true)`, or the open window
+    of that name), then removes the newest match from where it landed with
+    `RemoveMessagesByPredicate` (oldest to newest, so older identical lines stay).
+  - It never walks the stack for the combat log (`COMBATLOG`, every entry is a plain
+    `AddMessage`). Opening a tab puts back the selected tab and active edit box, because
+    `FCF_OpenNewWindow` selects the new one. **No new tab while the player is typing**
+    (`ChatFrameUtil.GetActiveWindow()`): in the IM chat style, making the new box the last
+    active one hides the box being typed in, and its `OnHide` clears the draft (Codex, #26).
+  - It never offers Blizzard, GlassChat or its plugins, and never moves a secret line. A closed
+    tab sends that addon's lines back to the main chat for the session.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It
