@@ -234,6 +234,23 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - **A move** copies the line to the tab (`FCF_OpenNewWindow(addon, true)`, or the open window
     of that name), then removes the newest match from where it landed with
     `RemoveMessagesByPredicate` (oldest to newest, so older identical lines stay).
+  - **Right-click an addon's name** (#35):
+    - For a line that stays, the shared hook rewrites it once (`decorateLine`): the leading
+      coloured prefix becomes `|Haddon:GlassChat:src:<Addon>|h...|h` (`Tabs.Linkify`, only for
+      the line `Route` just attributed), then the timestamp is added.
+    - A right-click (`SetItemRef`'s button) opens a `MenuUtil.CreateContextMenu` menu. The
+      offer's links, the menu and `/gchat tabs route <Addon> [always]` all go through
+      `Tabs.SetRule`.
+  - **Developer mode** (`GC.IsDev()`: version "dev" or the unreplaced token;
+    `GlassChatDB.devMode` overrides it):
+    - an addon named `*Probe` gets its tab at its first line, once a session;
+    - **`GlassChat.RequestTab(addon)`** (public) is granted at once in developer mode, and
+      outside it brings the one-time offer;
+    - a player's No always wins.
+  - **Notices printed while a line is handled** (the developer-mode tab, the offer, "tab was
+    closed") are held and printed once that line is done (`Tabs.LineDone`, from the hook). They
+    go through the same hook, so printed straight away they would land before the line's move
+    and leave it in both windows (Codex, #36).
   - It never walks the stack for the combat log (`COMBATLOG`, every entry is a plain
     `AddMessage`). Opening a tab puts back the selected tab and active edit box, because
     `FCF_OpenNewWindow` selects the new one. **No new tab while the player is typing**

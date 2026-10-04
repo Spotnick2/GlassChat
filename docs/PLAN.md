@@ -165,6 +165,9 @@ this. Chat windows are **per character** (probe item 8).
   reused, so a permanent tab isn't duplicated after a relog.
 - Every routed line is also kept in GlassChat's own buffer, with its source addon and time, for
   M4. *(Deferred to M4, which will need it; M3 doesn't.)*
+- **Right-click an addon's name** for its tab (#35, owner), plus `/gchat tabs route <Addon>`.
+- **Developer mode** (a dev build): our probes get their tab at once, by name (`*Probe`) or by
+  asking with `GlassChat.RequestTab(addon)`. Outside it, a request brings the offer.
 - **Never offered:** Blizzard's own lines, GlassChat and its plugins, and lines carrying a chat
   event. A tab the player closes sends that addon's lines back to the main chat for the session,
   with one line saying so. With no room for another tab, the lines stay in the main chat.

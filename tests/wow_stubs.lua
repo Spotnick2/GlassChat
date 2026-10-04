@@ -526,7 +526,15 @@ function IsInRaid() return false end
 function UnitIsPlayer(unit) return unit == "target" and WoW.targetName ~= nil end
 function GetUnitName(unit) if unit == "target" then return WoW.targetName end end
 WoW.addonVersion = "dev"
-C_AddOns = { GetAddOnMetadata = function(name, field) if field == "Version" then return WoW.addonVersion end end }
+-- Installed addons by folder name (GetAddOnInfo's first return is the folder as spelled).
+WoW.addons = { "GlassChat", "AltStable", "RestedXP", "ChatProbe" }
+C_AddOns = {
+    GetAddOnMetadata = function(name, field) if field == "Version" then return WoW.addonVersion end end,
+    GetAddOnInfo = function(name)
+        for _, a in ipairs(WoW.addons) do if a:lower() == tostring(name):lower() then return a, a end end
+        return nil
+    end,
+}
 C_Texture = { GetAtlasInfo = function(name) return name == "socialqueuing-icon-eye" and {} or nil end }
 date = os.date
 time = os.time
@@ -543,6 +551,15 @@ EventRegistry = { RegisterCallback = function(self, event, fn, owner)
     WoW.callbacks[event] = function(_, ...)
         for _, c in ipairs(list) do c.fn(c.owner, ...) end
     end
+end }
+-- MenuUtil.CreateContextMenu (Blizzard_Menu): the generator fills a root
+-- description; WoW.menu holds its title and buttons ({ text, fn }).
+MenuUtil = { CreateContextMenu = function(owner, gen)
+    local root = { buttons = {} }
+    function root:CreateTitle(t) self.title = t end
+    function root:CreateButton(t, fn) table.insert(self.buttons, { text = t, fn = fn }) end
+    gen(owner, root)
+    WoW.menu = root
 end }
 -- debugstack: the stack a test sets (WoW.stack), else one with no addon in it.
 function debugstack() return WoW.stack or "[C]: ?" end

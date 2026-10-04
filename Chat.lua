@@ -173,19 +173,26 @@ local function findNewest(f, msg)
     return nil
 end
 
--- Right after a line with no chat event lands: prefix it, once.
-local function stampLine(f, msg, r, g, b, id, accessID, typeID, event)
-    if not GC.db.timestamps then return end
+-- A line with no chat event that stays in this window, rewritten once:
+-- its addon's coloured prefix made a link (Chat.Linkify, set by Tabs.lua:
+-- right-click it for a tab, #35), then the timestamp. One TransformMessages
+-- pass for both, so the line is found as it was added. Returns the new text.
+Chat.Linkify = nil
+local function decorateLine(f, msg, r, g, b, id, accessID, typeID, event)
     if API.IsSecret(event) or event ~= nil then return end   -- Blizzard stamps chat-event lines itself
-    if API.IsSecret(msg) or type(msg) ~= "string" or msg == "" or stamped(msg) then return end
+    if API.IsSecret(msg) or type(msg) ~= "string" or msg == "" then return end
+    local text = msg
+    if Chat.Linkify then text = Chat.Linkify(msg) or msg end
+    if GC.db.timestamps and not stamped(msg) then text = stampNow() .. text end
+    if text == msg then return end
     local target = findNewest(f, msg)
     if not target then return end
-    local stamp, i = stampNow(), 0
+    local i = 0
     f:TransformMessages(function()
         i = i + 1
         return i == target
-    end, function(m, ...) return stamp .. m, ... end)
-    return stamp .. msg
+    end, function(_, ...) return text, ... end)
+    return text
 end
 
 -- One AddMessage post-hook per window, for lines with no chat event: first
@@ -210,15 +217,23 @@ Chat.OnEachFrame("lines", function(f)
     hooksecurefunc(f, "AddMessage", function(...)
         local ok, moved = pcall(routeLine, ...)
         if not ok then API.Fail("tab route", moved); moved = false end
-        if moved then return end   -- it left this window: not a new line here
-        lineCounts[f] = (lineCounts[f] or 0) + 1
-        if not (f.TransformMessages and f.GetMessageInfo) then return end
-        local okS, stampedText = pcall(stampLine, ...)
-        if not okS then API.Fail("timestamp", stampedText)
-        elseif stampedText and Chat.Restamped then
-            -- The buffer now holds the stamped text: who wrote it follows (review of #28).
-            pcall(Chat.Restamped, (select(2, ...)), stampedText)
+        if moved then   -- it left this window: not a new line here
+            if Chat.LineDone then pcall(Chat.LineDone) end
+            return
         end
+        lineCounts[f] = (lineCounts[f] or 0) + 1
+        if not (f.TransformMessages and f.GetMessageInfo) then
+            if Chat.LineDone then pcall(Chat.LineDone) end
+            return
+        end
+        local okS, newText = pcall(decorateLine, ...)
+        if not okS then API.Fail("line rewrite", newText)
+        elseif newText and Chat.Restamped then
+            -- The buffer now holds the new text: who wrote it follows (review of #28).
+            pcall(Chat.Restamped, (select(2, ...)), newText)
+        end
+        -- Notices smart tabs held while this line was handled (Tabs.LineDone).
+        if Chat.LineDone then pcall(Chat.LineDone) end
     end)
 end)
 
