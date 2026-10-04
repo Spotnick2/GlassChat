@@ -199,6 +199,16 @@ local function slash(msg, editBox)
     end
 end
 
+-- /rl: /reload in two letters (owner; Method Raid Tools had it). ReloadUI is
+-- protected on Forever (porting guide); C_UI.Reload is documented with no
+-- restrictions (UIManagerDocumentation.lua:65), so it goes first.
+function GC.Reload()
+    local ui = rawget(_G, "C_UI")
+    if ui and ui.Reload then ui.Reload() else ReloadUI() end
+end
+SLASH_GLASSCHATRELOAD1 = "/rl"
+SlashCmdList.GLASSCHATRELOAD = function() GC.Reload() end
+
 SLASH_GLASSCHAT1 = "/gchat"
 SLASH_GLASSCHAT2 = "/glasschat"
 SlashCmdList.GLASSCHAT = slash
