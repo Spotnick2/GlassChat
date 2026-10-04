@@ -308,6 +308,28 @@ for _, n in ipairs(six) do if not serverHas(n) then missing = missing + 1 end en
 eq(missing, 0, "after three cancelled batches, every name is still added")
 eq(next(Mirror.Failed()), nil, "and none is reported as failed")
 
+-- An AltStable update mid-batch: a queued add for a character just learned
+-- to be yours is never written (Codex review of #34).
+local altChars, altChanged = {}, nil
+rawset(_G, "AltStable", { PUBLIC_API_VERSION = 1, GetCharacters = function() return altChars end,
+    RegisterCallback = function(event, fn) altChanged = fn end })
+Spam._test.reset()   -- so the login below hooks AltStable's callback
+fresh({})
+for _, n in ipairs({ "Q One", "Q Two", "Q Three" }) do db.ignore["Player-1-" .. n] = { name = n } end
+writes = {}
+Mirror.Check("test")
+eq(#writes, 1, "the batch has started")
+altChars[1] = { guid = "Player-1-Q Two", name = "Q Two" }   -- a sync from your other account
+altChanged("CharactersChanged")
+advance(60)
+local wroteTwo = false
+for _, w in ipairs(writes) do if w == "add Q Two" then wroteTwo = true end end
+check(not wroteTwo, "the queued add for your own character is dropped")
+check(serverHas("Q Three"), "the rest of the batch still goes")
+check(not (c.tries["add:q two"] and c.tries["add:q two"].n > 0), "and the dropped one cost no try")
+rawset(_G, "AltStable", nil)
+Spam.RefreshAltStable()
+
 -- A reload right after an add still knows the name is ours (Codex, #24).
 fresh({})
 db.ignore["Player-1-R"] = { name = "Reload Case" }

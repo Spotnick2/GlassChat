@@ -144,6 +144,15 @@ pump = function()
         queue, busy = {}, false
         return
     end
+    -- Still wanted? Ownership or the list may have changed since it was queued
+    -- (an AltStable sync naming one of your characters, an unignore): a stale
+    -- add would block your own character, a stale removal unblock a pest
+    -- (Codex review of #34). Skipped, it costs no try.
+    local wanted = Mirror.Wanted()[w.lname] ~= nil
+    if (w.op == "add") ~= wanted then
+        C_Timer.After(0, function() guarded("pump", pump) end)
+        return
+    end
     busy, wroteThisSession = true, true
     spend(charDB(), w.op .. ":" .. w.lname, w.name)
     inFlight()[w.lname] = { op = w.op, at = time() }
