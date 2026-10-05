@@ -301,6 +301,68 @@ which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
   (authenticated, 255-byte chunks, copes with peers going offline: its SYNC-DISCOVERY.md) made
   into a library, so it works without AltStable installed.
 
+### A spam score (S4, plan: to be reviewed before any code)
+
+**The problem.** Mutes catch the phrases you've already seen. Commercial spam (gold, boosts,
+"cheap levelling", site adverts) changes its wording, but keeps the same *shape*: an address to
+go to, a price, a way to make contact, and words broken up so filters miss them.
+
+**The rule: shape, never words.** Every signal is language-neutral data: links, digits,
+symbols, scripts, the line's structure. **No English word list**, because clients are localised
+(CLAUDE.md: IDs, never names) and BadBoy's lists can't be reused (its licence). A word a player
+wants gone is a mute.
+
+**Signals** (each counted once per line; weights to be tuned against real lines, see Observe
+first):
+
+| Signal | How it's seen (no English) | Weight |
+|---|---|---|
+| A web address | `Url.Address` on any word (M5's matcher) | +2 |
+| A price | a currency symbol (`$ € £ ¥ ₽`), or digits with `%` | +2 |
+| A contact handle | `@name`, `name#1234` (a tag shape), or an address of a chat service by its shape | +1 |
+| A broken-up word | the aggressive form (`Text.Aggressive`) holds a run of 6+ letters the visible text splits with separators (`p.r.o.f.i.t`) | +2 |
+| Mixed scripts in one word | Latin with Cyrillic, Greek or full-width letters inside one word (homoglyph bait) | +3 |
+| Decoration | a high share of symbols (`★ ✪ ⚡ → ▶` and others), or long repeated punctuation | +1 |
+| **Game links** | `|Hitem`, `|Hachievement`, `|Hquest`, `|Hspell`: a real trade or LFG post | **-2 each, up to -4** |
+| **Talking to you** | a line that names you (`UnitName("player")`'s first name) | **-3** |
+
+**The decision.** A line is hidden only when **both** hold:
+- the score reaches the threshold (start: **5**);
+- at least **two different kinds** of commercial signal are present: address, price, contact,
+  broken-up word, mixed scripts.
+
+So a guide link alone (+2), a price alone, or a link plus decoration never hides a line.
+"WTS [Thunderfury] 500g" can't reach the threshold, because the item link pulls it down.
+
+**Where it applies:** the S1 policy is unchanged. It runs on public chat only (channels, say,
+yell, emote), never for you, friends, guild, group, Battle.net friends or the allow list. It
+runs after ignores, mutes, CJK and repeats, so it only judges what those let through.
+- **Open question:** whispers from strangers carry the same spam. Should the score apply there
+  too, off by default (`/gchat spam score whispers on`)?
+
+**Observe first (the main safety):**
+- The score ships **watching, not hiding**. A line that would be hidden is logged (`would hide,
+  score 6: address + price + broken-up`) and **shown**.
+- `/gchat spam score` lists the last lines that scored high, with their signals, so the owner can
+  check the weights against real Forever spam before anything is hidden.
+- `/gchat spam score on` turns hiding on, and `/gchat spam score threshold <n>` changes the
+  threshold. A hidden line goes to the log with its score and signals, like every other reason.
+
+**Costs:** one pass over the visible text, the aggressive form (computed only when a cheap check
+shows separators or non-ASCII letters), and the link scan M5 already does. It runs once per
+(event, lineID), through S1's memo.
+
+**Left for later:** other scripts as a whole (Cyrillic was BadBoy's other case; ask first),
+learning from what the player hides, and an options page.
+
+**For the review:**
+1. Are the signals language-neutral enough?
+2. Can a real trade, LFG or guild-recruitment post reach the threshold?
+3. Is "two kinds" plus the threshold strict enough, given that one false positive hides a real
+   player?
+4. Is observe-first enough as the safety, or should hiding stay off until the owner turns it on
+   permanently?
+
 ### Left out
 
 - Reporting.
@@ -329,12 +391,9 @@ which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
 - **S2b (only if probe 12 makes it worth it):** mirroring into Blizzard's list, with
   reconciliation rules.
 - **S3:** cross-account snapshot copy through an AltStable API (an AltStable issue first).
-- **S4 (maybe):**
-  - other scripts, if asked (Cyrillic was BadBoy's other case);
-  - a light spam score that requires commercial signals together (a website alone, such as a
-    guide link, never reaches the threshold);
-  - negative signals only from data that isn't English display text;
-  - an options page.
+- **S4:** the spam score, see "A spam score" above. It is planned there and reviewed before any
+  code. It ships watching first, then hides on the owner's say. Other scripts and an options page
+  wait until asked.
 
 ## Review (Codex, 2026-10-03)
 
