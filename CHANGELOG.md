@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Ships LibGlass r2 (the shared glass library; nothing changes on screen).
 - The chat-menu and friends buttons beside the chat are compact glass buttons too, with a gold
   speech bubble and Blizzard's two-person friends symbol, instead of metal frames.
 - **Right-click an addon's name in chat** (the coloured `[AltStable]` at the start of its lines)
