@@ -280,10 +280,11 @@ which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
   GUID and full name. GlassChat reads it at login and on AltStable's `CharactersChanged` callback,
   never per chat line, and only for API version 1. Those characters are never ignored, muted,
   repeat-hidden or added to Blizzard's list.
-- **Waiting on AltStable:** the snapshot copy below needs a way to message your own accounts.
-  It's requested as Spotnick2/AltStable#190: `SendToOwnAccounts(addon, payload)` and an
-  `OwnAccountMessage` callback, over its proven own-account Battle.net channel. GlassChat's side
-  is built once that API exists.
+- **Next, through a library:** the snapshot copy below goes through **LibAccountSync-1.0**
+  (Spotnick2/LibAccountSync), a new embedded library seeded from AltStable's own-account channel.
+  GlassChat is its pilot consumer. The owner turned down an AltStable API (AltStable#190, closed)
+  because the code is shared, and an embedded library both addons can use is the way to share it
+  (`C:\Projects\References\EMBEDDED-LIBRARIES.md`). The plan starts in Spotnick2/LibAccountSync#1.
 
 **The design:**
 
@@ -294,9 +295,9 @@ which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
     online accounts;
   - the receiver applies the whole snapshot, removals included. No multi-writer merge, so no
     tombstones or clock skew.
-- **Transport: AltStable's own-account channel**, through a public API asked of AltStable in its
-  own issue. That channel is authenticated, sends 255-byte chunks, and copes with peers going
-  offline (its SYNC-DISCOVERY.md:65). Without AltStable, there's no sync.
+- **Transport: LibAccountSync-1.0**, embedded in GlassChat. It is AltStable's own-account channel
+  (authenticated, 255-byte chunks, copes with peers going offline: its SYNC-DISCOVERY.md) made
+  into a library, so it works without AltStable installed.
 
 ### Left out
 
