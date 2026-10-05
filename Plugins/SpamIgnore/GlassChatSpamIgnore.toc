@@ -6,7 +6,7 @@
 ## Group: GlassChat
 ## Dependencies: GlassChat
 ## OptionalDeps: AltStable
-## SavedVariables: GlassChatSpamIgnoreDB
+## SavedVariables: GlassChatSpamIgnoreDB, GlassChatSpamIgnoreSyncDB
 ## SavedVariablesPerCharacter: GlassChatSpamIgnoreCharDB
 
 Text.lua

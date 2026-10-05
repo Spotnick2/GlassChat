@@ -54,6 +54,7 @@ end
 function Sync.Build()
     local db = Spam.db
     local out, skipped = { Sync.FORMAT, "T\t" .. time() }, 0
+    local counts = { I = 0, P = 0, M = 0, O = 0 }
     -- One of yours is never sent as an ignore: a receiver that doesn't know it
     -- is yours (no AltStable there) would ignore it (review of #40).
     for guid, e in pairs(db.ignore) do
@@ -61,17 +62,19 @@ function Sync.Build()
             -- skipped silently: it's already shown as one of yours in /gchat ignores
         elseif isGuid(guid) and plainField(e.name, Sync.NAME_MAX) then
             out[#out + 1] = "I\t" .. guid .. "\t" .. e.name
+            counts.I = counts.I + 1
         else skipped = skipped + 1 end
     end
     for l, e in pairs(db.pending) do
         if Spam.OwnByName(l) then
             -- likewise
-        elseif plainField(e.name, Sync.NAME_MAX) then out[#out + 1] = "P\t" .. e.name
+        elseif plainField(e.name, Sync.NAME_MAX) then out[#out + 1] = "P\t" .. e.name; counts.P = counts.P + 1
         else skipped = skipped + 1 end
     end
     for _, m in ipairs(db.mutes) do
         if plainField(m.phrase, Spam.MUTE_MAX) then
             out[#out + 1] = "M\t" .. (m.aggressive and "1" or "0") .. "\t" .. m.phrase
+            counts.M = counts.M + 1
         else skipped = skipped + 1 end
     end
     -- Your own characters: recorded here, and AltStable's, so the receiver
@@ -82,9 +85,12 @@ function Sync.Build()
         if own[guid] == nil and type(name) == "string" then own[guid] = name end
     end
     for guid, name in pairs(own) do
-        if isGuid(guid) and plainField(name, Sync.NAME_MAX) then out[#out + 1] = "O\t" .. guid .. "\t" .. name end
+        if isGuid(guid) and plainField(name, Sync.NAME_MAX) then
+            out[#out + 1] = "O\t" .. guid .. "\t" .. name
+            counts.O = counts.O + 1
+        end
     end
-    return table.concat(out, "\n"), skipped
+    return table.concat(out, "\n"), skipped, counts
 end
 
 --------------------------------------------------------------------------------
@@ -231,9 +237,10 @@ local KIND_NAME = { I = "ignored players", P = "pending names", M = "muted phras
 
 -- force: send even empty lists (they would empty every other account's).
 function Sync.Send(force)
-    local body, skipped = Sync.Build()
-    local db = Spam.db
-    if not force and next(db.ignore) == nil and next(db.pending) == nil and #db.mutes == 0 then
+    local body, skipped, counts = Sync.Build()
+    -- Empty is what is SENT, not the raw lists: entries naming your own
+    -- characters, or unwritable ones, aren't sent (Codex review of #40).
+    if not force and counts.I + counts.P + counts.M == 0 then
         say("your lists are empty: sending them would empty the lists on your other accounts. "
             .. "/gchat ignore send empty to do it anyway")
         return nil, "empty"

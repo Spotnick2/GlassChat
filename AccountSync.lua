@@ -3,11 +3,15 @@
 -- XML first). GlassChat is the library's pilot consumer.
 --
 -- One instance, tag "GlassChat" (wire-visible and permanent: never change
--- it). Its store is its OWN SavedVariables file, GlassChatSyncDB: account-wide,
--- it holds the household key, so it never sits in GlassChatDB, whose
--- SavedVariables file holds focus mode's export, meant to be shared (review
--- of #40). The getter reads it raw, nil until the SavedVariables load (the
--- library asks for it again on every access).
+-- it). Its store holds the household key, so it must never be written into
+-- SavedVariables\GlassChat.lua: that file holds focus mode's export, which is
+-- meant to be shared. The client writes ONE file per addon, whatever the
+-- number of variables (Codex review of #40), so the store is declared by the
+-- Spam & Ignore plugin, the only feature that sends: GlassChatSpamIgnoreSyncDB,
+-- in SavedVariables\GlassChatSpamIgnore.lua. Without the plugin there's no
+-- store, and the library never chooses a key (it fails closed). The getter
+-- reads it raw, nil until those SavedVariables load (the library asks for it
+-- again on every access).
 --
 -- A payload is "<kind>\n<body>", so features share the one tag: Spam &
 -- Ignore's list snapshot registers kind "SI". The library gives the sender
@@ -36,7 +40,7 @@ local function report(text, kind)
 end
 
 local function store()
-    local t = rawget(_G, "GlassChatSyncDB")
+    local t = rawget(_G, "GlassChatSpamIgnoreSyncDB")
     return type(t) == "table" and t or nil
 end
 
@@ -60,15 +64,26 @@ if lib then
     end
 end
 
--- The store, made at ADDON_LOADED (GlassChat.lua) once SavedVariables exist.
--- A store an earlier build kept in GlassChatDB.accountSync moves out (the key
--- stays the same, so the trust the accounts built survives).
+-- GlassChat's ADDON_LOADED: a store an earlier build kept in GlassChat.lua
+-- (GlassChatDB.accountSync, then GlassChatSyncDB) is taken out of it, held for
+-- the plugin's ADDON_LOADED, and never written back there.
+local pending
 function AS.EnsureStore(db)
-    if type(rawget(_G, "GlassChatSyncDB")) ~= "table" then
-        local old = rawget(db, "accountSync")
-        GlassChatSyncDB = type(old) == "table" and old or {}
-    end
+    local old = rawget(db, "accountSync")
+    local older = rawget(_G, "GlassChatSyncDB")
+    pending = (type(older) == "table" and older) or (type(old) == "table" and old) or nil
     db.accountSync = nil
+    GlassChatSyncDB = nil
+end
+
+-- The plugin's ADDON_LOADED: its own SavedVariables hold the store from now
+-- on; one moved out of GlassChat.lua is adopted with its key (so the trust the
+-- accounts built survives).
+function AS.AdoptStore()
+    if type(rawget(_G, "GlassChatSpamIgnoreSyncDB")) ~= "table" then
+        GlassChatSpamIgnoreSyncDB = pending or {}
+    end
+    pending = nil
 end
 
 -- A feature's payloads: fn(body, sender, sid).

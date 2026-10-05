@@ -306,11 +306,15 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
   - **One instance, tag `GlassChat`.** The tag is wire-visible and permanent: never change it.
-  - **The store is its own SavedVariables file, `GlassChatSyncDB`**, made at `ADDON_LOADED` and
-    read raw by a getter that is nil until the SavedVariables load. It is account-wide and holds
-    the household key, so it **never sits in `GlassChatDB`**, whose file holds focus mode's export,
-    which is meant to be shared (review of #40). An earlier `GlassChatDB.accountSync` moves out,
-    with the same key.
+  - **The store holds the household key, so it is never written into `SavedVariables\GlassChat.lua`**,
+    the file focus mode's export goes to, which is meant to be shared. The client writes **one file
+    per addon**, whatever the number of variables (Codex, #40), so the store is
+    **`GlassChatSpamIgnoreSyncDB`, declared by the Spam & Ignore plugin**, the only feature that
+    sends. It lands in `GlassChatSpamIgnore.lua`.
+    - Without the plugin there's no store, and the library fails closed.
+    - A store an earlier build left in `GlassChat.lua` (`GlassChatDB.accountSync`, `GlassChatSyncDB`)
+      is taken out at GlassChat's `ADDON_LOADED` and adopted at the plugin's, with its key.
+    - The getter reads it raw, nil until the SavedVariables load.
   - **A payload is `"<kind>\n<body>"`.** Features register a kind with `AccountSync.On`;
     Spam & Ignore's snapshot is `SI`. An unknown kind is ignored.
   - **The sender comes from the library** (Blizzard's sender id), never from the payload.
@@ -370,8 +374,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
       the old ones for `/gchat ignore sync undo`. Your own characters are only ever added, and an
       ignore naming one of yours is dropped.
     - **The sender** never sends an ignore naming one of its own characters (AltStable's
-      included, sent as own). It refuses empty lists unless you run `/gchat ignore send empty`,
-      and it checks the receiver's caps first.
+      included, sent as own). It refuses an empty snapshot (counted from what is sent, not the
+      raw lists) unless you run `/gchat ignore send empty`, and it checks the receiver's caps first.
     - **Order:** the last applied stream id is kept per sender GUID, in
       `GlassChatSpamIgnoreDB.syncApplied`. The library already drops older streams within a
       session; this check also covers across sessions.

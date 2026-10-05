@@ -418,6 +418,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
             for _, e in ipairs(Spam.IGNORE_EVENTS) do ChatFrameUtil.AddMessageEventFilter(e, Spam.Filter) end
         end
         if GC.SpamMirror then GC.SpamMirror.Start() end
+        if GC.AccountSync then GC.AccountSync.AdoptStore() end   -- the household key, in this addon's file
         if GC.SpamSync then GC.SpamSync.Start() end
         if GC.SpamUI then GC.SpamUI.Start() end
     elseif event == "PLAYER_LOGIN" then

@@ -38,18 +38,37 @@ check(rawget(_G, "GlassChatDB") == nil, "(before load)")
 
 WoW.playerGUID, WoW.playerName = "Player-1-0000000A", "Karuzo Elegia"
 WoW.loggedIn = true
--- A store an earlier build kept in GlassChatDB.accountSync moves to its own file.
+-- The household key's store lives in the Spam & Ignore plugin's SavedVariables
+-- (its own file), never in GlassChat.lua, which holds focus mode's shareable
+-- export: the client writes one file per addon (Codex review of #40). A store
+-- an earlier build left in GlassChat.lua moves over, its key kept.
+GlassChatSyncDB = { key = "bbbb", keyAt = 1 }   -- the previous build's location
 local GC = loadAddon({ db = { accountSync = { key = "aaaa", keyAt = 1 } } })
 local AS, Sync, Spam = GC.AccountSync, GC.SpamSync, GC.Spam
-local store = GlassChatSyncDB
-check(type(store) == "table", "GlassChatSyncDB exists once SavedVariables load")
-eq(store.key, "aaaa", "an earlier store moves over, its key kept (the trust built survives)")
-eq(rawget(GlassChatDB, "accountSync"), nil, "and the household key is no longer in GlassChatDB (focus mode's export file)")
-eq(AS._test.store(), store, "the library's getter returns it")
-local saved = GlassChatSyncDB
-GlassChatSyncDB = nil
+local store = GlassChatSpamIgnoreSyncDB
+check(type(store) == "table", "the store is the plugin's GlassChatSpamIgnoreSyncDB")
+eq(store.key, "bbbb", "an earlier store moves over, its key kept (the trust built survives)")
+eq(rawget(GlassChatDB, "accountSync"), nil, "nothing of it is left in GlassChatDB")
+eq(rawget(_G, "GlassChatSyncDB"), nil, "nor in GlassChatSyncDB: GlassChat.lua is written without the key")
+local pluginToc = io.open("Plugins/SpamIgnore/GlassChatSpamIgnore.toc"):read("*a")
+check(pluginToc:find("## SavedVariables:[^\n]*GlassChatSpamIgnoreSyncDB"), "the plugin declares the store (its own file)")
+local coreToc = io.open("GlassChat.toc"):read("*a")
+check(not coreToc:find("GlassChatSpamIgnoreSyncDB", 1, true), "GlassChat's own TOC doesn't (its file holds the export)")
+-- Nothing GlassChat.lua's file will hold carries a key.
+local function hasKey(t, depth)
+    if type(t) ~= "table" or depth > 4 then return false end
+    for k, v in pairs(t) do
+        if k == "key" or k == "trusted" then return true end
+        if hasKey(v, depth + 1) then return true end
+    end
+    return false
+end
+check(not hasKey(GlassChatDB, 0) and not hasKey(GlassChatCharDB, 0), "GlassChat.lua's tables hold no key")
+eq(AS._test.store(), store, "the library's getter returns the store")
+local saved = GlassChatSpamIgnoreSyncDB
+GlassChatSpamIgnoreSyncDB = nil
 eq(AS._test.store(), nil, "the getter is nil while SavedVariables aren't loaded (at login)")
-GlassChatSyncDB = saved
+GlassChatSpamIgnoreSyncDB = saved
 store.key = nil   -- let the library choose its own for the rest of the test
 check(AS.inst ~= nil, "a LibAccountSync instance, tag GlassChat")
 
@@ -252,6 +271,20 @@ check(chatHas("your lists are empty") and chatHas("/gchat ignore send empty"), "
 local before = #sentTo(Peer.id, "D1|")
 SlashCmdList.GLASSCHAT("ignore send empty")
 check(#sentTo(Peer.id, "D1|") > before, "/gchat ignore send empty sends them")
+db.ignore, db.pending, db.mutes = keepI, keepP, keepM
+
+-- Empty is what would be SENT (Codex review of #40): lists holding only your
+-- own characters, or only entries that can't be written, are empty too.
+db.ignore, db.pending, db.mutes = { ["Player-1-0000000A"] = { name = "Karuzo Elegia" } }, {}, {}
+newChat()
+SlashCmdList.GLASSCHAT("ignore send")
+check(chatHas("your lists are empty"), "an ignore list holding only one of your own characters counts as empty")
+db.ignore, db.pending, db.mutes = { ["not-a-guid"] = { name = "Bad Entry" } }, { ["x"] = { name = "a" .. string.rep("b", 60) } }, {}
+newChat()
+before = #sentTo(Peer.id, "D1|")
+SlashCmdList.GLASSCHAT("ignore send")
+check(chatHas("your lists are empty"), "and so do lists holding only entries that can't be written")
+eq(#sentTo(Peer.id, "D1|"), before, "nothing sent without asking")
 db.ignore, db.pending, db.mutes = keepI, keepP, keepM
 
 -- Over a receiver's cap: refused here, not by every receiver.
