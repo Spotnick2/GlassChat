@@ -133,6 +133,7 @@ check(#sentTo(Peer.id, "H1|") > 0, "the library greets the other account")
 newChat()
 SlashCmdList.GLASSCHAT("ignore send")
 check(chatHas("isn't ready yet") or chatHas("still connecting"), "before its hello: not ready, try again in a few seconds")
+check(not chatHas("to 0 of your other accounts"), "and no 'sending to 0 accounts'")
 
 Peer.hello()
 advance(2)

@@ -209,8 +209,11 @@ function Sync.Send()
         end
         return nil, why
     end
-    say(string.format("sending your lists (%.1f KB) to %d of your other account%s...", #body / 1024, count,
-        count == 1 and "" or "s"))
+    -- 0: every account found is still mid-handshake; onResult said so for each.
+    if count > 0 then
+        say(string.format("sending your lists (%.1f KB) to %d of your other account%s...", #body / 1024, count,
+            count == 1 and "" or "s"))
+    end
     if skipped > 0 then say(skipped .. " entries couldn't be written and weren't sent") end
     return count
 end
