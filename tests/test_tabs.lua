@@ -39,6 +39,10 @@ end
 
 WoW.now = 1000
 local GC = loadAddon({ db = { devMode = false } })   -- developer mode has its own section below
+-- The game has loaded: the quiet after the loading screen is over.
+check(GC.Tabs.Loading(), "smart tabs stay quiet while the game loads")
+WoW.flushTimers(GC.Tabs.LOAD_QUIET)
+check(not GC.Tabs.Loading(), "and wake LOAD_QUIET s after the loading screen")
 local Tabs = GC.Tabs
 local main = ChatFrame1
 
@@ -385,6 +389,43 @@ check(not GC.IsDev(), "a release isn't")
 WoW.addonVersion = "dev"
 check(GC.IsDev(), "dev is")
 print = stubPrint
+
+-- The game loading (owner): a /reload's loading screen quiets smart tabs again.
+GC.db.devMode = true
+Tabs._test.reset()
+WoW.fire("PLAYER_ENTERING_WORLD", false, true)   -- a /reload
+check(Tabs.Loading(), "a /reload starts the quiet")
+local before = opened
+emit(direct("QuietProbe"), "|cff33ff99QuietProbe|r loaded")
+eq(opened, before, "a probe's loaded line opens no tab")
+check(not Tabs.IsRouted("QuietProbe"), "and isn't routed by its name")
+check(has(main, "|cff33ff99|Haddon:GlassChat:src:QuietProbe|hQuietProbe|h|r loaded"), "it stays in the main chat, its name still right-clickable")
+newChat()
+for i = 1, Tabs.CHATTY + 5 do emit(direct("LoudLoader"), "loading step " .. i) end
+check(not chatHas("LoudLoader printed"), "lines while loading count toward no offer")
+eq(Tabs.SourceFor("loading step 1"), "LoudLoader", "who wrote them is still noted (focus mode's From)")
+-- An addon with an Always rule but no tab yet: no tab opens while loading.
+for i = 4, 10 do local w = WoW.window(i); if w.name ~= "" and not w.shown then w.name = "" end end
+WoW.window(10).name, WoW.window(10).shown, WoW.window(10).docked = "", false, nil
+Tabs.SetRule("Waiter", "always")
+local openedBefore = opened
+emit(direct("Waiter"), "waiter loaded")
+eq(opened, openedBefore, "an Always addon's tab isn't opened while the game loads")
+check(has(main, "waiter loaded"), "its loading line stays in the main chat")
+WoW.flushTimers(Tabs.LOAD_QUIET)
+check(not Tabs.Loading(), "the quiet ends")
+emit(direct("Waiter"), "waiter later")
+eq(opened, openedBefore + 1, "after the quiet, its tab opens")
+emit(direct("QuietProbe"), "|cff33ff99QuietProbe|r working now")
+check(chatHas("developer mode: QuietProbe gets its own tab"), "after it, developer mode routes the probe")
+WoW.fire("PLAYER_ENTERING_WORLD", false, false)   -- zoning
+check(not Tabs.Loading(), "zoning doesn't start a quiet")
+-- Review of #42: the quiet always ends.
+WoW.fire("PLAYER_ENTERING_WORLD", WoW.Secret("isLogin"), false)
+check(Tabs.Loading(), "a secret argument is taken as a login")
+WoW.flushTimers(Tabs.LOAD_QUIET)
+check(not Tabs.Loading(), "and its quiet ends on time")
+GC.db.devMode = false
 
 eq(next(GC.failures), nil, "nothing failed")
 done("test_tabs")
