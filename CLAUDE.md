@@ -315,7 +315,7 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - Library reports: `error` goes to `API.Fail` and chat; `info` is kept for
     `/gchat ignore sync` and printed only in developer mode.
   - **Embedding** follows LibGlass's pattern:
-    - `.pkgmeta` external, pinned by `commit:` until the two-account check, then `tag: r1`;
+    - `.pkgmeta` external at `tag: r2` (the commit the two-account check passed on);
     - the TOC's XML line;
     - `tests/fetch_external.sh`, `$env:LIBACCOUNTSYNC` (default `..\LibAccountSync`), and the
       deploy calling the library's own deploy;

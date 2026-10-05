@@ -280,7 +280,7 @@ which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
   GUID and full name. GlassChat reads it at login and on AltStable's `CharactersChanged` callback,
   never per chat line, and only for API version 1. Those characters are never ignored, muted,
   repeat-hidden or added to Blizzard's list.
-- **Built (#33, pinned to LibAccountSync's merge commit until the two-account in-game check):**
+- **Built (#33, LibAccountSync `r2`; the owner's two-account in-game check passed):**
   `/gchat ignore send`, `Plugins/SpamIgnore/Sync.lua`. Its rules are in CLAUDE.md.
 - **The library:** the snapshot copy below goes through **LibAccountSync-1.0**
   (Spotnick2/LibAccountSync), a new embedded library seeded from AltStable's own-account channel.

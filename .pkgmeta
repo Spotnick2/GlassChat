@@ -22,12 +22,11 @@ externals:
   Libs/LibGlass-1.0:
     url: https://github.com/Spotnick2/LibGlass
     tag: r1
-  # Own-account messaging (Spam & Ignore's list copy, #33). Pinned by commit
-  # until the two-account in-game check; then tag: r1 (EMBEDDED-LIBRARIES 9).
-  # Now: LibAccountSync#5 merged (the #4 fix, MINOR 2).
+  # Own-account messaging (Spam & Ignore's list copy, #33). r2 is the commit
+  # the owner's two-account in-game check passed on (fdd4a72).
   Libs/LibAccountSync-1.0:
     url: https://github.com/Spotnick2/LibAccountSync
-    commit: fdd4a72e96128bcd80035a086114735ffb34f391
+    tag: r2
 
 manual-changelog:
   filename: CHANGELOG.md

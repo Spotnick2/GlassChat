@@ -41,7 +41,9 @@
   - **The same lists on all your WoW accounts:** `/gchat ignore send` copies this account's ignore
     list, pending names and muted phrases to your other accounts online on the same Battle.net
     account, and they replace their lists with it. `/gchat ignore sync` shows which accounts count
-    as yours; `/gchat ignore sync off` turns it off. It works without AltStable.
+    as yours; `/gchat ignore sync off` turns it off. It works without AltStable: the account link
+    is LibAccountSync, a small library included in the download, with each account proven yours
+    before anything is sent or accepted.
   - **With AltStable installed, your characters on your other WoW accounts count as yours:**
     they're never ignored, muted or added to Blizzard's ignore list.
   - **Blizzard's ignore list kept in step** on each character, so ignored players can't invite
