@@ -29,6 +29,13 @@ Tabs.SRC_LINK = "addon:GlassChat:src:"   -- an addon line's prefix: right-click 
 -- Our own probes (owner): routed at once in developer mode (GC.IsDev).
 Tabs.PROBE = "Probe$"
 Tabs.CHATTY, Tabs.WINDOW = 20, 60   -- lines within seconds that make an addon "chatty"
+-- The game loading (owner: "ignore the initial loading of the addons"):
+-- from GlassChat's start until LOAD_QUIET s after the loading screen of a
+-- login or /reload, every addon prints its "loaded" line. Those lines open no
+-- tab, route no probe by its name and count toward no offer; a tab already
+-- open still gets its addon's lines, and who wrote each line is still noted.
+Tabs.LOAD_QUIET = 15
+Tabs.LOAD_BACKSTOP = 60   -- the quiet ends by then even if no loading screen is ever seen (review of #42)
 
 local function say(msg) API.Print(msg) end
 
@@ -95,6 +102,15 @@ local closed = {}       -- addon -> true: its tab was closed this session
 local tabs = {}         -- addon -> chat frame
 local offered = {}      -- addon -> true: asked this session
 local devDone = {}      -- addon -> true: developer mode already routed or released it
+local loading = true    -- the game is still loading (see LOAD_QUIET)
+local quietGen = 0      -- the latest quiet; an older timer never ends a newer one
+local function quietFor(seconds)
+    quietGen = quietGen + 1
+    local gen = quietGen
+    loading = true
+    C_Timer.After(seconds, function() if gen == quietGen then loading = false end end)
+end
+function Tabs.Loading() return loading end
 local recent = {}       -- addon -> { times }
 
 local function rules()
@@ -147,6 +163,7 @@ local function tabFor(src)
         return nil
     end
     f = openWindow(src)
+    if not f and loading then return nil end   -- no new tab while the game loads: the line stays
     -- Never a new tab while the player is typing: FCF_OpenNewWindow makes the
     -- new tab's edit box the last active one, and in the IM chat style that
     -- hides the box being typed in, whose OnHide clears the unfinished text
@@ -282,7 +299,7 @@ function Tabs.Route(f, msg, r, g, b)
     -- returns below, the copy into its tab): a notice printed meanwhile goes
     -- through Route itself and resets them (review of #36).
     -- Developer mode: our own probes get their tab at once, once a session.
-    if not Tabs.IsRouted(src) and not devDone[src] and src:find(Tabs.PROBE) and GC.IsDev() then
+    if not loading and not Tabs.IsRouted(src) and not devDone[src] and src:find(Tabs.PROBE) and GC.IsDev() then
         local _, never = rules()
         devDone[src] = true
         if not never[src] and not closed[src] then
@@ -291,7 +308,7 @@ function Tabs.Route(f, msg, r, g, b)
         end
     end
     if not Tabs.IsRouted(src) then
-        noteChatty(src)
+        if not loading then noteChatty(src) end
         lastMsg, lastSrc = msg, src
         return false
     end
@@ -429,6 +446,8 @@ local started = false
 function Tabs.Start()
     if started then return end
     started = true
+    -- First, so it holds even if anything below fails: the quiet can't outlive this.
+    quietFor(Tabs.LOAD_BACKSTOP)
     GC.Chat.Route = Tabs.Route
     GC.Chat.Restamped = Tabs.Restamped
     GC.Chat.Linkify = Tabs.Linkify
@@ -436,9 +455,18 @@ function Tabs.Start()
     if EventRegistry and EventRegistry.RegisterCallback then
         EventRegistry:RegisterCallback("SetItemRef", Tabs.OnLink, Tabs)
     end
+    local f = CreateFrame("Frame")
+    f:SetScript("OnEvent", function(_, _, isLogin, isReload)
+        -- A secret argument can't be read: taken as a login, so the quiet still ends on time.
+        local unknown = API.IsSecret(isLogin) or API.IsSecret(isReload)
+        if not unknown and not (isLogin or isReload) then return end   -- zoning: addons aren't loading
+        quietFor(Tabs.LOAD_QUIET)
+    end)
+    API.RegisterEvents(f, { "PLAYER_ENTERING_WORLD" })
 end
 
 Tabs._test = {
     reset = function() session, closed, tabs, offered, recent, moving, devDone = {}, {}, {}, {}, {}, false, {} end,
+    loaded = function() loading = false end,
     sources = function() return current, previous end,
 }

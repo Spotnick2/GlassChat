@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Ships LibGlass r2 (the shared glass library; nothing changes on screen).
+- Smart tabs stay quiet while the game loads: the "loaded" lines every addon prints at login or
+  `/reload` no longer open tabs or count toward the "chatty" offer.
 - The chat-menu and friends buttons beside the chat are compact glass buttons too, with a gold
   speech bubble and Blizzard's two-person friends symbol, instead of metal frames.
 - **Right-click an addon's name in chat** (the coloured `[AltStable]` at the start of its lines)
