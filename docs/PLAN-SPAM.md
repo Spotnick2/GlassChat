@@ -314,85 +314,109 @@ wants gone is a mute.
 
 #### Signals
 
-The line is split into **tokens**, words separated by spaces. **Each token counts toward at
-most one kind**, the first that matches in this order (review of #46: one discord link must not
-make two kinds).
+The line is split into **tokens**, runs of characters between whitespace. Leading brackets and
+quotes and trailing punctuation are stripped from a token, as M5's `Url.Wrap` does. **Each token
+counts toward at most one kind**, the first that matches in this order (review of #46: one
+discord link must not make two kinds). Every token rule matches the **whole** token.
 
 | Kind | A token is it when (no English) |
 |---|---|
-| **Address** | `Url.Address` matches it once leading brackets and quotes are stripped, **or** it has the generic shape `name.tld[/…]`: a name of 3 or more letters, digits or dashes, and a lower-case ending of 2-6 letters, any ending, because spam uses `.shop`, `.top` and `.vip`, which M5's list leaves out. |
-| **Contact** | `@name` (2 or more letters), or a tag shape `Name#1234` (3-5 digits). |
-| **Price** | a currency symbol (`$ € £ ¥ ₽`) next to digits: `$5`, `5€`, `10$`. **Not `%`**: in WoW chat it means drop rates, loot rules and progress (review of #46). |
+| **Address** | after mapping look-alike letters to Latin (below), either `Url.Address` matches it, or it is `name.tld[/path]`: a name of 1 or more labels of letters and digits (dashes inside only, never only dashes), and an ending from M5's list (`Url.TLDS`) **plus the endings spam favours**: `shop top vip xyz club online site store cc biz co ru`. **Not "any 2-6 letter ending"**: that took `item.level`, `GlassChat.lua` and `lol.ok` for addresses (Codex, #46). |
+| **Contact** | `@name`, where the name is 2 or more letters or digits (any script), **or** `Name#1234`, where the name is 2 or more letters (any script) and is followed by exactly 4 or 5 digits. A bare `#1234`, `group #2` or `rank #1234` is not a contact. |
+| **Price** | a currency symbol (`$ € £ ¥ ₽`) directly before or after 1-6 digits (`$5`, `5€`, `10$`, `$4.99`). **Not `%`**: in WoW chat it means drop rates, loot rules and progress. |
 
-Two more kinds look at the line as a whole:
+Two more kinds look at the line's **original text**, never the aggressive form, which erases what
+they need (Codex):
 
 | Kind | Seen when |
 |---|---|
-| **Broken-up word** | 4 or more **single-character fragments in a row**, split by separators (`p.r.o.f.i.t`, `g o l d`, `p-r-0-f-i-t`, digits allowed). Spaces between whole words never count (review of #46: `Text.Aggressive` drops every separator). |
-| **Look-alike letters** | a word that mixes Latin letters with Cyrillic or Greek letters, **and every non-Latin letter in it is a Latin look-alike** (Cyrillic а е о р с у х к м т в н, Greek ο ρ α ε ν τ κ). That's homoglyph bait. Ordinary Russian, such as `ZGшку`, carries letters with no Latin twin (ш) and doesn't count (review of #46). |
+| **Broken-up word** | a maximal run of **5 or more fragments**, each a single letter or digit (one decoded code point), each separated by one or more characters from ` . - _ / , * ·`. `p.r.o.f.i.t` and `w w w . g o l d` count; `G G W P` (4) and `L F M` (3) don't. Tokens already counted as an address, contact or price aren't scanned. |
+| **Look-alike letters** | a word with at least 2 Latin letters, where **every** non-Latin letter is in the look-alike set below **and at least one sits between two Latin letters** (`gоld`, `g0ldsіte`). A non-Latin ending on a Latin acronym, such as Russian `MCе`, `AVке` or `ZGшку`, never counts, because it isn't inside the word (Codex, #46). |
+
+**The look-alike set (exact code points, upper and lower case):** Cyrillic а е о р с у х і ј ѕ
+к м and А В Е К М Н О Р С Т Х; Greek ο ρ α ε ι κ ν τ χ and Α Β Ε Ζ Η Ι Κ Μ Ν Ο Ρ Τ Χ. Lowercase
+Cyrillic т, в and н are left out: they only resemble Latin letters in some fonts (Codex).
 
 **Decoration** (a high share of symbols such as `★ ✪ ⚡ → ▶`, or 4+ repeated punctuation marks) is
 recorded and shown in watch mode, but it is **not a kind** and never decides.
 
 #### The decision
 
-**A line is hidden when it has at least two different kinds.** There's no separate threshold:
-the review showed the weights only obscured "two kinds" (an address plus a price scored under
-the threshold). **Three kinds** is logged as "strong".
+Players advertise too. Guild recruitment, a streamer's link, an addon's page or a gold-paid carry
+service all pair an **address with a contact** (Codex, #46: seven real examples). What marks
+**spam** is a **real-money price**, or text **disguised** to get past filters. So:
+
+**A line is hidden when it has one of the spam kinds, price, broken-up word or look-alike
+letters, together with any other kind.** An address with a contact, however many of each, never
+hides a line.
 
 **No negative signals in r1.** Game links and "names you" were planned to count against a line,
-but both are in the sender's control: two `[Linen Cloth]` links would buy any advert through. A
-real trade post rarely has two kinds anyway (worked examples below), and watch mode shows any
-that do before anything is hidden.
+but both are in the sender's control: two `[Linen Cloth]` links would buy any advert through.
+
+**Accepted misses:** spam that carries a single kind (`Cheap gold, instant delivery,
+goldsite.shop`; `1000 gold for $5, whisper me`). A mute, the repeat rule or an ignore covers
+those. The score is for the shapes words can't name.
 
 #### Worked examples
 
 | Line | Kinds | Result |
 |---|---|---|
-| `Cheap gold $5 = 1000g at goldsite.shop` | address, price | hidden |
-| `W W W . g o l d . c o m best price 10$` | broken-up, price | hidden |
-| `Buy gold at gоldsite.com` (Cyrillic о) | look-alike, address | hidden |
+| `Cheap gold $5 = 1000g at goldsite.shop` | price, address | hidden |
+| `w w w . g o l d . c o m best price 10$` | broken-up, price | hidden |
+| `Buy gold at gоldsite.com` (Cyrillic о) | look-alike, address (found after mapping) | hidden |
+| `Buy gold, add Seller#1234, cheapest $` | contact only (a bare `$` isn't a price) | shown |
+| `<Night Watch> recruiting, discord.gg/nw, @Recruiter` | address, contact (no spam kind) | shown |
+| `Live at twitch.tv/example, follow @Example` | address, contact | shown |
+| `Selling Mara carries 20g/run, discord.gg/carries, Runner#1234` | address, contact | shown |
 | `Guide for the 5% drop: wowhead.com/guide/x !!!` | address | shown |
-| `<Guild> recruiting, 100% loot council, discord.gg/abc` | address (one token, one kind) | shown |
-| `WTS [Thunderfury] 500g pst` | none | shown |
-| `WTS [Thunderfury] 10$ or 500g, add me Seller#1234` | price, contact | **hidden: a real-money trade post. Watch mode decides whether that's wanted.** |
-| `LF хил в ZGшку, 50% лута` | none (ш has no Latin twin, % isn't a price) | shown |
+| `G G W P, vod twitch.tv/example` | address (4 fragments isn't broken-up) | shown |
+| `Ищем хила в MCе, discord.gg/raid` | address (the Cyrillic е is an ending, not inside) | shown |
+| `WTS [Thunderfury] 10$ or 500g, add me Seller#1234` | price, contact | **hidden: real money for game goods. Watch mode decides whether that's wanted.** |
+| `Free addon at github.com/x, optional $5 donation` | price, address | **hidden: the known false positive; watch mode will say how often it happens.** |
 
 #### Where it applies
 
 - **The S1 policy is unchanged:** public chat only (channels, say, yell, emote), never you,
   friends, guild, group, Battle.net friends or the allow list.
-- **The order:** ignores, mutes, CJK, **score**, repeats. The score comes before repeats so that
-  a line it hides is never timed as the "last shown" post (review of #46).
-- **It's stateless,** a function of the line alone, so it also runs on the no-lineID path. Watch
-  entries are logged only with a usable lineID, so a line shown in several windows is logged
-  once. Probe 10 didn't cover CHANNEL or EMOTE lineIDs; the watch log will show whether they
-  repeat.
+- **The order:** ignores, mutes, CJK, **score**, repeats. The score comes before repeats, so a
+  line it hides is never timed as the "last shown" post.
+- **It's stateless,** a function of the line alone, so it also runs on the no-lineID path.
 
 #### Watch first (the main safety)
 
 - **Three states:** `/gchat spam score off | watch | hide`, **watch** by default.
-  - In watch mode, a line with two kinds is **shown**. It goes into a separate **score log**
-    (the last 100 entries) with its kinds and decoration, **not** into the hidden-lines log and
-    **not** into the eye icon's count, so the icon never claims something was hidden.
-  - In hide mode it's hidden with the reason `score: address + price`, like every other reason.
-- **`/gchat spam score`** lists the score log, near misses (one kind) included, so the owner can
-  judge both sides against real Forever chat.
-- **`/gchat spam test <text>`** also reports the kinds found.
+  - **In watch mode** a spam-kind line is evaluated as if shown. It goes into a separate **score
+    log** (the last 100) with its kinds, its decoration and its **final outcome**: shown, or
+    hidden by the repeat rule that runs after it (Codex). Neither the hidden-lines log nor the
+    eye icon's count is touched, unless a later rule hides the line, as it does today.
+  - **Lines with no usable lineID are logged too, marked "no id",** so watch mode sees the
+    traffic that would otherwise go unmeasured (Codex: probe 10 covered SAY, WHISPER,
+    WHISPER_INFORM and PARTY_LEADER, not CHANNEL or EMOTE). Such a line may then appear once per
+    window. Before hide mode is offered, `/cprobe lines` is run in General and Trade to measure
+    CHANNEL lineIDs.
+  - **In hide mode** the line is hidden with the reason `score: price + address`, like every other
+    reason.
+- **The score's state lives with the decision, not in it:** `Judge` still returns a reason or
+  nil, so the memo's "reason or false" is unchanged. A watch-mode observation is written on the
+  memo miss only, never returned as a reason, so it can never hide a line.
+- **`/gchat spam score`** lists the score log, near misses (one kind) included. **`/gchat spam
+  test <text>`** reports the kinds found.
 
 #### Whispers (an open question, off by default)
 
-Strangers' whispers carry the same spam. If they are scored (`/gchat spam score whispers on`),
-anyone you whispered this session is exempt (`CHAT_MSG_WHISPER_INFORM`). A seller you asked
-"how much?" replies with exactly the price and contact a score looks for (review of #46).
+Strangers' whispers carry the same spam. If they are ever scored (`/gchat spam score whispers
+on`), anyone you whispered this session is exempt (`CHAT_MSG_WHISPER_INFORM`). A seller you asked
+"how much?" replies with exactly the price and contact a score looks for.
 
 #### Costs
 
-- One pass over the visible text, shared: today `mutedBy`, `IsCJK` and `RepeatKey` each strip
-  the line separately. A per-line context (the visible text, its tokens, the code points)
-  is built once and handed to every check, under S1's memo.
-- **The score has its own address check.** M5's filter runs after the plugin's, by design, and
-  not at all when click-to-copy is off, so its scan can't be reused.
+- **A per-line context, built lazily after the guards, the memo and the exemptions:** the visible
+  text, its tokens and its code points, plus the original message for link data. `mutedBy`,
+  `IsCJK`, `RepeatKey`, the score and `record()` all take from it. That isn't "one pass"
+  (stripping, tokenising and decoding are still separate work), but nothing is done twice, and
+  ignored, exempt or muted lines never build the later parts.
+- **The score has its own address check:** M5's filter runs after the plugin's, by design, and
+  not at all when click-to-copy is off.
 
 #### Left for later
 
@@ -402,10 +426,19 @@ anyone you whispered this session is exempt (`CHAT_MSG_WHISPER_INFORM`). A selle
 
 #### For the review
 
-1. Are the kinds language-neutral, and does "one token, one kind" hold?
-2. Which real trade, LFG or recruitment posts reach two kinds? (The examples include one.)
-3. Is a real-money price plus a BattleTag something to hide?
-4. Is the look-alike rule strict enough to leave Russian and Greek chat alone?
+1. Does "a spam kind plus any other" separate players' own advertising (address and contact)
+   from spam well enough?
+2. Are the grammars now complete: the token stripping, the address endings, the contact shapes,
+   the fragment run and the look-alike set?
+3. Is a real-money price plus a contact something to hide (the trade-post example)?
+
+**Codex review (2026-10-05, consult):** no P1 found; six P2s, all taken. Address plus contact is
+players' advertising, so a spam kind is now required. The address ending is a list, not any 2-6
+letters. Contact, fragment and look-alike grammars are exact (look-alikes only inside a word, an
+exact code-point set). Watch mode records the final outcome and logs lines with no lineID. The
+look-alike address example is resolved by mapping before the address check. The context is
+built lazily. Codex called the separate score log, off/watch/hide, watch by default, the order,
+the memo contract and the shared context sound.
 
 ### Left out
 
