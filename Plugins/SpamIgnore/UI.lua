@@ -216,6 +216,7 @@ local function ignore(arg)
     if arg == "import" then say(Spam.Import()); GC.SpamMirror.Check("import"); return end
     -- S3: the lists to your other accounts (GC.SpamSync).
     if arg == "send" then GC.SpamSync.Send(); return end
+    if arg == "send empty" then GC.SpamSync.Send(true); return end
     local sync = (arg == "sync" and "") or arg:match("^sync (%a+)$")
     if sync then GC.SpamSync.Command(sync); return end
     if arg == "" then ignores(); return end

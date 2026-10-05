@@ -38,15 +38,19 @@ check(rawget(_G, "GlassChatDB") == nil, "(before load)")
 
 WoW.playerGUID, WoW.playerName = "Player-1-0000000A", "Karuzo Elegia"
 WoW.loggedIn = true
-local GC = loadAddon()
+-- A store an earlier build kept in GlassChatDB.accountSync moves to its own file.
+local GC = loadAddon({ db = { accountSync = { key = "aaaa", keyAt = 1 } } })
 local AS, Sync, Spam = GC.AccountSync, GC.SpamSync, GC.Spam
-local store = GlassChatDB.accountSync
-check(type(store) == "table", "GlassChatDB.accountSync exists once SavedVariables load")
-eq(AS._test.store(), store, "and the library's getter returns it")
-local saved = GlassChatDB
-GlassChatDB = nil
+local store = GlassChatSyncDB
+check(type(store) == "table", "GlassChatSyncDB exists once SavedVariables load")
+eq(store.key, "aaaa", "an earlier store moves over, its key kept (the trust built survives)")
+eq(rawget(GlassChatDB, "accountSync"), nil, "and the household key is no longer in GlassChatDB (focus mode's export file)")
+eq(AS._test.store(), store, "the library's getter returns it")
+local saved = GlassChatSyncDB
+GlassChatSyncDB = nil
 eq(AS._test.store(), nil, "the getter is nil while SavedVariables aren't loaded (at login)")
-GlassChatDB = saved
+GlassChatSyncDB = saved
+store.key = nil   -- let the library choose its own for the rest of the test
 check(AS.inst ~= nil, "a LibAccountSync instance, tag GlassChat")
 
 --------------------------------------------------------------------------------
@@ -213,6 +217,50 @@ check(Sync.Parse("SI1\nI\tPlayer-1-00000AAA\tA Name"), "a good body parses")
 check(not Sync.Parse(WoW.Secret("x")), "a secret body is never read")
 check(not Sync.Parse(""), "nor an empty one")
 
+-- Undo: the lists the last snapshot replaced come back.
+newChat()
+SlashCmdList.GLASSCHAT("ignore sync undo")
+check(chatHas("your lists are back"), "/gchat ignore sync undo restores the lists a snapshot replaced")
+check(db.ignore["Player-1-00000AAA"] and db.ignore["Player-1-00000CCC"] == nil, "the ignores as they were")
+newChat()
+SlashCmdList.GLASSCHAT("ignore sync undo")
+check(chatHas("nothing to undo"), "and only once")
+
+--------------------------------------------------------------------------------
+-- Review of #40: what the sender sends, and refuses to
+--------------------------------------------------------------------------------
+-- One of yours (known through AltStable) is never sent as an ignore; it's sent as own.
+rawset(_G, "AltStable", { PUBLIC_API_VERSION = 1,
+    GetCharacters = function() return { { guid = "Player-1-0000A1F9", name = "Alt Elsewhere" } } end,
+    RegisterCallback = function() end })
+Spam.RefreshAltStable()
+db.ignore["Player-1-0000A1F9"] = { name = "Alt Elsewhere" }   -- ignored before AltStable knew it
+db.pending["alt elsewhere"] = { name = "Alt Elsewhere" }
+local body = Sync.Build()
+check(not body:find("\nI\tPlayer%-1%-0000A1F9"), "an ignore naming one of yours isn't sent")
+check(not body:find("\nP\tAlt Elsewhere"), "nor a pending one")
+check(body:find("\nO\tPlayer%-1%-0000A1F9\tAlt Elsewhere"), "it's sent as one of your own instead")
+db.ignore["Player-1-0000A1F9"], db.pending["alt elsewhere"] = nil, nil
+rawset(_G, "AltStable", nil)
+
+-- Empty lists aren't sent unless asked: they'd empty every other account.
+local keepI, keepP, keepM = db.ignore, db.pending, db.mutes
+db.ignore, db.pending, db.mutes = {}, {}, {}
+newChat()
+SlashCmdList.GLASSCHAT("ignore send")
+check(chatHas("your lists are empty") and chatHas("/gchat ignore send empty"), "empty lists: refused, with how to force it")
+local before = #sentTo(Peer.id, "D1|")
+SlashCmdList.GLASSCHAT("ignore send empty")
+check(#sentTo(Peer.id, "D1|") > before, "/gchat ignore send empty sends them")
+db.ignore, db.pending, db.mutes = keepI, keepP, keepM
+
+-- Over a receiver's cap: refused here, not by every receiver.
+for i = 1, Sync.CAPS.P + 1 do db.pending["pending" .. i] = { name = "Pending Name" .. i } end
+newChat()
+SlashCmdList.GLASSCHAT("ignore send")
+check(chatHas("too many pending names to send"), "over a cap: the sender says so")
+for i = 1, Sync.CAPS.P + 1 do db.pending["pending" .. i] = nil end
+
 --------------------------------------------------------------------------------
 -- Sizes, the switch, the status
 --------------------------------------------------------------------------------
@@ -235,6 +283,16 @@ SlashCmdList.GLASSCHAT("ignore sync off")
 check(chatHas("account sync: off") and not AS.IsEnabled(), "/gchat ignore sync off turns it off")
 SlashCmdList.GLASSCHAT("ignore send")
 check(chatHas("account sync is off"), "and send says so")
+-- On, but the library still says "disabled" (Battle.net not usable): not "turn it on".
+SlashCmdList.GLASSCHAT("ignore sync on")
+local realSend = AS.inst.Send
+AS.inst.Send = function() return nil, "disabled" end
+newChat()
+SlashCmdList.GLASSCHAT("ignore send")
+local lastLine = WoW.chat[#WoW.chat]
+check(lastLine:find("Battle.net isn't ready for account sync", 1, true) and not lastLine:find("account sync is off", 1, true),
+    "with the switch on, 'disabled' says Battle.net isn't ready, not 'turn it on'")
+AS.inst.Send = realSend
 SlashCmdList.GLASSCHAT("ignore sync on")
 check(AS.IsEnabled(), "on again")
 newChat()

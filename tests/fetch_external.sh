@@ -27,7 +27,7 @@ fi
 entry=$(tr -d '\r' < .pkgmeta | awk -v want="  $lib:" '
     /^externals:/ { inext = 1; next }
     inext && /^[^ #]/ { inext = 0 }
-    inext && $0 == want { inlib = 1; next }
+    inext && index($0, want) == 1 && substr($0, length(want) + 1) ~ /^[ \t]*(#.*)?$/ { inlib = 1; next }
     inlib && /^  [^ ]/ { inlib = 0 }
     inext && inlib')
 # Values are read the way the packager reads them: the whole rest of the line.

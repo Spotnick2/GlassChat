@@ -166,7 +166,7 @@ local function readAltStable(AS)
         if type(c) == "table" then
             local g, n = plainString(c.guid), plainString(c.name)
             if g and g:sub(1, 7) == "Player-" then
-                guids[g] = true
+                guids[g] = n or true   -- the name, for Spam & Ignore's snapshot (Sync.lua)
                 if unique and n and n:find("%S %S") then names[n:lower()] = true end
             end
         end
@@ -190,6 +190,9 @@ local function hookAltStable()
     end)
     if ok then altHooked = true else API.Fail("spam altstable hook", err) end
 end
+
+-- Your characters known through AltStable: guid -> name (or true).
+function Spam.AltOwn() return alt.guids end
 
 local function isOwn(guid)
     return guid == playerGUID() or Spam.db.own[guid] ~= nil or alt.guids[guid] ~= nil
@@ -353,7 +356,7 @@ function Spam.Unignore(name)
     end
     if Spam.db.pending[lname] then Spam.db.pending[lname] = nil; found = true end
     -- A hidden line from them is no longer hidden by an old decision.
-    memo, memoOrder = {}, {}
+    Spam.ResetMemo()
     return found and ("no longer ignoring " .. name) or (name .. " isn't on your list")
 end
 

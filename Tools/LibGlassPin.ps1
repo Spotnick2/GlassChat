@@ -2,7 +2,7 @@
     LibGlassPin.ps1 - The one PowerShell reader of the LibGlass pin, dot-sourced
     by Tools/deploy.ps1 and tests/run.ps1 (review of #30: they each had a copy).
 
-    The pin is read the way the packager and tests/fetch_libglass.sh read it:
+    The pin is read the way the packager and tests/fetch_external.sh read it:
     only the Libs/LibGlass-1.0 entry of the externals block, and the whole rest
     of the commit:/tag: line as the value (the packager's YAML reader keeps an
     inline "# comment" in the value, so one shows up here as a pin that doesn't
@@ -15,7 +15,7 @@ function Get-LibGlassPin([string]$RepoRoot, [string]$Lib = "Libs/LibGlass-1.0") 
         $line = $line.TrimEnd("`r")
         if ($line -match '^externals:') { $inExt = $true; continue }
         if ($inExt -and $line -match '^[^ #]') { $inExt = $false }
-        if ($inExt -and $line -eq "  ${Lib}:") { $inLib = $true; continue }
+        if ($inExt -and $line -match ('^  ' + [regex]::Escape($Lib) + ':\s*(#.*)?$')) { $inLib = $true; continue }
         if ($inLib -and $line -match '^  [^ ]') { $inLib = $false }
         if ($inExt -and $inLib -and $line -match '^\s+(commit|tag):\s*(.*\S)\s*$') { return $Matches[2] }
     }

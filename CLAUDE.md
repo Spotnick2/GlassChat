@@ -98,7 +98,7 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
 - **The pin:** `.pkgmeta` pins a tag (`r1`), **never `tag: latest`**.
   - Bump it only in a release made anyway: players get library fixes earlier through whichever
     glass addon ships the newest copy, since LibStub runs that one.
-  - CI reads the pin from `.pkgmeta` (`tests/fetch_libglass.sh`) and tests against it.
+  - CI reads the pin from `.pkgmeta` (`tests/fetch_external.sh <Libs/Name-1.0> <dest>`) and tests against it.
   - CI also asserts that the zip's `Libs/LibGlass-1.0/` is exactly that commit's shipped files.
   - `tests\run.ps1` and the deploy warn when the local checkout isn't at the pin.
 - **`GlassChat.Glass` is an instance**: `STYLE`, `EDGE`, the `TUNABLES` setters and the font
@@ -306,9 +306,11 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
   - **One instance, tag `GlassChat`.** The tag is wire-visible and permanent: never change it.
-  - **The store is `GlassChatDB.accountSync`**, made at `ADDON_LOADED` and read raw by a getter
-    that is nil until the SavedVariables load. It is account-wide and holds the household key,
-    so it never goes into a layout or any other export.
+  - **The store is its own SavedVariables file, `GlassChatSyncDB`**, made at `ADDON_LOADED` and
+    read raw by a getter that is nil until the SavedVariables load. It is account-wide and holds
+    the household key, so it **never sits in `GlassChatDB`**, whose file holds focus mode's export,
+    which is meant to be shared (review of #40). An earlier `GlassChatDB.accountSync` moves out,
+    with the same key.
   - **A payload is `"<kind>\n<body>"`.** Features register a kind with `AccountSync.On`;
     Spam & Ignore's snapshot is `SI`. An unknown kind is ignored.
   - **The sender comes from the library** (Blizzard's sender id), never from the payload.
@@ -364,8 +366,12 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - **Format `SI1`:** one record per line, tab-separated fields, the format first. The parser is
       all-or-nothing: an unknown format or line, a bad GUID, length or count refuses the whole
       snapshot.
-    - **The receiver replaces** its ignores, pending names and mutes, removals included. Your own
-      characters are only ever added, and an ignore naming one of yours is dropped.
+    - **The receiver replaces** its ignores, pending names and mutes, removals included, and keeps
+      the old ones for `/gchat ignore sync undo`. Your own characters are only ever added, and an
+      ignore naming one of yours is dropped.
+    - **The sender** never sends an ignore naming one of its own characters (AltStable's
+      included, sent as own). It refuses empty lists unless you run `/gchat ignore send empty`,
+      and it checks the receiver's caps first.
     - **Order:** the last applied stream id is kept per sender GUID, in
       `GlassChatSpamIgnoreDB.syncApplied`. The library already drops older streams within a
       session; this check also covers across sessions.

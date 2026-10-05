@@ -3,10 +3,11 @@
 -- XML first). GlassChat is the library's pilot consumer.
 --
 -- One instance, tag "GlassChat" (wire-visible and permanent: never change
--- it). Its store is GlassChatDB.accountSync: account-wide, it holds the
--- household key, so it never goes into a layout or any other export. The
--- getter reads it raw, nil until GlassChat's SavedVariables load (the library
--- asks for it again on every access).
+-- it). Its store is its OWN SavedVariables file, GlassChatSyncDB: account-wide,
+-- it holds the household key, so it never sits in GlassChatDB, whose
+-- SavedVariables file holds focus mode's export, meant to be shared (review
+-- of #40). The getter reads it raw, nil until the SavedVariables load (the
+-- library asks for it again on every access).
 --
 -- A payload is "<kind>\n<body>", so features share the one tag: Spam &
 -- Ignore's list snapshot registers kind "SI". The library gives the sender
@@ -35,9 +36,7 @@ local function report(text, kind)
 end
 
 local function store()
-    local db = rawget(_G, "GlassChatDB")
-    if type(db) ~= "table" then return nil end
-    local t = rawget(db, "accountSync")
+    local t = rawget(_G, "GlassChatSyncDB")
     return type(t) == "table" and t or nil
 end
 
@@ -62,8 +61,14 @@ if lib then
 end
 
 -- The store, made at ADDON_LOADED (GlassChat.lua) once SavedVariables exist.
+-- A store an earlier build kept in GlassChatDB.accountSync moves out (the key
+-- stays the same, so the trust the accounts built survives).
 function AS.EnsureStore(db)
-    if type(rawget(db, "accountSync")) ~= "table" then db.accountSync = {} end
+    if type(rawget(_G, "GlassChatSyncDB")) ~= "table" then
+        local old = rawget(db, "accountSync")
+        GlassChatSyncDB = type(old) == "table" and old or {}
+    end
+    db.accountSync = nil
 end
 
 -- A feature's payloads: fn(body, sender, sid).
