@@ -304,64 +304,108 @@ which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
 ### A spam score (S4, plan: to be reviewed before any code)
 
 **The problem.** Mutes catch the phrases you've already seen. Commercial spam (gold, boosts,
-"cheap levelling", site adverts) changes its wording, but keeps the same *shape*: an address to
-go to, a price, a way to make contact, and words broken up so filters miss them.
+"cheap levelling", site adverts) changes its wording, but keeps the same *shape*: somewhere to
+go, a price, a way to make contact, and words broken up so filters miss them.
 
-**The rule: shape, never words.** Every signal is language-neutral data: links, digits,
-symbols, scripts, the line's structure. **No English word list**, because clients are localised
+**The rule: shape, never words.** Every signal is language-neutral data: links, digits, symbols,
+scripts, the line's structure. **No English word list**, because clients are localised
 (CLAUDE.md: IDs, never names) and BadBoy's lists can't be reused (its licence). A word a player
 wants gone is a mute.
 
-**Signals** (each counted once per line; weights to be tuned against real lines, see Observe
-first):
+#### Signals
 
-| Signal | How it's seen (no English) | Weight |
+The line is split into **tokens**, words separated by spaces. **Each token counts toward at
+most one kind**, the first that matches in this order (review of #46: one discord link must not
+make two kinds).
+
+| Kind | A token is it when (no English) |
+|---|---|
+| **Address** | `Url.Address` matches it once leading brackets and quotes are stripped, **or** it has the generic shape `name.tld[/…]`: a name of 3 or more letters, digits or dashes, and a lower-case ending of 2-6 letters, any ending, because spam uses `.shop`, `.top` and `.vip`, which M5's list leaves out. |
+| **Contact** | `@name` (2 or more letters), or a tag shape `Name#1234` (3-5 digits). |
+| **Price** | a currency symbol (`$ € £ ¥ ₽`) next to digits: `$5`, `5€`, `10$`. **Not `%`**: in WoW chat it means drop rates, loot rules and progress (review of #46). |
+
+Two more kinds look at the line as a whole:
+
+| Kind | Seen when |
+|---|---|
+| **Broken-up word** | 4 or more **single-character fragments in a row**, split by separators (`p.r.o.f.i.t`, `g o l d`, `p-r-0-f-i-t`, digits allowed). Spaces between whole words never count (review of #46: `Text.Aggressive` drops every separator). |
+| **Look-alike letters** | a word that mixes Latin letters with Cyrillic or Greek letters, **and every non-Latin letter in it is a Latin look-alike** (Cyrillic а е о р с у х к м т в н, Greek ο ρ α ε ν τ κ). That's homoglyph bait. Ordinary Russian, such as `ZGшку`, carries letters with no Latin twin (ш) and doesn't count (review of #46). |
+
+**Decoration** (a high share of symbols such as `★ ✪ ⚡ → ▶`, or 4+ repeated punctuation marks) is
+recorded and shown in watch mode, but it is **not a kind** and never decides.
+
+#### The decision
+
+**A line is hidden when it has at least two different kinds.** There's no separate threshold:
+the review showed the weights only obscured "two kinds" (an address plus a price scored under
+the threshold). **Three kinds** is logged as "strong".
+
+**No negative signals in r1.** Game links and "names you" were planned to count against a line,
+but both are in the sender's control: two `[Linen Cloth]` links would buy any advert through. A
+real trade post rarely has two kinds anyway (worked examples below), and watch mode shows any
+that do before anything is hidden.
+
+#### Worked examples
+
+| Line | Kinds | Result |
 |---|---|---|
-| A web address | `Url.Address` on any word (M5's matcher) | +2 |
-| A price | a currency symbol (`$ € £ ¥ ₽`), or digits with `%` | +2 |
-| A contact handle | `@name`, `name#1234` (a tag shape), or an address of a chat service by its shape | +1 |
-| A broken-up word | the aggressive form (`Text.Aggressive`) holds a run of 6+ letters the visible text splits with separators (`p.r.o.f.i.t`) | +2 |
-| Mixed scripts in one word | Latin with Cyrillic, Greek or full-width letters inside one word (homoglyph bait) | +3 |
-| Decoration | a high share of symbols (`★ ✪ ⚡ → ▶` and others), or long repeated punctuation | +1 |
-| **Game links** | `|Hitem`, `|Hachievement`, `|Hquest`, `|Hspell`: a real trade or LFG post | **-2 each, up to -4** |
-| **Talking to you** | a line that names you (`UnitName("player")`'s first name) | **-3** |
+| `Cheap gold $5 = 1000g at goldsite.shop` | address, price | hidden |
+| `W W W . g o l d . c o m best price 10$` | broken-up, price | hidden |
+| `Buy gold at gоldsite.com` (Cyrillic о) | look-alike, address | hidden |
+| `Guide for the 5% drop: wowhead.com/guide/x !!!` | address | shown |
+| `<Guild> recruiting, 100% loot council, discord.gg/abc` | address (one token, one kind) | shown |
+| `WTS [Thunderfury] 500g pst` | none | shown |
+| `WTS [Thunderfury] 10$ or 500g, add me Seller#1234` | price, contact | **hidden: a real-money trade post. Watch mode decides whether that's wanted.** |
+| `LF хил в ZGшку, 50% лута` | none (ш has no Latin twin, % isn't a price) | shown |
 
-**The decision.** A line is hidden only when **both** hold:
-- the score reaches the threshold (start: **5**);
-- at least **two different kinds** of commercial signal are present: address, price, contact,
-  broken-up word, mixed scripts.
+#### Where it applies
 
-So a guide link alone (+2), a price alone, or a link plus decoration never hides a line.
-"WTS [Thunderfury] 500g" can't reach the threshold, because the item link pulls it down.
+- **The S1 policy is unchanged:** public chat only (channels, say, yell, emote), never you,
+  friends, guild, group, Battle.net friends or the allow list.
+- **The order:** ignores, mutes, CJK, **score**, repeats. The score comes before repeats so that
+  a line it hides is never timed as the "last shown" post (review of #46).
+- **It's stateless,** a function of the line alone, so it also runs on the no-lineID path. Watch
+  entries are logged only with a usable lineID, so a line shown in several windows is logged
+  once. Probe 10 didn't cover CHANNEL or EMOTE lineIDs; the watch log will show whether they
+  repeat.
 
-**Where it applies:** the S1 policy is unchanged. It runs on public chat only (channels, say,
-yell, emote), never for you, friends, guild, group, Battle.net friends or the allow list. It
-runs after ignores, mutes, CJK and repeats, so it only judges what those let through.
-- **Open question:** whispers from strangers carry the same spam. Should the score apply there
-  too, off by default (`/gchat spam score whispers on`)?
+#### Watch first (the main safety)
 
-**Observe first (the main safety):**
-- The score ships **watching, not hiding**. A line that would be hidden is logged (`would hide,
-  score 6: address + price + broken-up`) and **shown**.
-- `/gchat spam score` lists the last lines that scored high, with their signals, so the owner can
-  check the weights against real Forever spam before anything is hidden.
-- `/gchat spam score on` turns hiding on, and `/gchat spam score threshold <n>` changes the
-  threshold. A hidden line goes to the log with its score and signals, like every other reason.
+- **Three states:** `/gchat spam score off | watch | hide`, **watch** by default.
+  - In watch mode, a line with two kinds is **shown**. It goes into a separate **score log**
+    (the last 100 entries) with its kinds and decoration, **not** into the hidden-lines log and
+    **not** into the eye icon's count, so the icon never claims something was hidden.
+  - In hide mode it's hidden with the reason `score: address + price`, like every other reason.
+- **`/gchat spam score`** lists the score log, near misses (one kind) included, so the owner can
+  judge both sides against real Forever chat.
+- **`/gchat spam test <text>`** also reports the kinds found.
 
-**Costs:** one pass over the visible text, the aggressive form (computed only when a cheap check
-shows separators or non-ASCII letters), and the link scan M5 already does. It runs once per
-(event, lineID), through S1's memo.
+#### Whispers (an open question, off by default)
 
-**Left for later:** other scripts as a whole (Cyrillic was BadBoy's other case; ask first),
-learning from what the player hides, and an options page.
+Strangers' whispers carry the same spam. If they are scored (`/gchat spam score whispers on`),
+anyone you whispered this session is exempt (`CHAT_MSG_WHISPER_INFORM`). A seller you asked
+"how much?" replies with exactly the price and contact a score looks for (review of #46).
 
-**For the review:**
-1. Are the signals language-neutral enough?
-2. Can a real trade, LFG or guild-recruitment post reach the threshold?
-3. Is "two kinds" plus the threshold strict enough, given that one false positive hides a real
-   player?
-4. Is observe-first enough as the safety, or should hiding stay off until the owner turns it on
-   permanently?
+#### Costs
+
+- One pass over the visible text, shared: today `mutedBy`, `IsCJK` and `RepeatKey` each strip
+  the line separately. A per-line context (the visible text, its tokens, the code points)
+  is built once and handed to every check, under S1's memo.
+- **The score has its own address check.** M5's filter runs after the plugin's, by design, and
+  not at all when click-to-copy is off, so its scan can't be reused.
+
+#### Left for later
+
+- other scripts as a whole (Cyrillic was BadBoy's other case; ask first);
+- weights, if watch mode shows two kinds isn't enough;
+- an options page.
+
+#### For the review
+
+1. Are the kinds language-neutral, and does "one token, one kind" hold?
+2. Which real trade, LFG or recruitment posts reach two kinds? (The examples include one.)
+3. Is a real-money price plus a BattleTag something to hide?
+4. Is the look-alike rule strict enough to leave Russian and Greek chat alone?
 
 ### Left out
 
@@ -369,7 +413,6 @@ learning from what the player hides, and an options page.
 - CVar changes.
 - Event reordering.
 - Function replacement.
-- Mirroring into the server list (S2b only if measured worthwhile).
 - GIL's filter language, NPC and server ignores, and faction or realm options.
 - The rotating-bot detector.
 - Per-mute channel restrictions (they would need stable channel IDs, not English names).
@@ -388,9 +431,8 @@ learning from what the player hides, and an options page.
   - the eye icon and the hidden-lines log;
   - the GUID ignore list, filter-enforced, with `/gchat ignore|unignore|ignores` and explicit
     import.
-- **S2b (only if probe 12 makes it worth it):** mirroring into Blizzard's list, with
-  reconciliation rules.
-- **S3:** cross-account snapshot copy through an AltStable API (an AltStable issue first).
+- **S2b (built):** mirroring into Blizzard's list, with reconciliation rules.
+- **S3 (built):** the cross-account snapshot copy, through LibAccountSync-1.0.
 - **S4:** the spam score, see "A spam score" above. It is planned there and reviewed before any
   code. It ships watching first, then hides on the owner's say. Other scripts and an options page
   wait until asked.
