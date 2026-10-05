@@ -21,7 +21,7 @@ move-folders:
 externals:
   Libs/LibGlass-1.0:
     url: https://github.com/Spotnick2/LibGlass
-    tag: r1
+    tag: r2
   # Own-account messaging (Spam & Ignore's list copy, #33). r2 is the commit
   # the owner's two-account in-game check passed on (fdd4a72).
   Libs/LibAccountSync-1.0:
