@@ -29,6 +29,7 @@ if (-not (Test-Path $AddOnsPath)) { Write-Error "AddOns path not found: $AddOnsP
 
 . (Join-Path $PSScriptRoot "LibGlassPin.ps1")
 $LibGlass = if ($env:LIBGLASS) { $env:LIBGLASS } else { Join-Path (Split-Path -Parent $RepoRoot) "LibGlass" }
+$LibSync = if ($env:LIBACCOUNTSYNC) { $env:LIBACCOUNTSYNC } else { Join-Path (Split-Path -Parent $RepoRoot) "LibAccountSync" }
 
 function Deploy-Addon {
     $dest = Join-Path $AddOnsPath "GlassChat"
@@ -43,6 +44,14 @@ function Deploy-Addon {
     # library that never arrived loads no frames at all).
     & pwsh -NoProfile -File (Join-Path $LibGlass "Tools\deploy.ps1") -Addon GlassChat -AddOnsPath $AddOnsPath
     if ($LASTEXITCODE -ne 0) { Write-Error "LibGlass deploy refused; GlassChat was not touched"; exit 1 }
+    # LibAccountSync-1.0 the same way (Spam & Ignore's list copy, #33).
+    if (-not (Test-Path -LiteralPath (Join-Path $LibSync "Tools\deploy.ps1"))) {
+        Write-Error "LibAccountSync checkout not found at $LibSync (clone github.com/Spotnick2/LibAccountSync there, or set `$env:LIBACCOUNTSYNC)"
+        exit 1
+    }
+    Write-LibGlassPinStatus $RepoRoot $LibSync "this deploy tests a library the release won't ship" "Libs/LibAccountSync-1.0"
+    & pwsh -NoProfile -File (Join-Path $LibSync "Tools\deploy.ps1") -Addon GlassChat -AddOnsPath $AddOnsPath
+    if ($LASTEXITCODE -ne 0) { Write-Error "LibAccountSync deploy refused; GlassChat was not touched"; exit 1 }
     Write-Host "Deploying GlassChat -> $dest" -ForegroundColor Cyan
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     $files = @("GlassChat.toc") + (Get-ChildItem -LiteralPath $RepoRoot -Filter "*.lua" | Select-Object -ExpandProperty Name)

@@ -42,6 +42,7 @@ local function ensureDefaults()
         end
     end
     setmetatable(db, { __index = DEFAULTS })
+    GC.AccountSync.EnsureStore(db)   -- the account-wide store LibAccountSync-1.0 keeps its key in
     if type(GlassChatCharDB) ~= "table" then GlassChatCharDB = {} end
     return db, GlassChatCharDB
 end

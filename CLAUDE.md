@@ -53,8 +53,10 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 
 ## Layout
 
-TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `GlassChat.lua`.
+TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
+`Libs\LibAccountSync-1.0\LibAccountSync-1.0.xml` (own-account messaging) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
+`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `AccountSync.lua` →
+`GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -96,7 +98,7 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
 - **The pin:** `.pkgmeta` pins a tag (`r2`), **never `tag: latest`**.
   - Bump it only in a release made anyway: players get library fixes earlier through whichever
     glass addon ships the newest copy, since LibStub runs that one.
-  - CI reads the pin from `.pkgmeta` (`tests/fetch_libglass.sh`) and tests against it.
+  - CI reads the pin from `.pkgmeta` (`tests/fetch_external.sh <Libs/Name-1.0> <dest>`) and tests against it.
   - CI also asserts that the zip's `Libs/LibGlass-1.0/` is exactly that commit's shipped files.
   - `tests\run.ps1` and the deploy warn when the local checkout isn't at the pin.
 - **`GlassChat.Glass` is an instance**: `STYLE`, `EDGE`, the `TUNABLES` setters and the font
@@ -301,6 +303,31 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - `Copy.Plain` turns our address links back into the plain address, without the brackets.
   - **The click:** `EventRegistry "SetItemRef"` opens a small read-only box with the address
     selected for Ctrl+C. There is no clipboard API here (probe items 2-3).
+- **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
+  **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
+  - **One instance, tag `GlassChat`.** The tag is wire-visible and permanent: never change it.
+  - **The store holds the household key, so it is never written into `SavedVariables\GlassChat.lua`**,
+    the file focus mode's export goes to, which is meant to be shared. The client writes **one file
+    per addon**, whatever the number of variables (Codex, #40), so the store is
+    **`GlassChatSpamIgnoreSyncDB`, declared by the Spam & Ignore plugin**, the only feature that
+    sends. It lands in `GlassChatSpamIgnore.lua`.
+    - Without the plugin there's no store, and the library fails closed.
+    - A store an earlier build left in `GlassChat.lua` (`GlassChatDB.accountSync`, `GlassChatSyncDB`)
+      is taken out at GlassChat's `ADDON_LOADED` and adopted at the plugin's, with its key.
+    - The getter reads it raw, nil until the SavedVariables load.
+  - **A payload is `"<kind>\n<body>"`.** Features register a kind with `AccountSync.On`;
+    Spam & Ignore's snapshot is `SI`. An unknown kind is ignored.
+  - **The sender comes from the library** (Blizzard's sender id), never from the payload.
+  - Library reports: `error` goes to `API.Fail` and chat; `info` is kept for
+    `/gchat ignore sync` and printed only in developer mode.
+  - **Embedding** follows LibGlass's pattern:
+    - `.pkgmeta` external at `tag: r2` (the commit the two-account check passed on);
+    - the TOC's XML line;
+    - `tests/fetch_external.sh`, `$env:LIBACCOUNTSYNC` (default `..\LibAccountSync`), and the
+      deploy calling the library's own deploy;
+    - CI's allowlist and pinned-content checks for both libraries.
+
+    Never edit `..\LibAccountSync` from here: a bug goes on a LibAccountSync issue.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It
@@ -337,6 +364,24 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - never your own characters.
 
     The rules are in `docs/PLAN-SPAM.md`.
+  - **`Sync.lua` (S3 part 2): the lists to your other accounts.**
+    - `/gchat ignore send` sends a snapshot through `GC.AccountSync`: the ignores (by GUID), the
+      pending names, the mutes, and your own characters.
+    - **Format `SI1`:** one record per line, tab-separated fields, the format first. The parser is
+      all-or-nothing: an unknown format or line, a bad GUID, length or count refuses the whole
+      snapshot.
+    - **The receiver replaces** its ignores, pending names and mutes, removals included, and keeps
+      the old ones for `/gchat ignore sync undo`. Your own characters are only ever added, and an
+      ignore naming one of yours is dropped.
+    - **The sender** never sends an ignore naming one of its own characters (AltStable's
+      included, sent as own). It refuses an empty snapshot (counted from what is sent, not the
+      raw lists) unless you run `/gchat ignore send empty`, and it checks the receiver's caps first.
+    - **Order:** the last applied stream id is kept per sender GUID, in
+      `GlassChatSpamIgnoreDB.syncApplied`. The library already drops older streams within a
+      session; this check also covers across sessions.
+    - `/gchat ignore sync [on|off]` shows the library's diagnostics and switches it. Sizes: 50
+      ignores is about 2.5 KB and 500 about 23 KB, under `AccountSync.MAX` (32 KB). Over that,
+      the send refuses with the size rather than truncating.
   - **Your characters on other WoW accounts** come from AltStable when it's installed
     (`## OptionalDeps: AltStable`). `AltStable.GetCharacters()` (public API **v1 only**) is read
     at login and on its `CharactersChanged` callback (which also re-runs the mirror's check)

@@ -317,6 +317,8 @@ ChatFrame1:AddMessage("[1. General] [Bob]: hi", 1, 1, 1, 1, nil, 1, "CHAT_MSG_CH
 eq(last(), "[1. General] [Bob]: hi", "a chat-event line is left to Blizzard (it stamps those)")
 ChatFrame1:AddMessage("[09:15:00] already stamped", 1, 1, 1)
 eq(last(), "[09:15:00] already stamped", "a line that starts with a time isn't stamped twice")
+ChatFrame1:AddMessage("|cff888888[09:15:01]|r stamped by another addon", 1, 1, 1)
+eq(last(), "|cff888888[09:15:01]|r stamped by another addon", "nor one whose time sits in a colour code (Prat's stamps)")
 ChatFrame1:AddMessage(WoW.Secret("hidden"), 1, 1, 1)
 check(true, "a secret line is left alone (no error)")
 
