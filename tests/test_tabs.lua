@@ -420,6 +420,11 @@ emit(direct("QuietProbe"), "|cff33ff99QuietProbe|r working now")
 check(chatHas("developer mode: QuietProbe gets its own tab"), "after it, developer mode routes the probe")
 WoW.fire("PLAYER_ENTERING_WORLD", false, false)   -- zoning
 check(not Tabs.Loading(), "zoning doesn't start a quiet")
+-- Review of #42: the quiet always ends.
+WoW.fire("PLAYER_ENTERING_WORLD", WoW.Secret("isLogin"), false)
+check(Tabs.Loading(), "a secret argument is taken as a login")
+WoW.flushTimers(Tabs.LOAD_QUIET)
+check(not Tabs.Loading(), "and its quiet ends on time")
 GC.db.devMode = false
 
 eq(next(GC.failures), nil, "nothing failed")

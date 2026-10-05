@@ -35,6 +35,7 @@ Tabs.CHATTY, Tabs.WINDOW = 20, 60   -- lines within seconds that make an addon "
 -- tab, route no probe by its name and count toward no offer; a tab already
 -- open still gets its addon's lines, and who wrote each line is still noted.
 Tabs.LOAD_QUIET = 15
+Tabs.LOAD_BACKSTOP = 60   -- the quiet ends by then even if no loading screen is ever seen (review of #42)
 
 local function say(msg) API.Print(msg) end
 
@@ -102,6 +103,13 @@ local tabs = {}         -- addon -> chat frame
 local offered = {}      -- addon -> true: asked this session
 local devDone = {}      -- addon -> true: developer mode already routed or released it
 local loading = true    -- the game is still loading (see LOAD_QUIET)
+local quietGen = 0      -- the latest quiet; an older timer never ends a newer one
+local function quietFor(seconds)
+    quietGen = quietGen + 1
+    local gen = quietGen
+    loading = true
+    C_Timer.After(seconds, function() if gen == quietGen then loading = false end end)
+end
 function Tabs.Loading() return loading end
 local recent = {}       -- addon -> { times }
 
@@ -438,6 +446,8 @@ local started = false
 function Tabs.Start()
     if started then return end
     started = true
+    -- First, so it holds even if anything below fails: the quiet can't outlive this.
+    quietFor(Tabs.LOAD_BACKSTOP)
     GC.Chat.Route = Tabs.Route
     GC.Chat.Restamped = Tabs.Restamped
     GC.Chat.Linkify = Tabs.Linkify
@@ -447,10 +457,10 @@ function Tabs.Start()
     end
     local f = CreateFrame("Frame")
     f:SetScript("OnEvent", function(_, _, isLogin, isReload)
-        if API.IsSecret(isLogin) or API.IsSecret(isReload) then return end
-        if not (isLogin or isReload) then return end   -- zoning: addons aren't loading
-        loading = true
-        C_Timer.After(Tabs.LOAD_QUIET, function() loading = false end)
+        -- A secret argument can't be read: taken as a login, so the quiet still ends on time.
+        local unknown = API.IsSecret(isLogin) or API.IsSecret(isReload)
+        if not unknown and not (isLogin or isReload) then return end   -- zoning: addons aren't loading
+        quietFor(Tabs.LOAD_QUIET)
     end)
     API.RegisterEvents(f, { "PLAYER_ENTERING_WORLD" })
 end

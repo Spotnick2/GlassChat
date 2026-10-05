@@ -266,6 +266,9 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - open no tab, route no probe by name, and count toward no offer;
     - still go to a tab that is already open;
     - still have their writer noted (focus mode's From).
+    - **It always ends:** a backstop armed first in `Tabs.Start` ends it after `LOAD_BACKSTOP`
+      (60 s), even if no loading screen is seen. A secret argument counts as a login. Each quiet
+      has a generation, so an older timer never ends a newer quiet.
   - It never walks the stack for the combat log (`COMBATLOG`, every entry is a plain
     `AddMessage`). Opening a tab puts back the selected tab and active edit box, because
     `FCF_OpenNewWindow` selects the new one. **No new tab while the player is typing**
