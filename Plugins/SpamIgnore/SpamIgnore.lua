@@ -134,7 +134,7 @@ local function playerGUID() return plainString(UnitGUID("player")) end
 function Spam.RecordSelf()
     local g = playerGUID()
     if not g then return end
-    local name = plainString((UnitName("player")))   -- the player's own: "First Surname" (porting guide :15)
+    local name = API.PlayerFullName()   -- "First Surname", whichever shape the client gives (AltStable #56)
     Spam.db.own[g] = { name = name or "?", seen = time() }
 end
 
@@ -166,7 +166,7 @@ local function readAltStable(AS)
         if type(c) == "table" then
             local g, n = plainString(c.guid), plainString(c.name)
             if g and g:sub(1, 7) == "Player-" then
-                guids[g] = true
+                guids[g] = n or true   -- the name, for Spam & Ignore's snapshot (Sync.lua)
                 if unique and n and n:find("%S %S") then names[n:lower()] = true end
             end
         end
@@ -190,6 +190,9 @@ local function hookAltStable()
     end)
     if ok then altHooked = true else API.Fail("spam altstable hook", err) end
 end
+
+-- Your characters known through AltStable: guid -> name (or true).
+function Spam.AltOwn() return alt.guids end
 
 local function isOwn(guid)
     return guid == playerGUID() or Spam.db.own[guid] ~= nil or alt.guids[guid] ~= nil
@@ -342,6 +345,9 @@ function Spam.Ignore(name)
     return "ignoring " .. name .. " (pending: their next line confirms who they are)"
 end
 
+-- Forget every per-line decision (the lists changed under them).
+function Spam.ResetMemo() memo, memoOrder = {}, {} end
+
 function Spam.Unignore(name)
     local lname = name:lower()
     local found = false
@@ -350,7 +356,7 @@ function Spam.Unignore(name)
     end
     if Spam.db.pending[lname] then Spam.db.pending[lname] = nil; found = true end
     -- A hidden line from them is no longer hidden by an old decision.
-    memo, memoOrder = {}, {}
+    Spam.ResetMemo()
     return found and ("no longer ignoring " .. name) or (name .. " isn't on your list")
 end
 
@@ -412,6 +418,8 @@ f:SetScript("OnEvent", function(_, event, arg1)
             for _, e in ipairs(Spam.IGNORE_EVENTS) do ChatFrameUtil.AddMessageEventFilter(e, Spam.Filter) end
         end
         if GC.SpamMirror then GC.SpamMirror.Start() end
+        if GC.AccountSync then GC.AccountSync.AdoptStore() end   -- the household key, in this addon's file
+        if GC.SpamSync then GC.SpamSync.Start() end
         if GC.SpamUI then GC.SpamUI.Start() end
     elseif event == "PLAYER_LOGIN" then
         Spam.RecordSelf()

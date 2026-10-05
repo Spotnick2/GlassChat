@@ -122,8 +122,11 @@ function Chat.ApplyTimestamps()
     end
 end
 
+-- Already starts with a time, ours or another addon's, even inside a colour
+-- code (a coloured "[12:08:55]" from a chat addon like Prat): never stamped twice.
 local function stamped(msg)
-    return msg:find("^%[?%d%d?:%d%d") ~= nil
+    local plain = msg:gsub("^|c%x%x%x%x%x%x%x%x", ""):gsub("^|cn[^:]*:", "")
+    return plain:find("^%[?%d%d?:%d%d") ~= nil
 end
 
 -- The format the window stamps chat lines with now (the setting may have

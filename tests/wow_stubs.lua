@@ -709,9 +709,121 @@ WoW.reset()
 
 -- Strict globals: any read of an undefined global is an error, except the
 -- addon's own globals that are legitimately nil before first assignment.
+
+--------------------------------------------------------------------------------
+-- Battle.net, for the embedded LibAccountSync-1.0 (ported from its own
+-- tests/wow_stubs.lua: game account ids are local handles, an unknown id is
+-- TargetRequired (6), an offline one TargetOffline (12), BN_CHAT_MSG_ADDON
+-- delivers (prefix, text, "WHISPER", senderID)). Every function is in the
+-- 70205 dump.
+-- WoW.bn.accounts[id] = { characterName, playerGuid, isOnline, clientProgram,
+--   wowProjectID, regionID, isInCurrentRegion, factionName, realmName,
+--   bnetAccountID } declares an account this client can see.
+--------------------------------------------------------------------------------
+
+WoW.bn = { me = 1, myId = 2, project = 18, region = 90, tag = "Owner#1", connected = true,
+           accounts = {}, friends = {} }
+WoW.prefixes, WoW.bnSent, WoW.sendResults = {}, {}, {}
+WoW.player = { faction = "Alliance" }
+
+local function bnSelf()
+    return { gameAccountID = WoW.bn.myId, characterName = (UnitName("player")), playerGuid = UnitGUID("player"),
+             isOnline = true, clientProgram = "WoW", wowProjectID = WoW.bn.project, regionID = WoW.bn.region,
+             isInCurrentRegion = true, factionName = WoW.player.faction, realmName = GetRealmName() }
+end
+local function bnCopy(t, id)
+    if not t then return nil end
+    local c = {}
+    for k, v in pairs(t) do if k ~= "bnetAccountID" and k ~= "battleTag" then c[k] = v end end
+    c.gameAccountID = id
+    return c
+end
+function C_BattleNet.GetGameAccountInfoByID(id)
+    if id == WoW.bn.myId then return bnSelf() end
+    return bnCopy(WoW.bn.accounts[id], id)
+end
+-- Spam & Ignore's Battle.net-friend check (WoW.bnet[guid]) first, then the accounts.
+function C_BattleNet.GetGameAccountInfoByGUID(guid)
+    if WoW.bnet[guid] then return {} end
+    if guid == UnitGUID("player") then return bnSelf() end
+    for id, a in pairs(WoW.bn.accounts) do
+        if a.playerGuid == guid then return bnCopy(a, id) end
+    end
+end
+function C_BattleNet.GetAccountInfoByGUID(guid)
+    if guid == UnitGUID("player") then
+        return { bnetAccountID = WoW.bn.me, battleTag = WoW.bn.tag, gameAccountInfo = bnSelf() }
+    end
+    for id, a in pairs(WoW.bn.accounts) do
+        if a.playerGuid == guid then
+            local tag = (a.bnetAccountID == WoW.bn.me) and WoW.bn.tag or ("Other#" .. tostring(a.bnetAccountID))
+            return { bnetAccountID = a.bnetAccountID, battleTag = tag, gameAccountInfo = bnCopy(a, id) }
+        end
+    end
+end
+function C_BattleNet.SendGameData(id, prefix, text)
+    local result = table.remove(WoW.sendResults, 1)
+    if result == nil then
+        local a = (id == WoW.bn.myId) and bnSelf() or WoW.bn.accounts[id]
+        result = (a == nil) and 6 or (a.isOnline and 0 or 12)
+    end
+    if result ~= 0 then return result end
+    table.insert(WoW.bnSent, { prefix = prefix, text = text, target = id })
+    return 0
+end
+function C_BattleNet.GetFriendNumGameAccounts(i) return #(WoW.bn.friends[i] or {}) end
+function C_BattleNet.GetFriendGameAccountInfo(i, j)
+    local id = (WoW.bn.friends[i] or {})[j]
+    if not id then return nil end
+    return C_BattleNet.GetGameAccountInfoByID(id) or { gameAccountID = id }
+end
+function BNFeaturesEnabledAndConnected() return WoW.bn.connected ~= false end
+function BNGetNumFriends() return #WoW.bn.friends, #WoW.bn.friends end
+function BNGetInfo() return WoW.bn.me, WoW.bn.tag end
+
+function C_ChatInfo.RegisterAddonMessagePrefix(prefix)
+    WoW.prefixes[prefix] = true
+    return 0
+end
+function UnitFactionGroup(unit) if unit == "player" then return WoW.player.faction, WoW.player.faction end end
+function IsLoggedIn() return WoW.loggedIn == true end
+function GetServerTime() return time() end
+function debugprofilestop() return (GetTime() or 0) * 1000 end
+function fastrandom(a, b) return math.random(a, b) end
+function geterrorhandler() return function(err) table.insert(WoW.errors, err) end end
+WoW.errors = {}
+function securecallfunction(fn, ...)
+    local r = { pcall(fn, ...) }
+    if not r[1] then geterrorhandler()(r[2]); return end
+    return unpack(r, 2, table.maxn(r))
+end
+function C_Timer.NewTicker(seconds, fn)
+    local t = { s = seconds, fn = fn, every = seconds }
+    table.insert(WoW.timers, t)
+    return { Cancel = function() t.cancelled = true end }
+end
+
+-- ChatThrottleLib as a stub (version 10000, so the library's vendored v32
+-- steps aside), with v32's checks: a known priority, WHISPER, at most 255
+-- bytes, and the callback (arg, didSend, result).
+local CTL_PRIORITIES = { BULK = true, NORMAL = true, ALERT = true }
+ChatThrottleLib = {
+    version = 10000,
+    BNSendGameData = function(self, prio, prefix, text, chattype, gameAccountID, q, callbackFn, callbackArg)
+        if not CTL_PRIORITIES[prio] or not gameAccountID or chattype ~= "WHISPER" then
+            error("ChatThrottleLib:BNSendGameData(): bad arguments", 2)
+        end
+        if #text > 255 then error("ChatThrottleLib:BNSendGameData(): message length cannot exceed 255 bytes", 2) end
+        local ok, r = pcall(C_BattleNet.SendGameData, gameAccountID, prefix, text)
+        if not ok then geterrorhandler()(r); r = 9 end
+        if callbackFn then securecallfunction(callbackFn, callbackArg, r == 0, r) end
+    end,
+}
+
 -- LibStub: the embedded library's own loader reads _G.LibStub before creating it.
 local allowNil = { GlassChat = true, GlassChatDB = true, GlassChatCharDB = true, ChatProbeDB = true,
-    GlassChatSpamIgnoreDB = true, GlassChatSpamIgnoreCharDB = true, LibStub = true, AltStable = true }
+    GlassChatSpamIgnoreDB = true, GlassChatSpamIgnoreCharDB = true, LibStub = true, AltStable = true,
+    GlassChatSyncDB = true, GlassChatSpamIgnoreSyncDB = true }
 -- Client string alias (in the dump's _G walk); LibStub's version check uses it.
 strmatch = string.match
 setmetatable(_G, { __index = function(_, k)

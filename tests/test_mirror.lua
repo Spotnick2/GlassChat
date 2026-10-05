@@ -5,7 +5,10 @@ dofile("tests/harness.lua")
 
 -- Timers on a clock: advance(s) moves GetTime and runs what's due, in order.
 local clock, timers = 0, {}
-rawset(_G, "C_Timer", { After = function(s, fn) timers[#timers + 1] = { at = clock + s, fn = fn } end })
+rawset(_G, "C_Timer", {
+    After = function(s, fn) timers[#timers + 1] = { at = clock + s, fn = fn } end,
+    NewTicker = function(s, fn) return { Cancel = function() end } end,   -- the embedded library's 60 s ticker
+})
 -- Wall-clock time() on the same clock (saved writes are timed with it).
 rawset(_G, "time", function() return 1000000 + math.floor(clock) end)
 local function advance(s)

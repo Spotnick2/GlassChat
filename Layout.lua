@@ -129,7 +129,7 @@ function Layout.Matches(saved)
 end
 
 local function who()
-    local name = UnitName("player")
+    local name = API.PlayerFullName()
     return (plain(name) or "?") .. " (" .. (plain(GetRealmName()) or "?") .. ")"
 end
 

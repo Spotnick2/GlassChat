@@ -34,6 +34,8 @@ try {
     $libGlass = if ($env:LIBGLASS) { $env:LIBGLASS } else { Join-Path (Split-Path -Parent $RepoRoot) "LibGlass" }
     . (Join-Path $RepoRoot "Tools\LibGlassPin.ps1")
     if (Test-Path -LiteralPath $libGlass) { Write-LibGlassPinStatus $RepoRoot $libGlass "CI tests the pin" }
+    $libSync = if ($env:LIBACCOUNTSYNC) { $env:LIBACCOUNTSYNC } else { Join-Path (Split-Path -Parent $RepoRoot) "LibAccountSync" }
+    if (Test-Path -LiteralPath $libSync) { Write-LibGlassPinStatus $RepoRoot $libSync "CI tests the pin" "Libs/LibAccountSync-1.0" }
 
     $failed = 0
     Get-ChildItem (Join-Path $PSScriptRoot "test_*.lua") | Sort-Object Name | ForEach-Object {
