@@ -344,7 +344,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - Names count only while `RegionalUniqueNamesEnabled()` is true (measured on Forever) and
       only with a surname.
     - **A known GUID always decides.** `ownByName` is only the fallback for a pending entry
-      that has no GUID yet. The list sync between accounts waits for AltStable#190.
+      that has no GUID yet. The list sync between accounts goes through the
+    LibAccountSync-1.0 library (Spotnick2/LibAccountSync#1).
   - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** tab-strip icon
     (`/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
     unreplaced) and an eye in a release, and the debug log shows the event too.
