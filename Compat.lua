@@ -87,6 +87,22 @@ function API.AutoHideScrollBar(scroll)
     sync(scroll)
 end
 
+-- The player's full name, "First Surname", or nil. The client has given it
+-- two ways: whole in UnitName's first return, or the first name and the
+-- surname split across both (AltStable #56; the split shape is what dropped
+-- hellos in LibAccountSync #4). A first return that already holds a space is
+-- whole: the second slot is then not its missing half. Lifted from AltStable's
+-- API.PlayerFullName (Compat.lua).
+function API.PlayerFullName()
+    local name, second = UnitName("player")
+    if API.IsSecret(name) or type(name) ~= "string" or name == "" then return nil end
+    if name:find(" ") then return name end
+    if not API.IsSecret(second) and type(second) == "string" and second ~= "" then
+        return name .. " " .. second
+    end
+    return name
+end
+
 -- An addon's TOC Version, or nil (absent API, error, secret, not a string).
 function API.AddOnVersion(addon)
     local get = C_AddOns and C_AddOns.GetAddOnMetadata

@@ -134,7 +134,7 @@ local function playerGUID() return plainString(UnitGUID("player")) end
 function Spam.RecordSelf()
     local g = playerGUID()
     if not g then return end
-    local name = plainString((UnitName("player")))   -- the player's own: "First Surname" (porting guide :15)
+    local name = API.PlayerFullName()   -- "First Surname", whichever shape the client gives (AltStable #56)
     Spam.db.own[g] = { name = name or "?", seen = time() }
 end
 

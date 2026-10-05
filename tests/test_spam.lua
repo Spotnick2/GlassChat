@@ -30,6 +30,18 @@ local CH, SAY, GUILD, WHISPER = "CHAT_MSG_CHANNEL", "CHAT_MSG_SAY", "CHAT_MSG_GU
 
 -- Your own character is recorded at login.
 check(db.own["Player-1-ME"] ~= nil, "this character is recorded as yours")
+eq(db.own["Player-1-ME"].name, "Karuzo Elegia", "by its full name, whole in UnitName's first return")
+-- The split shape (AltStable #56): first name and surname in two returns.
+local realName = UnitName
+rawset(_G, "UnitName", function(unit) if unit == "player" then return "Karuzo", "Test" end end)
+eq(GC.API.PlayerFullName(), "Karuzo Test", "the split shape gives the full name back")
+Spam.RecordSelf()
+eq(db.own["Player-1-ME"].name, "Karuzo Test", "and that's what's recorded")
+check(Spam.OwnByName("karuzo test"), "so a name check finds this character")
+rawset(_G, "UnitName", function(unit) if unit == "player" then return "Karuzo Elegia", "Morphisto" end end)
+eq(GC.API.PlayerFullName(), "Karuzo Elegia", "a whole first return keeps its own name, the second slot not glued on")
+rawset(_G, "UnitName", realName)
+Spam.RecordSelf()
 
 -- Mutes: literal phrases at word edges, plurals ok, never inside a word.
 db.mutes = { { phrase = "profession kit" }, { phrase = "kit" } }

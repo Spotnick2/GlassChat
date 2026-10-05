@@ -26,7 +26,7 @@ eq(table.concat(saved.windows[1].messages, ","), "SAY,GUILD", "with each window'
 eq(table.concat(saved.windows[1].channels, ","), "General,Trade", "and channel names (zone IDs dropped)")
 eq(saved.windows[1].point, nil, "the main window's place is never saved (Edit Mode owns it)")
 eq(saved.windows[4].point, "CENTER", "a floating window's place is")
-eq(saved.from, "Karuzo (Doomhowl)", "it says where it came from")
+eq(saved.from, "Karuzo Morphisto (Doomhowl)", "it says where it came from")
 eq(saved.windows[4].fontSize, 14, "a 'default size' 0 is saved as the real default, never 0")
 GlassChatCharDB.layoutAnswered = nil   -- the GUID alone must keep it from asking,
 WoW.chatWindows[3].shown = false        -- even after its windows changed since
