@@ -12,6 +12,7 @@ end
 -- The embedded material loads before any of our files: Glass.lua calls
 -- LibStub("LibGlass-1.0") at file scope.
 eq(tocLines()[1], LIBGLASS_XML, "LibGlass-1.0 loads first")
+eq(tocLines()[2], LIBACCOUNTSYNC_XML, "then LibAccountSync-1.0, before any of our files")
 eq(tocFiles()[1], "Compat.lua", "Compat is the first of our own files")
 local seen = {}
 for _, f in ipairs(tocFiles()) do
@@ -97,5 +98,9 @@ eq(GlassChat.Glass.MEDIA, "Interface\\AddOns\\GlassChat\\Libs\\LibGlass-1.0\\Med
 for _, k in ipairs({ "Apply", "Font", "SetEdge", "MEDIA", "SIZES" }) do
     check(GlassChat.Glass[k] ~= nil, "the instance has Glass." .. k)
 end
+
+-- LibAccountSync-1.0 loaded through its XML, with its ChatThrottleLib and LibStub.
+local sync = LibStub and LibStub("LibAccountSync-1.0", true)
+check(sync and sync.ready ~= nil, "LibAccountSync-1.0 is registered and finished loading")
 
 done("test_toc")

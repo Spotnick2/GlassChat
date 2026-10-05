@@ -22,6 +22,11 @@ externals:
   Libs/LibGlass-1.0:
     url: https://github.com/Spotnick2/LibGlass
     tag: r1
+  # Own-account messaging (Spam & Ignore's list copy, #33). Pinned by commit
+  # until the two-account in-game check; then tag: r1 (EMBEDDED-LIBRARIES 9).
+  Libs/LibAccountSync-1.0:
+    url: https://github.com/Spotnick2/LibAccountSync
+    commit: cc92debfddbeb4a26d1a6cbc367544abccd584db
 
 manual-changelog:
   filename: CHANGELOG.md
@@ -50,3 +55,10 @@ ignore:
   - Libs/LibGlass-1.0/AGENTS.md
   - Libs/LibGlass-1.0/CLAUDE.md
   - Libs/LibGlass-1.0/README.md
+  # LibAccountSync's own non-shipped paths. Its ChatThrottleLib/ and LibStub/
+  # ship: its XML loads them. Tools/ holds its in-game probe.
+  - Libs/LibAccountSync-1.0/tests
+  - Libs/LibAccountSync-1.0/docs
+  - Libs/LibAccountSync-1.0/Tools
+  - Libs/LibAccountSync-1.0/CLAUDE.md
+  - Libs/LibAccountSync-1.0/README.md

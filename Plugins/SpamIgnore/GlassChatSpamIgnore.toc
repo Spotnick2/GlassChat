@@ -12,4 +12,5 @@
 Text.lua
 SpamIgnore.lua
 Mirror.lua
+Sync.lua
 UI.lua

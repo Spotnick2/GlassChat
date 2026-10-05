@@ -214,6 +214,10 @@ local function ignore(arg)
         return
     end
     if arg == "import" then say(Spam.Import()); GC.SpamMirror.Check("import"); return end
+    -- S3: the lists to your other accounts (GC.SpamSync).
+    if arg == "send" then GC.SpamSync.Send(); return end
+    local sync = (arg == "sync" and "") or arg:match("^sync (%a+)$")
+    if sync then GC.SpamSync.Command(sync); return end
     if arg == "" then ignores(); return end
     say(Spam.Ignore(arg))
     GC.SpamMirror.Check("ignore")
@@ -277,6 +281,7 @@ function UI.Start()
         "/gchat mute|unmute <phrase>, /gchat mutes - muted phrases in public chat",
         "/gchat ignore|unignore <First Surname>, /gchat ignores, /gchat ignore import - on all your characters",
         "/gchat ignore mirror on|off - keep Blizzard's ignore list in step (blocks invites and duels too)",
+        "/gchat ignore send - copy these lists to your other WoW accounts online; /gchat ignore sync - its status",
         "/gchat allow <First Surname> - never hide their lines",
         "/gchat spam - repeats, CJK, the log, a test",
     })

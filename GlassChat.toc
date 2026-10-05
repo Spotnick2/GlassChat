@@ -7,6 +7,7 @@
 ## SavedVariablesPerCharacter: GlassChatCharDB
 
 Libs\LibGlass-1.0\LibGlass-1.0.xml
+Libs\LibAccountSync-1.0\LibAccountSync-1.0.xml
 Compat.lua
 Glass.lua
 Chat.lua
@@ -18,4 +19,5 @@ Layout.lua
 Tabs.lua
 Focus.lua
 Url.lua
+AccountSync.lua
 GlassChat.lua

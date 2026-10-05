@@ -342,6 +342,9 @@ function Spam.Ignore(name)
     return "ignoring " .. name .. " (pending: their next line confirms who they are)"
 end
 
+-- Forget every per-line decision (the lists changed under them).
+function Spam.ResetMemo() memo, memoOrder = {}, {} end
+
 function Spam.Unignore(name)
     local lname = name:lower()
     local found = false
@@ -412,6 +415,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
             for _, e in ipairs(Spam.IGNORE_EVENTS) do ChatFrameUtil.AddMessageEventFilter(e, Spam.Filter) end
         end
         if GC.SpamMirror then GC.SpamMirror.Start() end
+        if GC.SpamSync then GC.SpamSync.Start() end
         if GC.SpamUI then GC.SpamUI.Start() end
     elseif event == "PLAYER_LOGIN" then
         Spam.RecordSelf()
