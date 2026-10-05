@@ -190,16 +190,22 @@ Sync.WHY = {
 
 function Sync.Send()
     local body, skipped = Sync.Build()
+    -- The library can report a result while Send is still running (in game:
+    -- it did): those wait, so the summary comes first and each result after.
+    local inSend, waiting = true, {}
     local count, why = GC.AccountSync.Send(Sync.KIND, body, function(peer, status, reason)
         local who = (type(peer) == "table" and plainField(peer.name, 64) and peer.name) or "your other account"
+        local line
         if status == "sent" then
-            say("your lists were handed to Battle.net for " .. who .. " (there's no delivery receipt)")
+            line = "your lists were handed to Battle.net for " .. who .. " (there's no delivery receipt)"
         elseif reason == "not-ready" then
-            say(who .. " isn't ready yet; try /gchat ignore send again in a few seconds")
+            line = who .. " isn't ready yet; try /gchat ignore send again in a few seconds"
         else
-            say("|cffff6060couldn't send your lists to " .. who .. " (" .. tostring(reason) .. ")|r")
+            line = "|cffff6060couldn't send your lists to " .. who .. " (" .. tostring(reason) .. ")|r"
         end
+        if inSend then waiting[#waiting + 1] = line else say(line) end
     end)
+    inSend = false
     if not count then
         if why == "too-large" then
             say(string.format("|cffff6060your lists are too large to send (%.1f KB; at most %d KB)|r",
@@ -207,14 +213,16 @@ function Sync.Send()
         else
             say(Sync.WHY[why] or ("couldn't send your lists (" .. tostring(why) .. ")"))
         end
+        for _, line in ipairs(waiting) do say(line) end
         return nil, why
     end
-    -- 0: every account found is still mid-handshake; onResult said so for each.
+    -- 0: every account found is still mid-handshake; each result says so.
     if count > 0 then
-        say(string.format("sending your lists (%.1f KB) to %d of your other account%s...", #body / 1024, count,
+        say(string.format("sending your lists (%.1f KB) to %d other account%s...", #body / 1024, count,
             count == 1 and "" or "s"))
     end
     if skipped > 0 then say(skipped .. " entries couldn't be written and weren't sent") end
+    for _, line in ipairs(waiting) do say(line) end
     return count
 end
 

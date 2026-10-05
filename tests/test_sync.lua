@@ -139,7 +139,15 @@ Peer.hello()
 advance(2)
 newChat()
 SlashCmdList.GLASSCHAT("ignore send")
-check(chatHas("sending your lists"), "with its hello in: the lists go")
+check(chatHas("sending your lists %(.-KB%) to 1 other account%.%.%."), "with its hello in: the lists go (1 other account)")
+-- In game the library reported the result while Send was still running:
+-- the summary comes first, the result after (owner's two-account check).
+local iSend, iSent
+for i, l in ipairs(WoW.chat) do
+    if l:find("sending your lists", 1, true) then iSend = i end
+    if l:find("handed to Battle.net for", 1, true) then iSent = i end
+end
+check(iSend and iSent and iSend < iSent, "the summary prints before the per-account result")
 check(chatHas("handed to Battle.net for Karuzo Memphisto") and chatHas("no delivery receipt"),
     "and 'sent' is worded as handed over, not delivered")
 local got = Peer.received()
