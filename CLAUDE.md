@@ -260,6 +260,12 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     closed") are held and printed once that line is done (`Tabs.LineDone`, from the hook). They
     go through the same hook, so printed straight away they would land before the line's move
     and leave it in both windows (Codex, #36).
+  - **Quiet while the game loads** (owner): from GlassChat's start until `Tabs.LOAD_QUIET` (15 s)
+    after the loading screen of a login or `/reload` (`PLAYER_ENTERING_WORLD` isInitialLogin or
+    isReloadingUi; zoning doesn't count), every addon prints its "loaded" line. Those lines:
+    - open no tab, route no probe by name, and count toward no offer;
+    - still go to a tab that is already open;
+    - still have their writer noted (focus mode's From).
   - It never walks the stack for the combat log (`COMBATLOG`, every entry is a plain
     `AddMessage`). Opening a tab puts back the selected tab and active edit box, because
     `FCF_OpenNewWindow` selects the new one. **No new tab while the player is typing**
