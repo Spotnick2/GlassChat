@@ -24,10 +24,10 @@ externals:
     tag: r1
   # Own-account messaging (Spam & Ignore's list copy, #33). Pinned by commit
   # until the two-account in-game check; then tag: r1 (EMBEDDED-LIBRARIES 9).
-  # Now: LibAccountSync#5 head (the #4 fix: hello carries the whole name).
+  # Now: LibAccountSync#5 merged (the #4 fix, MINOR 2).
   Libs/LibAccountSync-1.0:
     url: https://github.com/Spotnick2/LibAccountSync
-    commit: 0c3a2ddc870166815a4211724f0d38d364be0c84
+    commit: fdd4a72e96128bcd80035a086114735ffb34f391
 
 manual-changelog:
   filename: CHANGELOG.md
