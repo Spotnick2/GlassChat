@@ -122,6 +122,10 @@ check(p.panel:IsShown() and not ChatFrame1Background:IsShown(), "glass on again"
 local tab, text = ChatFrame1Tab, ChatFrame1Tab:GetFontString()
 eq(select(5, p.panel:GetPoint(1)), GC.Skin.PAD_Y + GC.Skin.TAB_STRIP + GC.Skin.TAB_GAP, "the panel reaches up over the raised tabs")
 check(p.separator ~= nil, "a separator line runs under the tabs")
+-- At the tabs' bottom edge, where the strip is raised to: higher, it ran
+-- through the tab names and the strip's icons (owner's screenshot).
+eq(select(5, p.separator:GetPoint(1)), GC.Skin.TAB_GAP, "the separator is at the tabs' bottom edge")
+eq(select(5, p.separator:GetPoint(2)), GC.Skin.TAB_GAP, "both ends")
 -- Space between the tabs and the text: the dock is raised by the gap, also
 -- when Blizzard re-anchors it; a floating window's own tab too; a docked
 -- one is left to the dock.

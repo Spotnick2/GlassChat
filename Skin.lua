@@ -145,8 +145,11 @@ function Skin.Frame(f)
         panel:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", Skin.PAD_X, -Skin.PAD_Y)
         local sep = panel:CreateTexture(nil, "ARTWORK")
         sep:SetColorTexture(Skin.SEPARATOR[1], Skin.SEPARATOR[2], Skin.SEPARATOR[3], Skin.SEPARATOR[4])
-        sep:SetPoint("TOPLEFT", bg, "TOPLEFT", 0, Skin.PAD_Y + Skin.TAB_GAP)
-        sep:SetPoint("TOPRIGHT", bg, "TOPRIGHT", 0, Skin.PAD_Y + Skin.TAB_GAP)
+        -- At the tabs' bottom edge (the strip is TAB_GAP up, LiftDock /
+        -- liftTab), under the selected tab's gold underline: PAD_Y higher, it
+        -- crossed the tab names and the strip's icons (owner's screenshot).
+        sep:SetPoint("TOPLEFT", bg, "TOPLEFT", 0, Skin.TAB_GAP)
+        sep:SetPoint("TOPRIGHT", bg, "TOPRIGHT", 0, Skin.TAB_GAP)
         sep:SetHeight(1)
         -- The directional edge is the material's own (g.edge, GlassUnitFrames
         -- #60), set to this window's values in Skin.WindowLook.
