@@ -83,7 +83,7 @@ end
 
 -- A dev or test build keeps the debug log (owner: "until we make an official
 -- release"): the packager replaces @project-version@, the deploy script
--- writes "dev". /gchat spam debug on|off overrides it.
+-- writes "dev". /gchat spam debug on/off overrides it.
 function Spam.IsDebug()
     local forced = Spam.db and Spam.db.debug
     if forced ~= nil then return forced end

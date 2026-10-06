@@ -384,7 +384,7 @@ eq(db.alpha, 0.6, "/gchat alpha sets the opacity")
 SlashCmdList.GLASSCHAT("glass off")
 eq(db.glass, false, "/gchat glass off")
 SlashCmdList.GLASSCHAT("glass maybe")
-check(chatHas("/gchat glass on|off"), "a bad value prints the usage")
+check(chatHas("/gchat glass on/off"), "a bad value prints the usage")
 SlashCmdList.GLASSCHAT("lines lots")
 eq(db.lines, 1000, "a non-number leaves the setting alone")
 -- The client's tonumber reads "nan" (strtod); Lua 5.1 on Windows doesn't,
