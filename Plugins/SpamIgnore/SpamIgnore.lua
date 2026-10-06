@@ -89,29 +89,26 @@ end
 -- A dev or test build keeps the debug log (owner: "until we make an official
 -- release"): the packager replaces @project-version@, the deploy script
 -- writes "dev". /gchat spam debug on/off overrides it.
-function Spam.IsDevBuild()
+function Spam.IsDebug()
+    local forced = Spam.db and Spam.db.debug
+    if forced ~= nil then return forced end
     local get = C_AddOns and C_AddOns.GetAddOnMetadata
     local ok, v = false, nil
     if get then ok, v = pcall(get, Spam.ADDON, "Version") end
     v = ok and plainString(v) or nil
     return v == nil or v == "dev" or v:find("@project%-version@") ~= nil
 end
-function Spam.IsDebug()
-    local forced = Spam.db and Spam.db.debug
-    if forced ~= nil then return forced end
-    return Spam.IsDevBuild()
-end
 
 -- Collecting is on by default in a dev build only (owner: "I will forget it
 -- when I swap toons"), never in a release: that would keep other players'
--- chat for everyone who installs it. /gchat spam collect on|off always wins.
--- The build is read once (a per-line check runs on every public line).
-local devBuild
+-- chat for everyone who installs it. The core's GC.IsDev decides, which
+-- fails closed (a version that can't be read is a release: review of #59)
+-- and honours GlassChatDB.devMode. /gchat spam collect on/off wins;
+-- /gchat spam collect default goes back to the build's.
 function Spam.Collecting()
     local set = rawget(Spam.db, "collect")
-    if set ~= nil then return set end
-    if devBuild == nil then devBuild = Spam.IsDevBuild() end
-    return devBuild
+    if set ~= nil then return set == true end
+    return GC.IsDev()
 end
 
 --------------------------------------------------------------------------------
@@ -373,7 +370,7 @@ function Spam.Filter(_, event, ...)
     if scored then GC.SpamScore.Record(event, sender, scored, outcome, key == nil) end
     -- Lines with no usable lineID too (a stateless mute hide has neither a
     -- key nor a score: Codex review of #58), marked noid.
-    if Spam.Collecting() then
+    if (scored or reason) and Spam.Collecting() then   -- nothing to keep otherwise: no pcall per line
         local okc, err = pcall(collect, event, text, sender, reason, scored, outcome, key == nil)
         if not okc then API.Fail("spam collect", err) end
     end
@@ -497,6 +494,10 @@ f:SetScript("OnEvent", function(_, event, arg1)
         if GC.SpamSync then GC.SpamSync.Start() end
         if GC.SpamUI then GC.SpamUI.Start() end
     elseif event == "PLAYER_LOGIN" then
+        -- Never silent: a dev build collecting by default says so (review of #59).
+        if rawget(Spam.db, "collect") == nil and Spam.Collecting() then
+            API.Print("collecting spam lines to tune the score (a dev build's default): /gchat spam collect off")
+        end
         Spam.RecordSelf()
         Spam.RefreshGroup()
         hookAltStable()
@@ -513,7 +514,7 @@ Spam._test = {
         alt, altHooked = { guids = {}, names = {} }, false
         Spam.unseen = 0
         GC.SpamScore._test.reset()
-        me, devBuild = nil, nil
+        me = nil
     end,
     names = function() return names end,
 }

@@ -191,12 +191,27 @@ check(not Spam.Filter(nil, "CHAT_MSG_GUILD", AD, "Gold Seller", "", "", "", "", 
 db.score = "watch"
 Spam._test.reset()
 -- On by default in a dev build (owner), never in a release.
-db.collected = nil   -- what the sections above collected (a dev build collects by default)
+check(chatHas("collecting spam lines to tune the score %(a dev build's default%)"), "a dev build says at login that it collects")
+-- The sections above ran collecting (a dev build's default): nothing failed.
+eq(next(GC.failures), nil, "collecting alongside every section above recorded no failure")
+check(type(db.collected) == "table" and #db.collected > 0, "and it did collect")
+for _, e in ipairs(db.collected) do
+    check(not GC.SpamText.IsCJK(e.text), "no CJK line among them: " .. e.text)
+end
+db.collected = nil
 eq(rawget(db, "collect"), nil, "nothing set")
 check(Spam.Collecting(), "a dev build collects by default")
 WoW.addonVersion = "1.0.0"
 Spam._test.reset()
 check(not Spam.Collecting(), "a release doesn't")
+-- A version that can't be read is a release (review of #59: fail closed).
+WoW.addonVersion = nil
+check(not Spam.Collecting(), "nor a build whose version can't be read")
+WoW.addonVersion = "dev"
+GlassChatDB.devMode = false
+check(not Spam.Collecting(), "nor a dev build with developer mode turned off")
+GlassChatDB.devMode = nil
+WoW.addonVersion = "1.0.0"
 line("Cheap gold $8 at goldsite.shop")
 eq(db.collected, nil, "so nothing is kept")
 db.collect = true
@@ -209,7 +224,7 @@ line("Cheap gold $8 at goldsite.shop")
 eq(db.collected, nil, "nothing kept then")
 newChat()
 SlashCmdList.GLASSCHAT("spam collect on")
-check(db.collect == true and chatHas("collecting spam lines: on %(0 saved"), "/gchat spam collect on")
+check(db.collect == true and chatHas("collecting spam lines: on %(your setting"), "/gchat spam collect on, said to be yours")
 line(AD)
 local c = db.collected
 eq(#c, 1, "a would-hide line is kept")
@@ -280,6 +295,15 @@ SlashCmdList.GLASSCHAT("spam collect clear")
 eq(db.collected, nil, "/gchat spam collect clear empties it")
 SlashCmdList.GLASSCHAT("spam collect off")
 eq(db.collect, false, "/gchat spam collect off")
+-- default: back to the build's (review of #59: a saved off blocked it).
+newChat()
+SlashCmdList.GLASSCHAT("spam collect default")
+eq(rawget(db, "collect"), nil, "/gchat spam collect default clears the setting")
+check(Spam.Collecting(), "so a dev build collects again")
+local said = false
+for _, l in ipairs(newChat()) do if l:find("on %(this build's default") then said = true end end
+check(said, "and the status says it's the build's default")
+db.collect = false
 line("$9 gold at goldsite.shop")
 eq(db.collected, nil, "and nothing is kept again")
 
