@@ -418,9 +418,9 @@ function Spam.LogText(debug)
     for i = #log, 1, -1 do
         local e = log[i]
         if debug then
-            lines[#lines + 1] = string.format("%s  [%s] %s (%s): %s", e.t, e.reason, e.sender, e.event, e.text)
+            lines[#lines + 1] = string.format("[%s] [%s] %s (%s): %s", e.t, e.reason, e.sender, e.event, e.text)
         else
-            lines[#lines + 1] = string.format("%s  [%s] %s: %s", e.t, e.reason, e.sender, e.text)
+            lines[#lines + 1] = string.format("[%s] [%s] %s: %s", e.t, e.reason, e.sender, e.text)
         end
     end
     return table.concat(lines, "\n")

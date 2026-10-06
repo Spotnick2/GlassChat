@@ -337,5 +337,15 @@ Spam.RefreshAltStable()
 check(Spam.IsOwn("Player-9-NEWALT"), "an unknown API version is left alone (the last good list stays)")
 rawset(_G, "AltStable", nil)
 
+-- The log's times are bracketed like the chat's timestamps (owner).
+db.mutes = { { phrase = "bracketme" } }
+Spam.RebuildMutes()
+say(CH, "bracketme please", "Log Format", "Player-1-LF")
+check(Spam.LogText(false):find("^%[%d%d:%d%d:%d%d%] %[muted: bracketme%] Log Format: bracketme please"), "the hidden-lines log: [time] [reason]")
+check(Spam.LogText(true):find("^%[%d%d:%d%d:%d%d%] %[muted: bracketme%] Log Format %(CHANNEL%)"), "and its debug form")
+GC.SpamScore.Record("CHAT_MSG_CHANNEL", "Score Format", GC.SpamScore.Check("see wowhead.com"), "shown")
+check(GC.SpamScore.LogText():find("\n%[%d%d:%d%d:%d%d%] %[address%] CHANNEL"), "the score log too")
+db.mutes = {}
+Spam.RebuildMutes()
 eq(next(GC.failures), nil, "nothing failed")
 done("test_spam")
