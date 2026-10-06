@@ -347,5 +347,27 @@ GC.SpamScore.Record("CHAT_MSG_CHANNEL", "Score Format", GC.SpamScore.Check("see 
 check(GC.SpamScore.LogText():find("\n%[%d%d:%d%d:%d%d%] %[address%] CHANNEL"), "the score log too")
 db.mutes = {}
 Spam.RebuildMutes()
+-- No stray "|" in what's printed: the client reads "|x" as an escape and
+-- drops it ("off|watch|hide" showed as "offatchide", owner's screenshot). Only
+-- the escapes we mean: colours, links, textures, atlases, a newline, "||".
+local function stray(line)
+    local clean = line:gsub("||", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|H.-|h", ""):gsub("|h", "")
+        :gsub("|[TA].-|[ta]", ""):gsub("|n", "")
+    return clean:find("|", 1, true) ~= nil
+end
+local shown = {}
+local realShow = GC.Copy.Show
+GC.Copy.Show = function(title, text, status) shown[#shown + 1] = status or "" end
+newChat()
+for _, cmd in ipairs({ "", "spam", "spam score", "spam score bogus", "spam icon", "spam cjk", "ignore sync",
+                       "ignore mirror", "ignores", "mutes", "glass", "stamps maybe" }) do
+    SlashCmdList.GLASSCHAT(cmd)
+end
+GC.Copy.Show = realShow
+local bad = {}
+for _, l in ipairs(newChat()) do if stray(l) then bad[#bad + 1] = l end end
+for _, l in ipairs(shown) do if stray(l) then bad[#bad + 1] = l end end
+eq(#bad, 0, "no stray | in printed help or status lines" .. (bad[1] and (": " .. bad[1]) or ""))
+check(#shown > 0, "the score log's status line was checked too")
 eq(next(GC.failures), nil, "nothing failed")
 done("test_spam")
