@@ -350,6 +350,12 @@ function Spam.Resolve(name)
     return names[lname], name
 end
 
+-- The last change to the lists on this account: "removed" (an unignore or
+-- unmute here), else "added" (an ignore, mute, import, or a copy received or
+-- undone). An empty send goes through without asking only after a removal
+-- here: that's lists emptied on purpose, not a fresh install (#48).
+function Spam.Edited(how) Spam.db.lastEdit = how end
+
 -- Returns a message for the player.
 function Spam.Ignore(name)
     if name == "" then return "/gchat ignore <First Surname>" end
@@ -360,9 +366,11 @@ function Spam.Ignore(name)
     if guid then
         Spam.db.ignore[guid] = { name = shown, added = time() }
         Spam.db.pending[name:lower()] = nil
+        Spam.Edited("added")
         return "ignoring " .. shown .. " on all your characters"
     end
     Spam.db.pending[name:lower()] = { name = name, added = time() }
+    Spam.Edited("added")
     return "ignoring " .. name .. " (pending: their next line confirms who they are)"
 end
 
@@ -376,6 +384,7 @@ function Spam.Unignore(name)
         if e.name:lower() == lname then Spam.db.ignore[guid] = nil; found = true end
     end
     if Spam.db.pending[lname] then Spam.db.pending[lname] = nil; found = true end
+    if found then Spam.Edited("removed") end
     -- A hidden line from them is no longer hidden by an old decision.
     Spam.ResetMemo()
     return found and ("no longer ignoring " .. name) or (name .. " isn't on your list")
@@ -403,6 +412,7 @@ function Spam.Import()
         end
     end
     Spam.charDB.imported = time()
+    if added + pending > 0 then Spam.Edited("added") end
     return string.format("imported %d (%d pending until they speak)%s", added + pending, pending,
         own > 0 and (", skipped " .. own .. " of your own characters") or "")
 end

@@ -265,17 +265,57 @@ rawset(_G, "AltStable", nil)
 -- Empty lists aren't sent unless asked: they'd empty every other account.
 local keepI, keepP, keepM = db.ignore, db.pending, db.mutes
 db.ignore, db.pending, db.mutes = {}, {}, {}
+db.lastEdit = nil   -- a fresh install: nothing changed here
 newChat()
 SlashCmdList.GLASSCHAT("ignore send")
 check(chatHas("your lists are empty") and chatHas("/gchat ignore send empty"), "empty lists: refused, with how to force it")
 local before = #sentTo(Peer.id, "D1|")
 SlashCmdList.GLASSCHAT("ignore send empty")
 check(#sentTo(Peer.id, "D1|") > before, "/gchat ignore send empty sends them")
+
+-- Lists you emptied here are sent without asking (owner, #48: "I have an
+-- ignore list of 1, I remove it, it's never going to sync").
+db.ignore, db.pending, db.mutes = { ["Player-1-00000B0B"] = { name = "Only One" } }, {}, {}
+SlashCmdList.GLASSCHAT("unignore Only One")
+eq(db.lastEdit, "removed", "an unignore is a removal here")
+newChat()
+before = #sentTo(Peer.id, "D1|")
+SlashCmdList.GLASSCHAT("ignore send")
+check(#sentTo(Peer.id, "D1|") > before, "removing the last ignore, then sending: sent")
+check(chatHas("empty since your last removal") and chatHas("ignore sync undo"), "saying the others will empty theirs, and how to undo")
+-- The same for the last mute.
+db.mutes = { { phrase = "cheap gold" } }
+SlashCmdList.GLASSCHAT("mute boost")
+eq(db.lastEdit, "added", "a mute is an add")
+SlashCmdList.GLASSCHAT("unmute boost")
+SlashCmdList.GLASSCHAT("unmute cheap gold")
+eq(db.lastEdit, "removed", "an unmute is a removal")
+newChat()
+before = #sentTo(Peer.id, "D1|")
+SlashCmdList.GLASSCHAT("ignore send")
+check(#sentTo(Peer.id, "D1|") > before, "removing the last mute, then sending: sent")
+-- An add since resets it: an empty list after it isn't "emptied here".
+SlashCmdList.GLASSCHAT("ignore Someone Pending")
+eq(db.lastEdit, "added", "an ignore is an add")
+db.ignore, db.pending, db.mutes = {}, {}, {}
+newChat()
+before = #sentTo(Peer.id, "D1|")
+SlashCmdList.GLASSCHAT("ignore send")
+local refused = false
+for _, l in ipairs(newChat()) do if l:find("send empty to do it anyway") then refused = true end end
+check(refused, "empty after an add: refused again")
+eq(#sentTo(Peer.id, "D1|"), before, "and nothing sent")
+-- A copy received resets it too (it wasn't emptied here).
+db.lastEdit = "removed"
+Spam.Edited("added")   -- what Sync.Apply calls
+check(db.lastEdit ~= "removed", "Edited records the change")
 db.ignore, db.pending, db.mutes = keepI, keepP, keepM
+db.lastEdit = nil
 
 -- Empty is what would be SENT (Codex review of #40): lists holding only your
 -- own characters, or only entries that can't be written, are empty too.
 db.ignore, db.pending, db.mutes = { ["Player-1-0000000A"] = { name = "Karuzo Elegia" } }, {}, {}
+db.lastEdit = nil
 newChat()
 SlashCmdList.GLASSCHAT("ignore send")
 check(chatHas("your lists are empty"), "an ignore list holding only one of your own characters counts as empty")
