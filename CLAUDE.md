@@ -431,7 +431,7 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     are settled): every scored line and every line the repeat rule, a mute or the score hid goes
     into `GlassChatSpamIgnoreDB.collected` (`Spam.COLLECT_MAX` 3000, oldest dropped), with its
     kinds, outcome, event, sender, the character that saw it and the plain text. Never CJK lines
-    or an ignored player's. Lines with no lineID are kept, marked `noid`. Read it from
+    (judged by the content, since a mute can hide one first) or an ignored player's. Lines with no lineID are kept, marked `noid`. Read it from
     `WTF\Account\<account>\SavedVariables\GlassChatSpamIgnore.lua` after a full exit.
   - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** tab-strip icon
     (`/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or

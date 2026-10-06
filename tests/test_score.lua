@@ -221,14 +221,31 @@ db.mutes = { { phrase = "boost" } }
 Spam.RebuildMutes()
 line("cheap boost now")
 eq(c[5].out, "hidden: muted: boost", "a muted line is kept")
+-- With no usable lineID too, marked (Codex review of #58).
+for _, lid in ipairs({ false, 0 }) do
+    local n0 = #c
+    Spam.Filter(nil, "CHAT_MSG_CHANNEL", "boost me up " .. tostring(lid), "No Id", "", "", "", "", 0, 0, "", 0,
+        lid or nil, "Player-1-NOID")
+    eq(#c, n0 + 1, "a muted line with lineID " .. tostring(lid or "nil") .. " is kept")
+    check(c[#c].noid and c[#c].out == "hidden: muted: boost", "marked no id")
+end
+-- A CJK line is never kept, even when a mute hid it first (Codex review of #58).
+local n1 = #c
+line("boost 你好你好你好世界")
+eq(#c, n1, "a CJK line hidden by a mute isn't kept")
 db.mutes = {}
 Spam.RebuildMutes()
+db.cjk = false
+line("你好你好你好世界 $5 goldsite.shop")
+line("你好你好你好世界 $5 goldsite.shop")
+eq(#c, n1, "nor one the score or the repeat rule saw with CJK filtering off")
 db.cjk = true
 line("你好你好你好世界")
-eq(#c, 5, "a CJK line isn't")
+eq(#c, n1, "a CJK line isn't")
 db.ignore["Player-1-IGN"] = { name = "Ignored One" }
+local n2 = #c
 line("$5 gold at goldsite.shop", nil, "Ignored One", "Player-1-IGN")
-eq(#c, 5, "nor an ignored player's")
+eq(#c, n2, "nor an ignored player's")
 db.ignore["Player-1-IGN"] = nil
 -- Plain values only (it's written to disk).
 for _, e in ipairs(c) do

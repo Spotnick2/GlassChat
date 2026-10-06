@@ -322,6 +322,9 @@ end
 local me
 local function collect(event, text, sender, reason, scored, outcome, noid)
     if not (scored or (reason and (reason == "repeat" or reason:find("^muted") or reason:find("^score")))) then return end
+    -- By the content, not the winning reason: mutes run before CJK, so a CJK
+    -- line can be hidden as muted (Codex review of #58).
+    if Text.IsCJK(text) then return end
     local db = Spam.db
     if type(db.collected) ~= "table" then db.collected = {} end
     me = me or API.PlayerFullName() or "?"
@@ -353,7 +356,9 @@ function Spam.Filter(_, event, ...)
     -- measures that traffic (it may then appear once per window).
     local outcome = reason and ("hidden: " .. reason) or (scored and scored.spam and "shown (would hide)" or "shown")
     if scored then GC.SpamScore.Record(event, sender, scored, outcome, key == nil) end
-    if Spam.db.collect and (key or scored) then
+    -- Lines with no usable lineID too (a stateless mute hide has neither a
+    -- key nor a score: Codex review of #58), marked noid.
+    if Spam.db.collect then
         local okc, err = pcall(collect, event, text, sender, reason, scored, outcome, key == nil)
         if not okc then API.Fail("spam collect", err) end
     end
