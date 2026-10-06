@@ -166,6 +166,7 @@ function Sync.Apply(snap)
     -- send from an empty install would otherwise lose them for good).
     db.syncUndo = { ignore = db.ignore, pending = db.pending, mutes = db.mutes, at = time() }
     db.ignore, db.pending, db.mutes = ignore, pending, snap.mutes
+    Spam.Edited("added")   -- a copy received: never "emptied here"
     Spam.RebuildMutes()
     Spam.ResetMemo()   -- old decisions about lines no longer hold
     if GC.SpamMirror then GC.SpamMirror.Check("sync") end
@@ -240,10 +241,18 @@ function Sync.Send(force)
     local body, skipped, counts = Sync.Build()
     -- Empty is what is SENT, not the raw lists: entries naming your own
     -- characters, or unwritable ones, aren't sent (Codex review of #40).
-    if not force and counts.I + counts.P + counts.M == 0 then
-        say("your lists are empty: sending them would empty the lists on your other accounts. "
-            .. "/gchat ignore send empty to do it anyway")
-        return nil, "empty"
+    -- Lists you emptied here (your last change was a removal) are sent: the
+    -- guard is for a fresh install, which would wipe the others (#48).
+    if counts.I + counts.P + counts.M == 0 then
+        if Spam.db.lastEdit == "removed" then
+            force = true
+            say("your lists are empty since your last removal: your other accounts will empty theirs "
+                .. "(/gchat ignore sync undo there puts them back)")
+        elseif not force then
+            say("your lists are empty: sending them would empty the lists on your other accounts. "
+                .. "/gchat ignore send empty to do it anyway")
+            return nil, "empty"
+        end
     end
     local kind, have, cap = overCap(body)
     if kind then
@@ -292,6 +301,7 @@ function Sync.Undo()
     if type(u) ~= "table" or type(u.ignore) ~= "table" then say("nothing to undo"); return end
     Spam.db.ignore, Spam.db.pending, Spam.db.mutes = u.ignore, u.pending or {}, u.mutes or {}
     Spam.db.syncUndo = nil
+    Spam.Edited("added")
     Spam.RebuildMutes()
     Spam.ResetMemo()
     if GC.SpamMirror then GC.SpamMirror.Check("sync undo") end

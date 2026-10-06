@@ -159,6 +159,7 @@ local function mute(arg)
         end
     end
     table.insert(Spam.db.mutes, { phrase = phrase, aggressive = aggressive or nil })
+    Spam.Edited("added")
     Spam.RebuildMutes()
     say("muted" .. (aggressive and " (tricks too)" or "") .. ": " .. phrase)
 end
@@ -171,6 +172,7 @@ local function unmute(arg)
     for i, m in ipairs(Spam.db.mutes) do
         if m.phrase:lower() == phrase:lower() and (m.aggressive or false) == aggressive then
             table.remove(Spam.db.mutes, i)
+            Spam.Edited("removed")
             Spam.RebuildMutes()
             say("unmuted: " .. (aggressive and "~" or "") .. m.phrase)
             return

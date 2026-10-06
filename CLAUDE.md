@@ -386,7 +386,10 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
       ignore naming one of yours is dropped.
     - **The sender** never sends an ignore naming one of its own characters (AltStable's
       included, sent as own). It refuses an empty snapshot (counted from what is sent, not the
-      raw lists) unless you run `/gchat ignore send empty`, and it checks the receiver's caps first.
+      raw lists) unless you run `/gchat ignore send empty`, or the last change on this account was
+      a removal (`Spam.Edited`, `db.lastEdit`: unignore, unmute, a linked name removed in
+      Blizzard's list; any add, import, received copy or undo resets it, #48). It checks the
+      receiver's caps first.
     - **Order:** the last applied stream id is kept per sender GUID, in
       `GlassChatSpamIgnoreDB.syncApplied`. The library already drops older streams within a
       session; this check also covers across sessions.
