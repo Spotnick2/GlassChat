@@ -276,7 +276,7 @@ local function addLines(list, out)
     for i = #list, 1, -1 do
         local e = list[i]
         local tags = e.label .. (e.decor and ", decorated" or "") .. (e.noid and ", no id" or "")
-        out[#out + 1] = string.format("%s  [%s] %s -> %s  %s: %s", e.t, tags, e.event, e.outcome, e.sender, e.text)
+        out[#out + 1] = string.format("[%s] [%s] %s -> %s  %s: %s", e.t, tags, e.event, e.outcome, e.sender, e.text)
     end
 end
 -- Spam first, then the near misses; newest first in each.
