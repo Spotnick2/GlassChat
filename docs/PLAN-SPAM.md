@@ -371,7 +371,7 @@ those. The score is for the shapes words can't name.
 | `Guide for the 5% drop: wowhead.com/guide/x !!!` | address | shown |
 | `G G W P, vod twitch.tv/example` | address (4 fragments isn't broken-up) | shown |
 | `Ищем хила в MCе, discord.gg/raid` | address (the Cyrillic е is an ending, not inside) | shown |
-| `WTS [Thunderfury] 10$ or 500g, add me Seller#1234` | price, contact | **hidden: real money for game goods. Watch mode decides whether that's wanted.** |
+| `WTS [Thunderfury] 10$ or 500g, add me Seller#1234` | price, contact | **hidden: real money for game goods (owner, 2026-10-05: hide them).** |
 | `Free addon at github.com/x, optional $5 donation` | price, address | **hidden: the known false positive; watch mode will say how often it happens.** |
 
 #### Where it applies
@@ -430,7 +430,7 @@ on`), anyone you whispered this session is exempt (`CHAT_MSG_WHISPER_INFORM`). A
    from spam well enough?
 2. Are the grammars now complete: the token stripping, the address endings, the contact shapes,
    the fragment run and the look-alike set?
-3. Is a real-money price plus a contact something to hide (the trade-post example)?
+3. Is a real-money price plus a contact something to hide? **Owner: yes (2026-10-05).**
 
 **Codex review (2026-10-05, consult):** no P1 found; six P2s, all taken. Address plus contact is
 players' advertising, so a spam kind is now required. The address ending is a list, not any 2-6
