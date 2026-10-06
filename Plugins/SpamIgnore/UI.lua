@@ -254,14 +254,26 @@ local function spam(arg)
             GC.Chat.Scan()
         end
         say("tab-strip icon: " .. (Spam.db.icon and "shown" or "hidden") .. " (/gchat spam icon on|off)")
+    elseif cmd == "score" then
+        if rest == "off" or rest == "watch" or rest == "hide" then
+            Spam.db.score = rest
+            Spam.ResetMemo()   -- earlier decisions were made under the old mode
+            say("spam score: " .. rest .. (rest == "watch" and " (logged, still shown: /gchat spam score)" or ""))
+            return
+        end
+        local text = GC.SpamScore.LogText()
+        GC.Copy.Show("Spam score (" .. Spam.db.score .. ")", text ~= "" and text or "nothing scored yet",
+            #GC.SpamScore.Log() .. " line(s); /gchat spam score off|watch|hide")
     elseif cmd == "test" then
-        local reason = Spam.Judge("CHAT_MSG_CHANNEL", rest, "Test Sender", "Player-0-TEST", true)
-        say("test: " .. (reason and ("hidden (" .. reason .. ")") or "shown"))
+        local reason, scored = Spam.Judge("CHAT_MSG_CHANNEL", rest, "Test Sender", "Player-0-TEST", true)
+        local kinds = scored and (" - kinds: " .. GC.SpamScore.Label(scored) .. (scored.spam and ", spam" or "")) or ""
+        say("test: " .. (reason and ("hidden (" .. reason .. ")") or "shown") .. kinds)
     else
         say("/gchat spam log - what was hidden")
         say("/gchat spam icon on|off - a tab-strip icon that opens it (" .. (Spam.db.icon and "shown" or "hidden") .. ")")
         say("/gchat spam cjk on|off - CJK posts in public chat (" .. (Spam.db.cjk and "hidden" or "shown") .. ")")
         say(string.format("/gchat spam repeat <minutes> - repeat window (%g)", Spam.db.repeatWindow / 60))
+        say("/gchat spam score [off|watch|hide] - the spam score's log, or its mode (" .. Spam.db.score .. ")")
         say("/gchat spam test <text> - would a public line be hidden?")
         say("/gchat spam debug on|off - the debug log and bug icon (on until the release)")
     end
@@ -284,7 +296,7 @@ function UI.Start()
         "/gchat ignore mirror on|off - keep Blizzard's ignore list in step (blocks invites and duels too)",
         "/gchat ignore send - copy these lists to your other WoW accounts online; /gchat ignore sync - its status",
         "/gchat allow <First Surname> - never hide their lines",
-        "/gchat spam - repeats, CJK, the log, a test",
+        "/gchat spam - repeats, CJK, the spam score, the log, a test",
     })
     GC.Chat.Scan()
 end

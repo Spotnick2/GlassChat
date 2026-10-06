@@ -22,11 +22,12 @@ externals:
   Libs/LibGlass-1.0:
     url: https://github.com/Spotnick2/LibGlass
     tag: r2
-  # Own-account messaging (Spam & Ignore's list copy, #33). r2 is the commit
-  # the owner's two-account in-game check passed on (fdd4a72).
+  # Own-account messaging (Spam & Ignore's list copy, #33). r3 (6c888c5):
+  # faster hashing and a first-run fix; no API change from r2, the commit the
+  # owner's two-account check passed on.
   Libs/LibAccountSync-1.0:
     url: https://github.com/Spotnick2/LibAccountSync
-    tag: r2
+    tag: r3
 
 manual-changelog:
   filename: CHANGELOG.md

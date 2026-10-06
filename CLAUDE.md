@@ -330,7 +330,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - Library reports: `error` goes to `API.Fail` and chat; `info` is kept for
     `/gchat ignore sync` and printed only in developer mode.
   - **Embedding** follows LibGlass's pattern:
-    - `.pkgmeta` external at `tag: r2` (the commit the two-account check passed on);
+    - `.pkgmeta` external at `tag: r3` (r2 is the commit the two-account check passed on; r3
+      changes no API);
     - the TOC's XML line;
     - `tests/fetch_external.sh`, `$env:LIBACCOUNTSYNC` (default `..\LibAccountSync`), and the
       deploy calling the library's own deploy;
@@ -354,7 +355,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - `GC.Copy.Show(title, text, status)` for a text window.
 - **`Plugins/SpamIgnore/`** (Spam & Ignore, S1, #19; plan: `docs/PLAN-SPAM.md`):
   - **One filter, two policies.** Explicit GUID ignores apply to every player-chat event, guild
-    and group included. Heuristics (literal mutes at word edges, `~` aggressive, CJK, repeats)
+    and group included. Heuristics (literal mutes at word edges, `~` aggressive, CJK, the spam
+    score, repeats)
     apply to public chat only: CHANNEL, SAY, YELL, EMOTE. They never touch you, friends, guild,
     group, Battle.net friends or the allow list.
   - **One decision per (event, lineID)**, the memo (measured: each line reaches the filter once
@@ -400,6 +402,21 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - **A known GUID always decides.** `ownByName` is only the fallback for a pending entry
       that has no GUID yet. The list sync between accounts goes through the
     LibAccountSync-1.0 library (Spotnick2/LibAccountSync#1).
+  - **`Score.lua` (S4): the spam score**, on public chat, after ignores, mutes and CJK and
+    before repeats (so a line it hides is never timed as the last shown post).
+    - **Shape, never words.** Token kinds (each token counts toward one, first match):
+      address (`Url.Address` or `name.tld` with an ending from `Url.TLDS` plus `Score.TLDS`,
+      look-alikes mapped first), contact (`@name`, `Name#1234` with 4-5 digits), price (a currency
+      symbol next to 1-6 digits; never `%`). Line kinds: broken-up (5+ single characters set apart
+      by separators, counted tokens skipped) and look-alike (a Cyrillic or Greek twin of a Latin
+      letter *inside* a Latin word; `MCе` and `ZGшку` never count).
+    - **Spam** = a spam kind (price, broken-up, look-alike) plus any other kind. An address with
+      a contact is players' own advertising and never decides. Decoration is logged only.
+    - **`db.score` is off, watch (the default) or hide.** `Judge` returns the finding as a
+      second value, never as a reason, so the memo's "reason or false" is unchanged and watch
+      can't hide. The score log (`Score.LOG_SIZE`, session memory, `/gchat spam score`) holds
+      every scored line with its final outcome, lines with no lineID included and marked; it
+      never touches the hidden-lines log or the icon's count.
   - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** tab-strip icon
     (`/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
     unreplaced) and an eye in a release, and the debug log shows the event too.

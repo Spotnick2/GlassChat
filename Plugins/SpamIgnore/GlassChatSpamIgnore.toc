@@ -10,6 +10,7 @@
 ## SavedVariablesPerCharacter: GlassChatSpamIgnoreCharDB
 
 Text.lua
+Score.lua
 SpamIgnore.lua
 Mirror.lua
 Sync.lua

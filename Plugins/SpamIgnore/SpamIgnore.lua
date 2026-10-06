@@ -3,7 +3,8 @@
 -- One message filter, two policies:
 -- - EXPLICIT IGNORES (by GUID) on every player-chat event, guild and group
 --   included: an ignored player stays ignored if they join your group;
--- - HEURISTICS (muted words, CJK, repeats) on PUBLIC chat only, never for
+-- - HEURISTICS (muted words, CJK, the spam score, repeats) on PUBLIC chat
+--   only, never for
 --   you, friends, guild, group, Battle.net friends or the allow list.
 -- Measured (docs/FOREVER-PROBE.md 10-12): lineID (arg11) is plain, positive
 -- and the same in every window that shows a line, so one decision per
@@ -51,7 +52,9 @@ Spam.PUBLIC = { CHAT_MSG_CHANNEL = true, CHAT_MSG_SAY = true, CHAT_MSG_YELL = tr
 -- turn it on"); the log is always /gchat spam log.
 -- mirror: keep each character's Blizzard ignore list in step (S2b; owner:
 -- "sync the Blizzard ignore list on every account").
-local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true }
+-- score: the spam score (S4) is off, watch (logged, still shown) or hide;
+-- it starts by watching (docs/PLAN-SPAM.md).
+local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true, score = "watch" }
 
 function Spam.Load()
     if type(GlassChatSpamIgnoreDB) ~= "table" then GlassChatSpamIgnoreDB = {} end
@@ -263,8 +266,10 @@ end
 --------------------------------------------------------------------------------
 
 -- nil = show; else the reason it's hidden. stateless: only the checks that
--- give the same answer each time (ignores, mutes, CJK), never the repeat
--- state, for a line with no usable lineID (the plan; Codex review of #20).
+-- give the same answer each time (ignores, mutes, CJK, the score), never the
+-- repeat state, for a line with no usable lineID (the plan; Codex review of #20).
+-- The second return is the spam score's finding when it saw a kind, for the
+-- score log: never a reason, so watch mode can't hide a line.
 function Spam.Judge(event, text, sender, guid, stateless)
     local lname = sender and sender:lower()
     -- Explicit ignores: every player-chat event, never your own characters.
@@ -282,8 +287,18 @@ function Spam.Judge(event, text, sender, guid, stateless)
     local phrase = mutedBy(text)
     if phrase then return "muted: " .. phrase end
     if Spam.db.cjk and Text.IsCJK(text) then return "cjk" end
-    if not stateless and isRepeat(event, guid, text) then return "repeat" end
-    return nil
+    -- The score before repeats: a line it hides is never timed as the last
+    -- shown post (review of #46).
+    local scored
+    if Spam.db.score ~= "off" then
+        scored = GC.SpamScore.Check(text)
+        if #scored.kinds == 0 then scored = nil end
+        if scored and scored.spam and Spam.db.score == "hide" then
+            return "score: " .. GC.SpamScore.Label(scored), scored
+        end
+    end
+    if not stateless and isRepeat(event, guid, text) then return "repeat", scored end
+    return nil, scored
 end
 
 local function record(event, text, sender, guid, reason)
@@ -308,10 +323,16 @@ function Spam.Filter(_, event, ...)
     -- logged or counted (it can't be told apart from another copy).
     local key = lineID and lineID > 0 and (event .. "#" .. lineID) or nil
     if key and memo[key] ~= nil then return memo[key] ~= false end
-    local ok, reason = pcall(Spam.Judge, event, text, sender, guid, key == nil)
-    if not ok then API.Fail("spam judge", reason); reason = nil end
+    local ok, reason, scored = pcall(Spam.Judge, event, text, sender, guid, key == nil)
+    if not ok then API.Fail("spam judge", reason); reason, scored = nil, nil end
     if key then remember(memo, memoOrder, key, reason or false, Spam.MEMO_SIZE) end
     if reason and key then record(event, text, sender, guid, reason) end
+    -- The score log sees lines with no lineID too, marked, so watch mode
+    -- measures that traffic (it may then appear once per window).
+    if scored then
+        local outcome = reason and ("hidden: " .. reason) or (scored.spam and "shown (would hide)" or "shown")
+        GC.SpamScore.Record(event, sender, scored, outcome, key == nil)
+    end
     return reason ~= nil
 end
 
@@ -437,6 +458,7 @@ Spam._test = {
         memo, memoOrder, repeats, repeatOrder, names, nameOrder, log = {}, {}, {}, {}, {}, {}, {}
         alt, altHooked = { guids = {}, names = {} }, false
         Spam.unseen = 0
+        GC.SpamScore._test.reset()
     end,
     names = function() return names end,
 }

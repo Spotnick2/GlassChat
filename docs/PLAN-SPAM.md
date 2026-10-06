@@ -410,11 +410,11 @@ on`), anyone you whispered this session is exempt (`CHAT_MSG_WHISPER_INFORM`). A
 
 #### Costs
 
-- **A per-line context, built lazily after the guards, the memo and the exemptions:** the visible
-  text, its tokens and its code points, plus the original message for link data. `mutedBy`,
-  `IsCJK`, `RepeatKey`, the score and `record()` all take from it. That isn't "one pass"
-  (stripping, tokenising and decoding are still separate work), but nothing is done twice, and
-  ignored, exempt or muted lines never build the later parts.
+- **Measured, so no shared context (built, #45):** `Score.Check` costs about 38 µs a line in
+  desktop Lua 5.1 (a mix of plain, trade, spam and Russian lines). It runs once per line (the
+  memo), only on public chat from players who aren't exempt, and only after the ignores, mutes
+  and CJK let the line through. The per-line context planned here would save a few `Copy.Plain`
+  calls, which isn't worth the refactor.
 - **The score has its own address check:** M5's filter runs after the plugin's, by design, and
   not at all when click-to-copy is off.
 
