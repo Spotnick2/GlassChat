@@ -187,6 +187,88 @@ rawset(_G, "IsGuildMember", realGuild)
 check(not Spam.Filter(nil, "CHAT_MSG_GUILD", AD, "Gold Seller", "", "", "", "", 0, 0, "", 0, 8888, "Player-1-GS"),
     "nor guild chat")
 
+-- /gchat spam collect: real chat on disk, to tune the score (owner).
+db.score = "watch"
+Spam._test.reset()
+eq(db.collect, false, "collecting is off by default")
+line("Cheap gold $8 at goldsite.shop")
+eq(db.collected, nil, "so nothing is kept")
+newChat()
+SlashCmdList.GLASSCHAT("spam collect on")
+check(db.collect == true and chatHas("collecting spam lines: on %(0 saved"), "/gchat spam collect on")
+line(AD)
+local c = db.collected
+eq(#c, 1, "a would-hide line is kept")
+eq(c[1].kinds, "price + address", "with its kinds")
+check(c[1].spam and c[1].out == "shown (would hide)" and c[1].ev == "CHANNEL", "its outcome and event")
+eq(c[1].char, "Karuzo Elegia", "and which of your characters saw it")
+eq(c[1].text, AD, "as plain text")
+check(type(c[1].at) == "number" and c[1].from == "Gold Seller", "when, and who sent it")
+line(AD)
+eq(c[2].out, "hidden: repeat", "a repeat of it is kept with its outcome")
+line("see wowhead.com/guide")
+eq(c[3].kinds, "address", "a near miss is kept")
+line("just chatting here")
+eq(#c, 3, "a line with no kind, shown, isn't")
+line("just chatting here")
+eq(c[4].out, "hidden: repeat", "but a repeat with no kind is (the score's misses are there)")
+check(c[4].kinds == nil and c[4].spam == nil, "with no kinds")
+line("|cffff0000red|r words")
+line("|cffff0000red|r words")
+eq(c[5].text, "red words", "as plain text, colours and links out")
+table.remove(c, 5)
+db.mutes = { { phrase = "boost" } }
+Spam.RebuildMutes()
+line("cheap boost now")
+eq(c[5].out, "hidden: muted: boost", "a muted line is kept")
+-- With no usable lineID too, marked (Codex review of #58).
+for _, lid in ipairs({ false, 0 }) do
+    local n0 = #c
+    Spam.Filter(nil, "CHAT_MSG_CHANNEL", "boost me up " .. tostring(lid), "No Id", "", "", "", "", 0, 0, "", 0,
+        lid or nil, "Player-1-NOID")
+    eq(#c, n0 + 1, "a muted line with lineID " .. tostring(lid or "nil") .. " is kept")
+    check(c[#c].noid and c[#c].out == "hidden: muted: boost", "marked no id")
+end
+-- A CJK line is never kept, even when a mute hid it first (Codex review of #58).
+local n1 = #c
+line("boost 你好你好你好世界")
+eq(#c, n1, "a CJK line hidden by a mute isn't kept")
+db.mutes = {}
+Spam.RebuildMutes()
+db.cjk = false
+line("你好你好你好世界 $5 goldsite.shop")
+line("你好你好你好世界 $5 goldsite.shop")
+eq(#c, n1, "nor one the score or the repeat rule saw with CJK filtering off")
+db.cjk = true
+line("你好你好你好世界")
+eq(#c, n1, "a CJK line isn't")
+db.ignore["Player-1-IGN"] = { name = "Ignored One" }
+local n2 = #c
+line("$5 gold at goldsite.shop", nil, "Ignored One", "Player-1-IGN")
+eq(#c, n2, "nor an ignored player's")
+db.ignore["Player-1-IGN"] = nil
+-- Plain values only (it's written to disk).
+for _, e in ipairs(c) do
+    for k, v in pairs(e) do
+        local t = type(v)
+        check(t == "string" or t == "number" or t == "boolean", "a plain " .. k)
+    end
+end
+-- The cap: oldest dropped.
+local keepMax = Spam.COLLECT_MAX
+Spam.COLLECT_MAX = 6
+for i = 1, 4 do line("guide " .. i .. " at wowhead.com/g" .. i) end
+eq(#c, 6, "capped")
+eq(c[6].text, "guide 4 at wowhead.com/g4", "the newest kept")
+check(c[1].text ~= AD, "the oldest dropped")
+Spam.COLLECT_MAX = keepMax
+SlashCmdList.GLASSCHAT("spam collect clear")
+eq(db.collected, nil, "/gchat spam collect clear empties it")
+SlashCmdList.GLASSCHAT("spam collect off")
+eq(db.collect, false, "/gchat spam collect off")
+line("$9 gold at goldsite.shop")
+eq(db.collected, nil, "and nothing is kept again")
+
 -- The commands.
 newChat()
 SlashCmdList.GLASSCHAT("spam score watch")

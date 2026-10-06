@@ -9,6 +9,8 @@
   address and a contact) is never hidden. It starts by **watching**: lines it would hide are still
   shown, and `/gchat spam score` lists them with what it found. `/gchat spam score hide` turns
   hiding on, `off` turns it off, and `/gchat spam test <text>` shows what it finds in a line.
+  `/gchat spam collect on` keeps what it saw (and what was hidden) on disk across characters, to help
+  tune it; it's off by default.
 - Ships LibGlass r2 (the shared glass library; nothing changes on screen).
 - Ships LibAccountSync r3: copying your lists to your other accounts hashes about four times
   faster, and the first time you use it, your other account is found at once instead of after

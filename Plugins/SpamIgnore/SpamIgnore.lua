@@ -26,6 +26,7 @@ Spam.MUTE_MAX = 100   -- bytes; /gchat mute refuses longer, Load drops longer
 Spam.LOG_SIZE = 200
 Spam.REPEAT_CAP = 500
 Spam.NAME_CAP = 500
+Spam.COLLECT_MAX = 3000   -- lines kept by /gchat spam collect, oldest dropped
 
 -- Every value consumed is checked with IsSecret BEFORE any other use.
 local function plainString(v)
@@ -54,7 +55,10 @@ Spam.PUBLIC = { CHAT_MSG_CHANNEL = true, CHAT_MSG_SAY = true, CHAT_MSG_YELL = tr
 -- "sync the Blizzard ignore list on every account").
 -- score: the spam score (S4) is off, watch (logged, still shown) or hide;
 -- it starts by watching (docs/PLAN-SPAM.md).
-local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true, score = "watch" }
+-- collect: keep scored and hidden public lines in SavedVariables, to tune the
+-- score on real chat (owner: "a real database of spam"); off by default, and
+-- temporary: it goes once the weights are settled.
+local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true, score = "watch", collect = false }
 
 function Spam.Load()
     if type(GlassChatSpamIgnoreDB) ~= "table" then GlassChatSpamIgnoreDB = {} end
@@ -74,6 +78,7 @@ function Spam.Load()
         if type(m) == "table" and type(m.phrase) == "string" and #m.phrase <= Spam.MUTE_MAX then mutes[#mutes + 1] = m end
     end
     db.mutes = mutes
+    if db.collected ~= nil and type(db.collected) ~= "table" then db.collected = nil end
     setmetatable(db, { __index = DEFAULTS })
     if type(GlassChatSpamIgnoreCharDB) ~= "table" then GlassChatSpamIgnoreCharDB = {} end
     Spam.db, Spam.charDB = db, GlassChatSpamIgnoreCharDB
@@ -310,6 +315,26 @@ local function record(event, text, sender, guid, reason)
     if Spam.onHidden then pcall(Spam.onHidden) end
 end
 
+-- /gchat spam collect: what the score saw, and what the repeat rule and the
+-- mutes hid (where the score's misses are), kept across sessions and
+-- characters. Never CJK lines or an ignored player's: no use for tuning.
+-- Plain strings only: the filter checked every value with IsSecret.
+local me
+local function collect(event, text, sender, reason, scored, outcome, noid)
+    if not (scored or (reason and (reason == "repeat" or reason:find("^muted") or reason:find("^score")))) then return end
+    -- By the content, not the winning reason: mutes run before CJK, so a CJK
+    -- line can be hidden as muted (Codex review of #58).
+    if Text.IsCJK(text) then return end
+    local db = Spam.db
+    if type(db.collected) ~= "table" then db.collected = {} end
+    me = me or API.PlayerFullName() or "?"
+    local t = db.collected
+    t[#t + 1] = { at = time(), char = me, ev = (event:gsub("^CHAT_MSG_", "")), from = sender or "?",
+                  kinds = scored and GC.SpamScore.Label(scored) or nil, spam = scored and scored.spam or nil,
+                  out = outcome, noid = noid or nil, text = scored and scored.plain or (GC.Copy.Plain(text) or "") }
+    while #t > Spam.COLLECT_MAX do table.remove(t, 1) end
+end
+
 -- The message filter: (chatFrame, event, arg1..arg14). Returns true to hide.
 function Spam.Filter(_, event, ...)
     local text, sender = plainString((select(1, ...))), plainString((select(2, ...)))
@@ -329,9 +354,13 @@ function Spam.Filter(_, event, ...)
     if reason and key then record(event, text, sender, guid, reason) end
     -- The score log sees lines with no lineID too, marked, so watch mode
     -- measures that traffic (it may then appear once per window).
-    if scored then
-        local outcome = reason and ("hidden: " .. reason) or (scored.spam and "shown (would hide)" or "shown")
-        GC.SpamScore.Record(event, sender, scored, outcome, key == nil)
+    local outcome = reason and ("hidden: " .. reason) or (scored and scored.spam and "shown (would hide)" or "shown")
+    if scored then GC.SpamScore.Record(event, sender, scored, outcome, key == nil) end
+    -- Lines with no usable lineID too (a stateless mute hide has neither a
+    -- key nor a score: Codex review of #58), marked noid.
+    if Spam.db.collect then
+        local okc, err = pcall(collect, event, text, sender, reason, scored, outcome, key == nil)
+        if not okc then API.Fail("spam collect", err) end
     end
     return reason ~= nil
 end
@@ -469,6 +498,7 @@ Spam._test = {
         alt, altHooked = { guids = {}, names = {} }, false
         Spam.unseen = 0
         GC.SpamScore._test.reset()
+        me = nil
     end,
     names = function() return names end,
 }
