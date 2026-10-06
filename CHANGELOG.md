@@ -2,7 +2,17 @@
 
 ## Unreleased
 
+- **Spam & Ignore: a spam score** for public chat. It looks at a line's shape, never its words, so
+  it isn't tied to English: a real-money price (`$5`, `10€`, `$1,000`), a word broken up to slip
+  past filters (`g.o.l.d`), or letters from another alphabet disguised as Latin ones (`gоld`) or
+  the other way round (`гoлд`), each together with an address, a contact or another of them. Guild recruitment, a stream or a guide link (an
+  address and a contact) is never hidden. It starts by **watching**: lines it would hide are still
+  shown, and `/gchat spam score` lists them with what it found. `/gchat spam score hide` turns
+  hiding on, `off` turns it off, and `/gchat spam test <text>` shows what it finds in a line.
 - Ships LibGlass r2 (the shared glass library; nothing changes on screen).
+- Ships LibAccountSync r3: copying your lists to your other accounts hashes about four times
+  faster, and the first time you use it, your other account is found at once instead of after
+  Battle.net fills in.
 - Smart tabs stay quiet while the game loads: the "loaded" lines every addon prints at login or
   `/reload` no longer open tabs or count toward the "chatty" offer.
 - The chat-menu and friends buttons beside the chat are compact glass buttons too, with a gold

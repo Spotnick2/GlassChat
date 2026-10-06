@@ -410,13 +410,23 @@ on`), anyone you whispered this session is exempt (`CHAT_MSG_WHISPER_INFORM`). A
 
 #### Costs
 
-- **A per-line context, built lazily after the guards, the memo and the exemptions:** the visible
-  text, its tokens and its code points, plus the original message for link data. `mutedBy`,
-  `IsCJK`, `RepeatKey`, the score and `record()` all take from it. That isn't "one pass"
-  (stripping, tokenising and decoding are still separate work), but nothing is done twice, and
-  ignored, exempt or muted lines never build the later parts.
-- **The score has its own address check:** M5's filter runs after the plugin's, by design, and
-  not at all when click-to-copy is off.
+- **Measured, so no shared context (built, #45):** `Score.Check` costs about 38 µs a line in
+  desktop Lua 5.1 (a mix of plain, trade, spam and Russian lines). It runs once per line (the
+  memo), only on public chat from players who aren't exempt, and only after the ignores, mutes
+  and CJK let the line through. The per-line context planned here would save a few `Copy.Plain`
+  calls, which isn't worth the refactor.
+- **The score calls M5's matcher itself** (`Url.Address(word, Score.TLDS)`): M5's filter runs
+  after the plugin's, by design, and not at all when click-to-copy is off, so its scan can't be
+  reused, but the grammar is one.
+
+**Built (#47), with the code review's fixes:**
+- a host spelled out a character at a time (`b.u.y.g.o.l.d.cc`) is an address *and* broken-up;
+- a price is a currency symbol right next to a digit anywhere in the token (`$1,000`,
+  `1000g=5$`, `5$/1k`), or a lone symbol beside a number (`5 $`);
+- the look-alike set gained `Ѕ І Ј У Υ`, and the rule works the other way round too (Latin twins
+  inside a Cyrillic or Greek word: `гoлд`);
+- spam's extra endings only match as typed in lower case (`tank.Top` is a missing space);
+- would-hide lines and near misses are kept in separate buffers.
 
 #### Left for later
 
