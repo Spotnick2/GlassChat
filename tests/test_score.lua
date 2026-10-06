@@ -39,7 +39,8 @@ eq(kinds("discord.gg/abc"), "address", "a link is one kind")
 eq(kinds("join discord.gg/a/b/c/d/e"), "address", "a counted address is never scanned for fragments")
 eq(kinds("LF tank for SM"), "", "plain words: no kind (spaces never make a broken-up word)")
 eq(kinds("LFM ZG 50% loot, need heals!!!!"), "", "% is not a price")
-check(Score.Check("LFM ZG 50% loot, need heals!!!!").decor, "but the !!!! is decoration")
+check(not Score.Check("LFM ZG 50% loot, need heals!!!!").decor, "decoration is only worked out for a line with a kind")
+check(Score.Check("guide at wowhead.com/x !!!!").decor, "where !!!! is decoration")
 eq(kinds("WTS [Thunderfury] 500g pst"), "", "game gold is not a price")
 
 -- Addresses: M5's list plus spam's endings, never any 2-6 letters.
@@ -47,7 +48,16 @@ for _, w in ipairs({ "goldsite.shop", "gold-site.top", "x1.vip", "wowhead.com", 
                      "www.foo.bar", "sub.site.co", "raider.io/x" }) do
     check(T.isAddress(w), "an address: " .. w)
 end
-for _, w in ipairs({ "item.level", "GlassChat.lua", "lol.ok", "notes.txt", "1.2.3", "---.shop", "a-.shop",
+-- A host spelled out a character at a time is a broken-up word too, so a
+-- contact beside it is spam (review of #47).
+eq(kinds("b.u.y.g.o.l.d.cc add Seller#1234"), "broken-up + address + contact", "a dotted-out address")
+check(spam("g.o.l.d.shop @seller"), "g.o.l.d.shop with a contact is spam")
+check(not spam("join a.b.com @x"), "two single letters in a host don't make it spelled out")
+-- Spam's extra endings only as typed in lower case: a missing space isn't an address.
+eq(kinds("need tank.Top dps 5$"), "price", "tank.Top isn't an address")
+check(T.isAddress("goldsite.top"), "goldsite.top is")
+check(T.isAddress("WOWHEAD.COM"), "M5's own endings in any case")
+for _, w in ipairs({ "item.level", "GlassChat.lua", "lol.ok", "notes.txt", "1.2.3", "---.shop",
                      "me@gmail.com", "shop", ".shop", "gold..shop" }) do
     check(not T.isAddress(w), "not an address: " .. w)
 end
@@ -58,8 +68,15 @@ for _, w in ipairs({ "#1234", "@", "@a", "rank#12", "Name#123456", "group#2", "1
 end
 check(not spam("group #2 needs a tank, rank #1234"), "group and rank numbers are no contact")
 -- Prices.
-for _, w in ipairs({ "$5", "5$", "10$", "$4.99", "5€", "£10", "¥500", "100₽", "$999999" }) do check(T.isPrice(w), "a price: " .. w) end
-for _, w in ipairs({ "$", "5%", "500g", "$1234567", "$5k", "USD5", "$4.999" }) do check(not T.isPrice(w), "not a price: " .. w) end
+for _, w in ipairs({ "$5", "5$", "10$", "$4.99", "5€", "£10", "¥500", "100₽", "$999999",
+                     "$1,000", "1.000€", "1000g=5$", "5$/1k", "$5k" }) do check(T.isPrice(w), "a price: " .. w) end
+for _, w in ipairs({ "$", "5%", "500g", "USD5", "$$", "a$b" }) do check(not T.isPrice(w), "not a price: " .. w) end
+-- The usual real-money formats (review of #47).
+for _, l in ipairs({ "gold $1,000 at goldsite.shop", "1000g=5$ goldsite.shop", "5$/1k goldsite.shop",
+                     "cheap gold 5 $ goldsite.shop", "cheap gold $ 5 goldsite.shop" }) do
+    eq(kinds(l), "price + address", "a price in: " .. l)
+end
+eq(kinds("I have 5 apples $"), "", "a lone symbol not beside a number isn't a price")
 
 -- Broken-up words: 5+ single characters set apart by separators.
 for _, s in ipairs({ "p.r.o.f.i.t", "g o l d s", "p-r-0-f-i-t", "a_b_c_d_e", "g.o-l d*s", "x · y · z · w · v" }) do
@@ -81,6 +98,18 @@ check(not T.lookAlike("ZGшку"), "ш has no Latin twin")
 check(not T.lookAlike("gвld"), "в is left out of the twins (font-dependent)")
 check(not T.lookAlike("хорошо"), "plain Russian has no Latin letters")
 check(not T.lookAlike("café"), "accented Latin is Latin")
+-- Twins M5's aggressive map already had (review of #47).
+check(T.lookAlike("GОLDЅITE"), "Cyrillic О and Ѕ in capitals")
+eq(kinds("GОLDЅITE.COM 5$"), "price + look-alike + address", "and the address is still found")
+check(T.lookAlike("gold-cІty"), "Cyrillic І")
+check(T.lookAlike("bУy"), "Cyrillic У")
+check(T.lookAlike("bΥy"), "Greek Υ")
+-- The other way round: Latin twins inside a Cyrillic word (review of #47).
+check(T.lookAlike("гoлд"), "a Latin o inside a Cyrillic word")
+check(spam("гoлд дешево 5$"), "Russian spam with a Latin o is spam")
+check(not T.lookAlike("гwлд"), "a Latin w has no Cyrillic twin")
+check(not T.lookAlike("ZGшку"), "an acronym before a Russian ending still isn't")
+check(not T.lookAlike("хилDK"), "nor a Russian word before an acronym")
 eq(kinds("Нужен хил на AVке, discord.gg/pvp"), "address", "Russian on a Latin acronym stays a single kind")
 
 --------------------------------------------------------------------------------
@@ -106,10 +135,16 @@ eq(log[1].outcome, "shown (would hide)", "as would hide, shown")
 check(log[1].spam and log[1].label == "price + address", "with its kinds")
 check(not log[1].noid, "with a lineID")
 check(not line("see wowhead.com/guide/x"), "a near miss is shown")
-eq(#log, 2, "and logged too (one kind), so the owner sees both sides")
-eq(log[2].outcome, "shown", "as shown")
+eq(#log, 1, "and isn't in the spam buffer")
+eq(#Score.Near(), 1, "but in the near misses, so the owner sees both sides")
+eq(Score.Near()[1].outcome, "shown", "as shown")
 check(not line("hello there"), "a line with no kind")
-eq(#log, 2, "isn't logged")
+eq(#log + #Score.Near(), 2, "isn't logged")
+-- Near misses never push out would-hide lines (review of #47).
+for i = 1, Score.NEAR_SIZE + 20 do line("guide " .. i .. " at wowhead.com/x" .. i) end
+eq(#Score.Near(), Score.NEAR_SIZE, "the near misses are capped")
+eq(#log, 1, "and the would-hide line is still there")
+check(Score.LogText():find("^%-%- spam %(1%)"), "the log lists spam first")
 -- Repeats run after the score in watch mode, and the outcome says so.
 check(line(AD), "a repeat of the shown line is hidden by the repeat rule")
 eq(log[#log].outcome, "hidden: repeat", "and the score log records that")
@@ -140,7 +175,7 @@ check(not line(AD), "hidden by the score, so not a repeat of a shown post")
 Spam._test.reset()
 db.score = "off"
 check(not line(AD), "off: shown")
-eq(#Score.Log(), 0, "and not even scored")
+eq(#Score.Log() + #Score.Near(), 0, "and not even scored")
 
 -- The policy is S1's: never your guild, friends, group, or you.
 db.score = "hide"
@@ -157,8 +192,13 @@ newChat()
 SlashCmdList.GLASSCHAT("spam score watch")
 eq(db.score, "watch", "/gchat spam score watch")
 check(chatHas("spam score: watch"), "and says so")
-SlashCmdList.GLASSCHAT("spam score bogus")   -- an unknown word opens the log, never changes the mode
-eq(db.score, "watch", "an unknown word doesn't change the mode")
+newChat()
+SlashCmdList.GLASSCHAT("spam score hdie")
+eq(db.score, "watch", "a typo doesn't change the mode")
+check(chatHas("unknown mode 'hdie'"), "and says so, instead of opening the log")
+SlashCmdList.GLASSCHAT("spam score Hide")
+eq(db.score, "hide", "a mode in capitals is taken")
+SlashCmdList.GLASSCHAT("spam score watch")
 newChat()
 SlashCmdList.GLASSCHAT("spam test " .. AD)
 check(chatHas("kinds: price %+ address, spam"), "/gchat spam test reports the kinds")

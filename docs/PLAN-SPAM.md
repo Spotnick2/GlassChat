@@ -415,8 +415,18 @@ on`), anyone you whispered this session is exempt (`CHAT_MSG_WHISPER_INFORM`). A
   memo), only on public chat from players who aren't exempt, and only after the ignores, mutes
   and CJK let the line through. The per-line context planned here would save a few `Copy.Plain`
   calls, which isn't worth the refactor.
-- **The score has its own address check:** M5's filter runs after the plugin's, by design, and
-  not at all when click-to-copy is off.
+- **The score calls M5's matcher itself** (`Url.Address(word, Score.TLDS)`): M5's filter runs
+  after the plugin's, by design, and not at all when click-to-copy is off, so its scan can't be
+  reused, but the grammar is one.
+
+**Built (#47), with the code review's fixes:**
+- a host spelled out a character at a time (`b.u.y.g.o.l.d.cc`) is an address *and* broken-up;
+- a price is a currency symbol right next to a digit anywhere in the token (`$1,000`,
+  `1000g=5$`, `5$/1k`), or a lone symbol beside a number (`5 $`);
+- the look-alike set gained `Ѕ І Ј У Υ`, and the rule works the other way round too (Latin twins
+  inside a Cyrillic or Greek word: `гoлд`);
+- spam's extra endings only match as typed in lower case (`tank.Top` is a missing space);
+- would-hide lines and near misses are kept in separate buffers.
 
 #### Left for later
 

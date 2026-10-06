@@ -3,9 +3,9 @@
 ## Unreleased
 
 - **Spam & Ignore: a spam score** for public chat. It looks at a line's shape, never its words, so
-  it works in every language: a real-money price (`$5`, `10€`), a word broken up to slip past
-  filters (`g.o.l.d`), or Cyrillic or Greek letters hidden in a Latin word (`gоld`), each together
-  with an address, a contact or another of them. Guild recruitment, a stream or a guide link (an
+  it isn't tied to English: a real-money price (`$5`, `10€`, `$1,000`), a word broken up to slip
+  past filters (`g.o.l.d`), or letters from another alphabet disguised as Latin ones (`gоld`) or
+  the other way round (`гoлд`), each together with an address, a contact or another of them. Guild recruitment, a stream or a guide link (an
   address and a contact) is never hidden. It starts by **watching**: lines it would hide are still
   shown, and `/gchat spam score` lists them with what it found. `/gchat spam score hide` turns
   hiding on, `off` turns it off, and `/gchat spam test <text>` shows what it finds in a line.

@@ -255,15 +255,20 @@ local function spam(arg)
         end
         say("tab-strip icon: " .. (Spam.db.icon and "shown" or "hidden") .. " (/gchat spam icon on|off)")
     elseif cmd == "score" then
-        if rest == "off" or rest == "watch" or rest == "hide" then
-            Spam.db.score = rest
+        local mode = rest:lower()
+        if mode == "off" or mode == "watch" or mode == "hide" then
+            Spam.db.score = mode
             Spam.ResetMemo()   -- earlier decisions were made under the old mode
-            say("spam score: " .. rest .. (rest == "watch" and " (logged, still shown: /gchat spam score)" or ""))
+            say("spam score: " .. mode .. (mode == "watch" and " (logged, still shown: /gchat spam score)" or ""))
+            return
+        elseif mode ~= "" then   -- never a typo taken for the log (review of #47)
+            say("spam score: unknown mode '" .. rest .. "'; use off, watch or hide (now " .. Spam.db.score .. ")")
             return
         end
-        local text = GC.SpamScore.LogText()
+        local Score = GC.SpamScore
+        local text = Score.LogText()
         GC.Copy.Show("Spam score (" .. Spam.db.score .. ")", text ~= "" and text or "nothing scored yet",
-            #GC.SpamScore.Log() .. " line(s); /gchat spam score off|watch|hide")
+            string.format("%d spam, %d near misses; /gchat spam score off|watch|hide", #Score.Log(), #Score.Near()))
     elseif cmd == "test" then
         local reason, scored = Spam.Judge("CHAT_MSG_CHANNEL", rest, "Test Sender", "Player-0-TEST", true)
         local kinds = scored and (" - kinds: " .. GC.SpamScore.Label(scored) .. (scored.spam and ", spam" or "")) or ""

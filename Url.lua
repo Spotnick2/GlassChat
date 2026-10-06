@@ -59,7 +59,9 @@ local function trim(u)
 end
 
 -- Is this word (no spaces) a web address? Returns the address, or nil.
-function Url.Address(word)
+-- extra: more endings, matched only as typed in lower case (the spam score's:
+-- "tank.Top" is a missing space, never an address).
+function Url.Address(word, extra)
     if #word > Url.MAX then return nil end
     local u = trim(word)
     if u:find("^[Hh][Tt][Tt][Pp][Ss]?://[%w%-_%.~]+") then return u end
@@ -68,7 +70,7 @@ function Url.Address(word)
     local host = u:match("^(%w[%w%-]*%.[%w%-%.]*%a%a+)[/:]") or u:match("^(%w[%w%-]*%.[%w%-%.]*%a%a+)$")
     if host then
         local tld = host:match("%.(%a+)$")
-        if tld and Url.TLDS[tld:lower()] and not host:find("%.%.") then return u end
+        if tld and (Url.TLDS[tld:lower()] or (extra and extra[tld])) and not host:find("%.%.") then return u end
     end
     return nil
 end
