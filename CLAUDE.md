@@ -427,8 +427,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
       (`Score.LOG_SIZE`) and near misses (`Score.NEAR_SIZE`) have separate buffers, so a busy
       channel's links never push out the lines watch mode is for. It never touches the
       hidden-lines log or the icon's count.
-  - **`/gchat spam collect on/off/clear`** (off by default; temporary, until the score's weights
-    are settled): every scored line and every line the repeat rule, a mute or the score hid goes
+  - **`/gchat spam collect on/off/clear`** (temporary, until the score's weights are settled; on by
+    default in a dev build only, `Spam.Collecting`, never in a release; the player's setting wins): every scored line and every line the repeat rule, a mute or the score hid goes
     into `GlassChatSpamIgnoreDB.collected` (`Spam.COLLECT_MAX` 3000, oldest dropped), with its
     kinds, outcome, event, sender, the character that saw it and the plain text. Never CJK lines
     (judged by the content, since a mute can hide one first) or an ignored player's. Lines with no lineID are kept, marked `noid`. Read it from

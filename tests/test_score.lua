@@ -190,9 +190,23 @@ check(not Spam.Filter(nil, "CHAT_MSG_GUILD", AD, "Gold Seller", "", "", "", "", 
 -- /gchat spam collect: real chat on disk, to tune the score (owner).
 db.score = "watch"
 Spam._test.reset()
-eq(db.collect, false, "collecting is off by default")
+-- On by default in a dev build (owner), never in a release.
+db.collected = nil   -- what the sections above collected (a dev build collects by default)
+eq(rawget(db, "collect"), nil, "nothing set")
+check(Spam.Collecting(), "a dev build collects by default")
+WoW.addonVersion = "1.0.0"
+Spam._test.reset()
+check(not Spam.Collecting(), "a release doesn't")
 line("Cheap gold $8 at goldsite.shop")
 eq(db.collected, nil, "so nothing is kept")
+db.collect = true
+check(Spam.Collecting(), "unless the player turned it on")
+db.collect = false
+WoW.addonVersion = "dev"
+Spam._test.reset()
+check(not Spam.Collecting(), "and the player's off wins in a dev build")
+line("Cheap gold $8 at goldsite.shop")
+eq(db.collected, nil, "nothing kept then")
 newChat()
 SlashCmdList.GLASSCHAT("spam collect on")
 check(db.collect == true and chatHas("collecting spam lines: on %(0 saved"), "/gchat spam collect on")

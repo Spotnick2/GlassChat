@@ -55,10 +55,10 @@ Spam.PUBLIC = { CHAT_MSG_CHANNEL = true, CHAT_MSG_SAY = true, CHAT_MSG_YELL = tr
 -- "sync the Blizzard ignore list on every account").
 -- score: the spam score (S4) is off, watch (logged, still shown) or hide;
 -- it starts by watching (docs/PLAN-SPAM.md).
--- collect: keep scored and hidden public lines in SavedVariables, to tune the
--- score on real chat (owner: "a real database of spam"); off by default, and
--- temporary: it goes once the weights are settled.
-local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true, score = "watch", collect = false }
+-- collect (no default here: Spam.Collecting) keeps scored and hidden public
+-- lines in SavedVariables, to tune the score on real chat (owner: "a real
+-- database of spam"); temporary, it goes once the weights are settled.
+local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true, score = "watch" }
 
 function Spam.Load()
     if type(GlassChatSpamIgnoreDB) ~= "table" then GlassChatSpamIgnoreDB = {} end
@@ -89,14 +89,29 @@ end
 -- A dev or test build keeps the debug log (owner: "until we make an official
 -- release"): the packager replaces @project-version@, the deploy script
 -- writes "dev". /gchat spam debug on/off overrides it.
-function Spam.IsDebug()
-    local forced = Spam.db and Spam.db.debug
-    if forced ~= nil then return forced end
+function Spam.IsDevBuild()
     local get = C_AddOns and C_AddOns.GetAddOnMetadata
     local ok, v = false, nil
     if get then ok, v = pcall(get, Spam.ADDON, "Version") end
     v = ok and plainString(v) or nil
     return v == nil or v == "dev" or v:find("@project%-version@") ~= nil
+end
+function Spam.IsDebug()
+    local forced = Spam.db and Spam.db.debug
+    if forced ~= nil then return forced end
+    return Spam.IsDevBuild()
+end
+
+-- Collecting is on by default in a dev build only (owner: "I will forget it
+-- when I swap toons"), never in a release: that would keep other players'
+-- chat for everyone who installs it. /gchat spam collect on|off always wins.
+-- The build is read once (a per-line check runs on every public line).
+local devBuild
+function Spam.Collecting()
+    local set = rawget(Spam.db, "collect")
+    if set ~= nil then return set end
+    if devBuild == nil then devBuild = Spam.IsDevBuild() end
+    return devBuild
 end
 
 --------------------------------------------------------------------------------
@@ -358,7 +373,7 @@ function Spam.Filter(_, event, ...)
     if scored then GC.SpamScore.Record(event, sender, scored, outcome, key == nil) end
     -- Lines with no usable lineID too (a stateless mute hide has neither a
     -- key nor a score: Codex review of #58), marked noid.
-    if Spam.db.collect then
+    if Spam.Collecting() then
         local okc, err = pcall(collect, event, text, sender, reason, scored, outcome, key == nil)
         if not okc then API.Fail("spam collect", err) end
     end
@@ -498,7 +513,7 @@ Spam._test = {
         alt, altHooked = { guids = {}, names = {} }, false
         Spam.unseen = 0
         GC.SpamScore._test.reset()
-        me = nil
+        me, devBuild = nil, nil
     end,
     names = function() return names end,
 }

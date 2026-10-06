@@ -282,7 +282,7 @@ local function spam(arg)
         end
         local n = type(Spam.db.collected) == "table" and #Spam.db.collected or 0
         say(string.format("collecting spam lines: %s (%d saved, at most %d; on disk after a full exit, "
-            .. "in SavedVariables\\GlassChatSpamIgnore.lua)", Spam.db.collect and "on" or "off", n, Spam.COLLECT_MAX))
+            .. "in SavedVariables\\GlassChatSpamIgnore.lua)", Spam.Collecting() and "on" or "off", n, Spam.COLLECT_MAX))
     elseif cmd == "test" then
         local reason, scored = Spam.Judge("CHAT_MSG_CHANNEL", rest, "Test Sender", "Player-0-TEST", true)
         local kinds = scored and (" - kinds: " .. GC.SpamScore.Label(scored) .. (scored.spam and ", spam" or "")) or ""
@@ -294,7 +294,7 @@ local function spam(arg)
         say(string.format("/gchat spam repeat <minutes> - repeat window (%g)", Spam.db.repeatWindow / 60))
         say("/gchat spam score [off/watch/hide] - the spam score's log, or its mode (" .. Spam.db.score .. ")")
         say("/gchat spam collect on/off/clear - keep scored and hidden lines on disk, to tune the score ("
-            .. (Spam.db.collect and "on" or "off") .. ")")
+            .. (Spam.Collecting() and "on" or "off") .. ")")
         say("/gchat spam test <text> - would a public line be hidden?")
         say("/gchat spam debug on/off - the debug log and bug icon (on until the release)")
     end
