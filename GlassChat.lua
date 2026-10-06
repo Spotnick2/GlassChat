@@ -159,15 +159,15 @@ end
 
 local function help()
     local db = GC.db
-    say("/gchat glass on|off - the glass panels (" .. onOff(db.glass) .. ")")
+    say("/gchat glass on/off - the glass panels (" .. onOff(db.glass) .. ")")
     say("/gchat alpha 0-1 - panel darkness (" .. db.alpha .. ")")
     say("/gchat lines N - lines kept per chat window (" .. db.lines .. ")")
-    say("/gchat colors on|off - class-coloured names (" .. onOff(db.classColors) .. ")")
-    say("/gchat arrows on|off - Up/Down recall what you sent (" .. onOff(db.plainArrows) .. ")")
+    say("/gchat colors on/off - class-coloured names (" .. onOff(db.classColors) .. ")")
+    say("/gchat arrows on/off - Up/Down recall what you sent (" .. onOff(db.plainArrows) .. ")")
     say("/gchat history N - sent lines kept (" .. db.history .. ")")
-    say("/gchat channels on|off - drop the zone from channel names (" .. onOff(db.shortChannels) .. ")")
-    say("/gchat urls on|off - click a web address in chat to copy it (" .. onOff(db.urls) .. ")")
-    say("/gchat stamps on|off - a time on every line, addon output too (" .. onOff(db.timestamps) .. ")")
+    say("/gchat channels on/off - drop the zone from channel names (" .. onOff(db.shortChannels) .. ")")
+    say("/gchat urls on/off - click a web address in chat to copy it (" .. onOff(db.urls) .. ")")
+    say("/gchat stamps on/off - a time on every line, addon output too (" .. onOff(db.timestamps) .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
     say("/gchat layout - save this character's chat windows for your other characters")
     say("/gchat tabs - chatty addons with their own tab (offered in chat)")
@@ -242,7 +242,7 @@ local function slash(msg, editBox)
         say("client " .. API.ClientBuild() .. ", measured on " .. GC.MEASURED_ON_BUILD)
     elseif TOGGLES[cmd] then
         local v = flag(arg)
-        if v == nil then say("/gchat " .. cmd .. " on|off"); return end
+        if v == nil then say("/gchat " .. cmd .. " on/off"); return end
         TOGGLES[cmd](v)
         say(cmd .. " " .. onOff(v))
     elseif NUMBERS[cmd] then

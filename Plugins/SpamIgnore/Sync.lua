@@ -295,7 +295,7 @@ function Sync.Send(force)
     return sent
 end
 
--- /gchat ignore sync [status|on|off]
+-- /gchat ignore sync [status/on/off]
 function Sync.Undo()
     local u = Spam.db.syncUndo
     if type(u) ~= "table" or type(u.ignore) ~= "table" then say("nothing to undo"); return end
@@ -316,7 +316,7 @@ function Sync.Command(arg)
         return
     end
     for _, line in ipairs(GC.AccountSync.Status()) do say(line) end
-    say("/gchat ignore send - copy these lists to your other accounts online; /gchat ignore sync on|off|undo")
+    say("/gchat ignore send - copy these lists to your other accounts online; /gchat ignore sync on/off/undo")
 end
 
 function Sync.Start()
