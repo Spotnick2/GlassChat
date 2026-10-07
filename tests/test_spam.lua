@@ -83,6 +83,19 @@ check(not say(CH, "WTS |cffa335ee|Hitem:19019|h[Thunderfury]|h|r", "Item Seller"
 check(not say(CH, "WTS |cffa335ee|Hitem:17182|h[Thunderfury]|h|r", "Item Seller", "Player-1-R2"), "another item with the same name is another post")
 check(not say(WHISPER, "hi", "Friendly", "Player-1-R3") and not say(WHISPER, "hi", "Friendly", "Player-1-R3"),
     "repeats are never judged in whispers")
+-- The spacing changed to get past the repeat rule (owner's collected Trade
+-- chat, #63): still the same post.
+check(not say(CH, "<Dream> Immediate Openings Hunters Rdruids and Spriests. Apply!", "Guild Ad", "Player-1-R4"),
+    "an advert is shown")
+check(say(CH, "<Dream> Immediate Openings Hunters R Druids and S Priests. Apply!", "Guild Ad", "Player-1-R4"),
+    "re-posted with spaces inside its words: a repeat")
+check(say(CH, "<Dream> Immediate Openings Hunters RDruids and SPriests - Apply", "Guild Ad", "Player-1-R4"),
+    "with its punctuation changed: a repeat")
+check(not say(CH, "<Dream> Immediate Openings Mages and Priests. Apply!", "Guild Ad", "Player-1-R4"),
+    "other words are another post")
+check(not say(CH, "!!!", "Punct Only", "Player-1-R5") and not say(CH, "???", "Punct Only", "Player-1-R5"),
+    "a line of only punctuation keeps it: !!! and ??? aren't one post")
+check(GC.SpamText.RepeatKey("a b") ~= GC.SpamText.RepeatKey("ab |Hitem:1|h[x]|h"), "link data still tells posts apart")
 
 -- Heuristics never touch you, friends, guild, group or the allow list.
 WoW.friends["Player-1-F1"] = true

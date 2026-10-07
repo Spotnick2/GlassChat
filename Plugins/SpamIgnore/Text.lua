@@ -116,10 +116,16 @@ end
 
 -- The repeat key: what's seen, with each link's own data kept, so two posts
 -- about different items are never one repeat (Codex's review of the plan).
+-- Spaces and ASCII punctuation don't count: "Rdruids", "R Druids" and
+-- "RDruids" are one advert re-posted with its spacing changed (owner's
+-- collected Trade chat, #63). A line that's nothing but those keeps them, so
+-- "!!!" and "???" stay apart.
 function Text.RepeatKey(s)
     local links = {}
     for data in s:gmatch("|H(.-)|h") do links[#links + 1] = data end
-    return Text.Visible(s) .. "|" .. table.concat(links, ",")
+    local visible = Text.Visible(s)
+    local bare = visible:gsub("[%s%p]", "")
+    return (bare ~= "" and bare or visible) .. "|" .. table.concat(links, ",")
 end
 
 Text._test = { isCJK = isCJK }
