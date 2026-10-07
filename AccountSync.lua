@@ -43,6 +43,8 @@ local function store()
     local t = rawget(_G, "GlassChatSpamIgnoreSyncDB")
     return type(t) == "table" and t or nil
 end
+-- Whether the plugin that holds the store is here (settings sync needs it).
+function AS.HasStore() return store() ~= nil end
 
 local function dispatch(payload, sender, sid)
     if API.IsSecret(payload) or type(payload) ~= "string" then return end
@@ -127,8 +129,21 @@ function AS.WhyNot(why, what)
 end
 -- after: a line printed right after the summary (the lists' "couldn't be
 -- written" count).
+-- Until LibAccountSync#17: the library keeps one replay floor per (tag,
+-- sender), so a copy of one kind finishing after a later copy of another is
+-- dropped on arrival (a small settings copy overtakes a large list copy).
+-- A send of one kind waits KIND_GAP after a send of another.
+AS.KIND_GAP = 30
+local lastSent = {}   -- kind -> { at = GetTime(), what = "your lists" }
 function AS.SendReported(kind, body, what, again, after)
     local say = API.Print
+    for other, s in pairs(lastSent) do
+        local left = AS.KIND_GAP - (GetTime() - s.at)
+        if other ~= kind and left > 0 then
+            say(string.format("wait a moment: %s are still on their way (try again in %d s)", s.what, math.ceil(left)))
+            return nil, "busy"
+        end
+    end
     local inSend, waiting = true, {}
     local sent, why = AS.Send(kind, body, function(peer, status, reason)
         local who = (type(peer) == "table" and plainName(peer.name) and peer.name) or "your other account"
@@ -156,6 +171,7 @@ function AS.SendReported(kind, body, what, again, after)
     end
     -- 0: every account found is still mid-handshake; each result says so.
     if sent > 0 then
+        lastSent[kind] = { at = GetTime(), what = what }
         say(string.format("sending %s (%.1f KB) to %d other account%s...", what, #body / 1024, sent,
             sent == 1 and "" or "s"))
     end
@@ -186,4 +202,4 @@ function AS.Status()
     return out
 end
 
-AS._test = { dispatch = dispatch, reports = reports, store = store }
+AS._test = { dispatch = dispatch, reports = reports, store = store, resetSent = function() lastSent = {} end }

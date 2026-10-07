@@ -56,7 +56,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
 `Libs\LibAccountSync-1.0\LibAccountSync-1.0.xml` (own-account messaging) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
 `Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `AccountSync.lua` →
-`GlassChat.lua`.
+`SettingsSync.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -338,6 +338,35 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - CI's allowlist and pinned-content checks for both libraries.
 
     Never edit `..\LibAccountSync` from here: a bug goes on a LibAccountSync issue.
+- **`SettingsSync.lua`** (#52; plan: `docs/PLAN-SETTINGS.md`, reviewed by Codex): your settings,
+  and optionally the saved chat layout, on your other WoW accounts. Payload kind `ST`, through
+  `GC.AccountSync`.
+  - **Commands:** `/gchat settings send [layout]` and `/gchat settings undo`. Sending is manual,
+    and receiving never sends back. The on/off switch stays `/gchat ignore sync`.
+  - **It needs the Spam & Ignore plugin** (owner), since the plugin holds the store
+    (`AS.HasStore`).
+  - **A small registry:** `SS.Register(section, keys)`. Section `core` is registered here,
+    section `spam` by the plugin's `UI.Start`. Each key has a type, its range or allowed values,
+    a raw `get` (nil when unset), a `default` and the slash command's own setter. The plugin's
+    setters are `UI.Set`, shared with its slash commands.
+  - **Never sent:** `devMode`, `debug`, `collect`, smart-tab rules, the export, the logs, the lists
+    and the key.
+  - **Defaults:** a key unset or set to its default travels as `D`. The receiver resets it
+    through `set(default)` and then clears it; a setter never takes nil.
+  - **Format `ST1`:** the shape is all-or-nothing, with caps and duplicates refused. A value this
+    copy can't take (an unknown key, out of range, an unknown choice) is skipped and reported.
+  - **Applying:** only changed values are applied. The old raw values go to
+    `GlassChatDB.settingsUndo`, and the summary says "follow", never "match". A failed setter is
+    reported.
+  - **Undo** can't bring back a trimmed sent history, lost scrollback, the class-colour CVar or
+    mirror writes, and says so.
+  - **The layout is never applied.** It replaces the saved layout with a new id from
+    `layoutRevision` and goes through `Layout.Offer`. The main window's place and size never
+    travel; its `docked` does, since `Matches` compares it.
+  - **Order:** `GlassChatDB.settingsApplied[guid]`.
+  - **Until LibAccountSync#17**, the library's floor per (tag, sender) would drop the other kind,
+    so `AS.SendReported` refuses a send of one kind for `AS.KIND_GAP` (30 s) after a send of the
+    other.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It

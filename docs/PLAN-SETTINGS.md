@@ -1,6 +1,6 @@
 # Settings sync: your settings on your other WoW accounts (#52)
 
-**Status: plan, revised after Codex's review (2026-10-06, below).** It waits on
+**Status: built (#52), after Codex's review (2026-10-06, below).** It waits on
 Spotnick2/LibAccountSync#17 for independent streams; a stopgap covers the meantime.
 
 ## What the owner wants
@@ -132,8 +132,11 @@ L	C	<i>	<channel>                       one channel (the client's own name)
 - **Each window is rebuilt and checked as a whole before anything is replaced:**
   - `messages` and `channels` are always tables, empty when there were no `M` or `C` records;
   - colour is all of `r/g/b/a` or none, and position is all of `point/x/y` or none;
-  - window 1 carries no position, size, dock, lock or shown fields, since those are Edit Mode's;
-    a payload that has them for window 1 is refused.
+  - window 1 carries no position or size (`width`, `height`, `point`, `x`, `y`), since those are
+    Edit Mode's, and a payload that has them for window 1 is refused. Its `docked`, `shown`,
+    `locked` and `uninteractable` do travel, because `Layout.Matches` compares `docked` for every
+    window and `Layout.Capture` records the rest; `Layout.Apply` ignores them for window 1
+    (corrected while building, #52).
 
 ## Applying, on the receiving account
 
