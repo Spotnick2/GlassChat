@@ -95,7 +95,21 @@ check(not say(CH, "<Dream> Immediate Openings Mages and Priests. Apply!", "Guild
     "other words are another post")
 check(not say(CH, "!!!", "Punct Only", "Player-1-R5") and not say(CH, "???", "Punct Only", "Player-1-R5"),
     "a line of only punctuation keeps it: !!! and ??? aren't one post")
-check(GC.SpamText.RepeatKey("a b") ~= GC.SpamText.RepeatKey("ab |Hitem:1|h[x]|h"), "link data still tells posts apart")
+local RK = GC.SpamText.RepeatKey
+check(RK("WTS |Hitem:1|h[Sword]|h") ~= RK("WTS |Hitem:2|h[Sword]|h"), "link data still tells posts apart (same link text)")
+-- Review of #64: meaning kept, Unicode tricks caught, no locale.
+check(RK("WTS [Lotus] 1.5g") ~= RK("WTS [Lotus] 15g"), "a decimal point between digits counts: 1.5g isn't 15g")
+check(RK("10,000g") ~= RK("100,00g") and RK("raid 7:30") ~= RK("raid 73:0"), "so do a comma and a colon between digits")
+eq(RK("Hunters R Druids - Apply"), RK("Hunters R Druids \226\128\147 Apply"), "an en dash is punctuation")
+eq(RK("Apply..."), RK("Apply\226\128\166"), "an ellipsis too")
+eq(RK("R Druids"), RK("R\194\160Druids"), "and a no-break space")
+eq(RK("Apply now"), RK("\208\144pply now"), "a look-alike letter is its Latin twin")
+eq(RK("Apply now"), RK("\239\188\161pply now"), "and a full-width one")
+check(RK("caf\195\169 ok") ~= RK("caf\195\160 ok"), "accented letters stay whole letters (no byte classes)")
+eq(RK("caf\195\169"), RK("cafe"), "and an accent alone doesn't make a new post (Aggressive's letter map)")
+check(RK("\208\191\209\128\208\184\208\178\208\181\209\130") ~= RK("\208\191\209\128\208\184\208\178\208\190"), "two Russian words stay apart")
+eq(RK("!!!"), RK("! ! !"), "a punctuation-only line ignores its spacing")
+check(RK("!!!") ~= RK("???"), "but keeps its marks")
 
 -- Heuristics never touch you, friends, guild, group or the allow list.
 WoW.friends["Player-1-F1"] = true
