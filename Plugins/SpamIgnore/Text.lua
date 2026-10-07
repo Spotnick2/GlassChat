@@ -129,8 +129,7 @@ local function isDigitCp(cp) return cp >= 48 and cp <= 57 end
 local function separator(cp)
     if cp < 128 then return not (isDigitCp(cp) or (cp >= 65 and cp <= 90) or (cp >= 97 and cp <= 122)) end
     return cp == 0xA0 or (cp >= 0x2000 and cp <= 0x206F) or (cp >= 0x3000 and cp <= 0x303F)
-        or (cp >= 0xFF01 and cp <= 0xFF0F) or (cp >= 0xFF1A and cp <= 0xFF20) or (cp >= 0xFF3B and cp <= 0xFF40)
-        or (cp >= 0xFF5B and cp <= 0xFF65)
+        or (cp >= 0xFF5F and cp <= 0xFF65)   -- half-width CJK punctuation (full-width ASCII is mapped first)
 end
 local KEEP_BETWEEN_DIGITS = { [44] = true, [46] = true, [58] = true }   -- , . :
 local function isSpace(cp) return cp == 32 or cp == 9 or cp == 10 or cp == 13 or cp == 0xA0 or cp == 0x3000 end
@@ -138,11 +137,13 @@ function Text.RepeatKey(s)
     local links = {}
     for data in s:gmatch("|H(.-)|h") do links[#links + 1] = data end
     local cps = Text.CodePoints(GC.Copy.Plain(s) or "")
+    -- Full-width ASCII first, digits and punctuation alike, so the
+    -- between-digits rule sees "1.5" in every width (Codex review of #64).
+    for i, cp in ipairs(cps) do
+        if cp >= 0xFF01 and cp <= 0xFF5E then cps[i] = cp - 0xFEE0 end
+    end
     local out, marks = {}, {}
     for i, cp in ipairs(cps) do
-        if cp >= 0xFF10 and cp <= 0xFF19 or cp >= 0xFF21 and cp <= 0xFF3A or cp >= 0xFF41 and cp <= 0xFF5A then
-            cp = cp - 0xFEE0   -- full-width letters and digits
-        end
         if separator(cp) then
             local prev, nxt = cps[i - 1], cps[i + 1]
             if KEEP_BETWEEN_DIGITS[cp] and prev and nxt and isDigitCp(prev) and isDigitCp(nxt) then

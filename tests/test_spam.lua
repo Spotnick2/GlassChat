@@ -105,6 +105,15 @@ eq(RK("Apply..."), RK("Apply\226\128\166"), "an ellipsis too")
 eq(RK("R Druids"), RK("R\194\160Druids"), "and a no-break space")
 eq(RK("Apply now"), RK("\208\144pply now"), "a look-alike letter is its Latin twin")
 eq(RK("Apply now"), RK("\239\188\161pply now"), "and a full-width one")
+-- Full-width digits and separators (Codex review of #64): the same price in
+-- any width is one post, a different price another.
+local FW1, FW5, FWDOT, FWBANG = "\239\188\145", "\239\188\149", "\239\188\142", "\239\188\129"
+eq(RK("WTS " .. FW1 .. "." .. FW5 .. "g"), RK("WTS 1.5g"), "full-width digits around a dot: still 1.5g")
+eq(RK("WTS 1" .. FWDOT .. "5g"), RK("WTS 1.5g"), "a full-width dot between digits: still 1.5g")
+eq(RK("WTS " .. FW1 .. FWDOT .. FW5 .. "g"), RK("WTS 1.5g"), "all full-width: still 1.5g")
+check(RK("WTS " .. FW1 .. "." .. FW5 .. "g") ~= RK("WTS 15g"), "and never 15g")
+check(RK("WTS 1" .. FWDOT .. "5g") ~= RK("WTS 15g"), "in any width")
+eq(RK("Apply" .. FWBANG), RK("Apply!"), "full-width punctuation elsewhere is still ignored")
 check(RK("caf\195\169 ok") ~= RK("caf\195\160 ok"), "accented letters stay whole letters (no byte classes)")
 eq(RK("caf\195\169"), RK("cafe"), "and an accent alone doesn't make a new post (Aggressive's letter map)")
 check(RK("\208\191\209\128\208\184\208\178\208\181\209\130") ~= RK("\208\191\209\128\208\184\208\178\208\190"), "two Russian words stay apart")
