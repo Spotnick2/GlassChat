@@ -275,14 +275,17 @@ local function spam(arg)
         local mode = rest:lower()
         if mode == "on" or mode == "off" then
             Spam.db.collect = mode == "on"
+        elseif mode == "default" then
+            Spam.db.collect = nil   -- the build's default again (review of #59)
         elseif mode == "clear" then
             Spam.db.collected = nil
         elseif mode ~= "" then
-            say("spam collect: on, off or clear"); return
+            say("spam collect: on, off, default or clear"); return
         end
         local n = type(Spam.db.collected) == "table" and #Spam.db.collected or 0
-        say(string.format("collecting spam lines: %s (%d saved, at most %d; on disk after a full exit, "
-            .. "in SavedVariables\\GlassChatSpamIgnore.lua)", Spam.db.collect and "on" or "off", n, Spam.COLLECT_MAX))
+        local why = rawget(Spam.db, "collect") == nil and "this build's default" or "your setting; /gchat spam collect default undoes it"
+        say(string.format("collecting spam lines: %s (%s; %d saved, at most %d; on disk after a full exit, "
+            .. "in SavedVariables\\GlassChatSpamIgnore.lua)", Spam.Collecting() and "on" or "off", why, n, Spam.COLLECT_MAX))
     elseif cmd == "test" then
         local reason, scored = Spam.Judge("CHAT_MSG_CHANNEL", rest, "Test Sender", "Player-0-TEST", true)
         local kinds = scored and (" - kinds: " .. GC.SpamScore.Label(scored) .. (scored.spam and ", spam" or "")) or ""
@@ -293,8 +296,8 @@ local function spam(arg)
         say("/gchat spam cjk on/off - CJK posts in public chat (" .. (Spam.db.cjk and "hidden" or "shown") .. ")")
         say(string.format("/gchat spam repeat <minutes> - repeat window (%g)", Spam.db.repeatWindow / 60))
         say("/gchat spam score [off/watch/hide] - the spam score's log, or its mode (" .. Spam.db.score .. ")")
-        say("/gchat spam collect on/off/clear - keep scored and hidden lines on disk, to tune the score ("
-            .. (Spam.db.collect and "on" or "off") .. ")")
+        say("/gchat spam collect on/off/default/clear - keep scored and hidden lines on disk, to tune the score ("
+            .. (Spam.Collecting() and "on" or "off") .. ")")
         say("/gchat spam test <text> - would a public line be hidden?")
         say("/gchat spam debug on/off - the debug log and bug icon (on until the release)")
     end

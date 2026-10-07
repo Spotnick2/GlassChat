@@ -55,10 +55,10 @@ Spam.PUBLIC = { CHAT_MSG_CHANNEL = true, CHAT_MSG_SAY = true, CHAT_MSG_YELL = tr
 -- "sync the Blizzard ignore list on every account").
 -- score: the spam score (S4) is off, watch (logged, still shown) or hide;
 -- it starts by watching (docs/PLAN-SPAM.md).
--- collect: keep scored and hidden public lines in SavedVariables, to tune the
--- score on real chat (owner: "a real database of spam"); off by default, and
--- temporary: it goes once the weights are settled.
-local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true, score = "watch", collect = false }
+-- collect (no default here: Spam.Collecting) keeps scored and hidden public
+-- lines in SavedVariables, to tune the score on real chat (owner: "a real
+-- database of spam"); temporary, it goes once the weights are settled.
+local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true, score = "watch" }
 
 function Spam.Load()
     if type(GlassChatSpamIgnoreDB) ~= "table" then GlassChatSpamIgnoreDB = {} end
@@ -97,6 +97,18 @@ function Spam.IsDebug()
     if get then ok, v = pcall(get, Spam.ADDON, "Version") end
     v = ok and plainString(v) or nil
     return v == nil or v == "dev" or v:find("@project%-version@") ~= nil
+end
+
+-- Collecting is on by default in a dev build only (owner: "I will forget it
+-- when I swap toons"), never in a release: that would keep other players'
+-- chat for everyone who installs it. The core's GC.IsDev decides, which
+-- fails closed (a version that can't be read is a release: review of #59)
+-- and honours GlassChatDB.devMode. /gchat spam collect on/off wins;
+-- /gchat spam collect default goes back to the build's.
+function Spam.Collecting()
+    local set = rawget(Spam.db, "collect")
+    if set ~= nil then return set == true end
+    return GC.IsDev()
 end
 
 --------------------------------------------------------------------------------
@@ -358,7 +370,7 @@ function Spam.Filter(_, event, ...)
     if scored then GC.SpamScore.Record(event, sender, scored, outcome, key == nil) end
     -- Lines with no usable lineID too (a stateless mute hide has neither a
     -- key nor a score: Codex review of #58), marked noid.
-    if Spam.db.collect then
+    if (scored or reason) and Spam.Collecting() then   -- nothing to keep otherwise: no pcall per line
         local okc, err = pcall(collect, event, text, sender, reason, scored, outcome, key == nil)
         if not okc then API.Fail("spam collect", err) end
     end
@@ -482,6 +494,10 @@ f:SetScript("OnEvent", function(_, event, arg1)
         if GC.SpamSync then GC.SpamSync.Start() end
         if GC.SpamUI then GC.SpamUI.Start() end
     elseif event == "PLAYER_LOGIN" then
+        -- Never silent: a dev build collecting by default says so (review of #59).
+        if rawget(Spam.db, "collect") == nil and Spam.Collecting() then
+            API.Print("collecting spam lines to tune the score (a dev build's default): /gchat spam collect off")
+        end
         Spam.RecordSelf()
         Spam.RefreshGroup()
         hookAltStable()
