@@ -201,30 +201,6 @@ end
 -- Sending, and the commands
 --------------------------------------------------------------------------------
 
-Sync.WHY = {
-    disabled = "account sync is off (/gchat ignore sync on)",
-    ["no-peers"] = "none of your other accounts is online, or none is known yet (/gchat ignore sync status)",
-    ["not-ready"] = "still connecting to your other accounts; try again in a few seconds",
-    offline = "Battle.net is offline",
-    ["no-route"] = "no way to reach your other accounts right now; try again in a few seconds",
-}
--- Per account, from the library's result.
-local PER = {
-    offline = "it went offline",
-    ["no-route"] = "no way to reach it right now",
-    ["not-ready"] = "it isn't ready yet",
-    ["too-large"] = "the lists are too large",
-}
-
--- The library answers "disabled" also while Battle.net isn't usable or the
--- login hasn't finished: with the switch on, say that instead (review of #40).
-local function whyNot(why)
-    if why == "disabled" and GC.AccountSync.IsEnabled() then
-        return "Battle.net isn't ready for account sync yet (logging in, or disconnected); try again in a few seconds"
-    end
-    return Sync.WHY[why] or ("couldn't send your lists (" .. tostring(why) .. ")")
-end
-
 -- The receiver's caps, checked before sending: over one, every receiver
 -- would refuse it (review of #40).
 local function overCap(body)
@@ -259,40 +235,8 @@ function Sync.Send(force)
         say(string.format("|cffff6060too many %s to send (%d; at most %d)|r", KIND_NAME[kind], have, cap))
         return nil, "over-cap"
     end
-    -- The library can report a result while Send is still running (in game:
-    -- it did): those wait, so the summary comes first and each result after.
-    local inSend, waiting = true, {}
-    local sent, why = GC.AccountSync.Send(Sync.KIND, body, function(peer, status, reason)
-        local who = (type(peer) == "table" and plainField(peer.name, 64) and peer.name) or "your other account"
-        local line
-        if status == "sent" then
-            line = "your lists were handed to Battle.net for " .. who .. " (there's no delivery receipt)"
-        elseif reason == "not-ready" then
-            line = who .. " isn't ready yet; try /gchat ignore send again in a few seconds"
-        else
-            line = "|cffff6060couldn't send your lists to " .. who .. ": " .. (PER[reason] or tostring(reason)) .. "|r"
-        end
-        if inSend then waiting[#waiting + 1] = line else say(line) end
-    end)
-    inSend = false
-    if not sent then
-        if why == "too-large" then
-            say(string.format("|cffff6060your lists are too large to send (%.1f KB; at most %d KB)|r",
-                #body / 1024, GC.AccountSync.MAX / 1024))
-        else
-            say(whyNot(why))
-        end
-        for _, line in ipairs(waiting) do say(line) end
-        return nil, why
-    end
-    -- 0: every account found is still mid-handshake; each result says so.
-    if sent > 0 then
-        say(string.format("sending your lists (%.1f KB) to %d other account%s...", #body / 1024, sent,
-            sent == 1 and "" or "s"))
-    end
-    if skipped > 0 then say(skipped .. " entries couldn't be written and weren't sent") end
-    for _, line in ipairs(waiting) do say(line) end
-    return sent
+    return GC.AccountSync.SendReported(Sync.KIND, body, "your lists", "/gchat ignore send",
+        skipped > 0 and (skipped .. " entries couldn't be written and weren't sent") or nil)
 end
 
 -- /gchat ignore sync [status/on/off]

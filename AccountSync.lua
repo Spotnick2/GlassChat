@@ -96,6 +96,74 @@ function AS.Send(kind, body, onResult)
     return AS.inst.Send(kind .. "\n" .. body, onResult)
 end
 
+-- Send, telling the player how it went, for every feature alike (the lists'
+-- wording, #40). what: "your lists"; again: the command to retry with. The
+-- library can report a result while Send is still running (in game: it
+-- did): those wait, so the summary comes first and each result after.
+-- Returns the library's (count) or (nil, reason).
+AS.WHY = {
+    disabled = "account sync is off (/gchat ignore sync on)",
+    ["no-peers"] = "none of your other accounts is online, or none is known yet (/gchat ignore sync status)",
+    ["not-ready"] = "still connecting to your other accounts; try again in a few seconds",
+    offline = "Battle.net is offline",
+    ["no-route"] = "no way to reach your other accounts right now; try again in a few seconds",
+}
+local PER = {
+    offline = "it went offline",
+    ["no-route"] = "no way to reach it right now",
+    ["not-ready"] = "it isn't ready yet",
+    ["too-large"] = "%s too large",
+}
+local function plainName(s)
+    return type(s) == "string" and not API.IsSecret(s) and #s >= 1 and #s <= 64 and not s:find("[%c|]")
+end
+-- The library answers "disabled" also while Battle.net isn't usable or the
+-- login hasn't finished: with the switch on, say that instead (review of #40).
+function AS.WhyNot(why, what)
+    if why == "disabled" and AS.IsEnabled() then
+        return "Battle.net isn't ready for account sync yet (logging in, or disconnected); try again in a few seconds"
+    end
+    return AS.WHY[why] or ("couldn't send " .. what .. " (" .. tostring(why) .. ")")
+end
+-- after: a line printed right after the summary (the lists' "couldn't be
+-- written" count).
+function AS.SendReported(kind, body, what, again, after)
+    local say = API.Print
+    local inSend, waiting = true, {}
+    local sent, why = AS.Send(kind, body, function(peer, status, reason)
+        local who = (type(peer) == "table" and plainName(peer.name) and peer.name) or "your other account"
+        local line
+        if status == "sent" then
+            line = what .. " were handed to Battle.net for " .. who .. " (there's no delivery receipt)"
+        elseif reason == "not-ready" then
+            line = who .. " isn't ready yet; try " .. again .. " again in a few seconds"
+        else
+            local per = PER[reason] and PER[reason]:format("the " .. (what:gsub("^your ", "")) .. " are") or tostring(reason)
+            line = "|cffff6060couldn't send " .. what .. " to " .. who .. ": " .. per .. "|r"
+        end
+        if inSend then waiting[#waiting + 1] = line else say(line) end
+    end)
+    inSend = false
+    if not sent then
+        if why == "too-large" then
+            say(string.format("|cffff6060%s are too large to send (%.1f KB; at most %d KB)|r",
+                what, #body / 1024, AS.MAX / 1024))
+        else
+            say(AS.WhyNot(why, what))
+        end
+        for _, line in ipairs(waiting) do say(line) end
+        return nil, why
+    end
+    -- 0: every account found is still mid-handshake; each result says so.
+    if sent > 0 then
+        say(string.format("sending %s (%.1f KB) to %d other account%s...", what, #body / 1024, sent,
+            sent == 1 and "" or "s"))
+    end
+    if after then say(after) end
+    for _, line in ipairs(waiting) do say(line) end
+    return sent
+end
+
 function AS.IsEnabled() return AS.inst ~= nil and AS.inst.IsEnabled() == true end
 function AS.SetEnabled(on) if AS.inst then AS.inst.SetEnabled(on and true or false) end end
 function AS.Rescan() if AS.inst then AS.inst.Rescan() end end
