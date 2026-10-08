@@ -83,6 +83,42 @@ check(not say(CH, "WTS |cffa335ee|Hitem:19019|h[Thunderfury]|h|r", "Item Seller"
 check(not say(CH, "WTS |cffa335ee|Hitem:17182|h[Thunderfury]|h|r", "Item Seller", "Player-1-R2"), "another item with the same name is another post")
 check(not say(WHISPER, "hi", "Friendly", "Player-1-R3") and not say(WHISPER, "hi", "Friendly", "Player-1-R3"),
     "repeats are never judged in whispers")
+-- The spacing changed to get past the repeat rule (owner's collected Trade
+-- chat, #63): still the same post.
+check(not say(CH, "<Dream> Immediate Openings Hunters Rdruids and Spriests. Apply!", "Guild Ad", "Player-1-R4"),
+    "an advert is shown")
+check(say(CH, "<Dream> Immediate Openings Hunters R Druids and S Priests. Apply!", "Guild Ad", "Player-1-R4"),
+    "re-posted with spaces inside its words: a repeat")
+check(say(CH, "<Dream> Immediate Openings Hunters RDruids and SPriests - Apply", "Guild Ad", "Player-1-R4"),
+    "with its punctuation changed: a repeat")
+check(not say(CH, "<Dream> Immediate Openings Mages and Priests. Apply!", "Guild Ad", "Player-1-R4"),
+    "other words are another post")
+check(not say(CH, "!!!", "Punct Only", "Player-1-R5") and not say(CH, "???", "Punct Only", "Player-1-R5"),
+    "a line of only punctuation keeps it: !!! and ??? aren't one post")
+local RK = GC.SpamText.RepeatKey
+check(RK("WTS |Hitem:1|h[Sword]|h") ~= RK("WTS |Hitem:2|h[Sword]|h"), "link data still tells posts apart (same link text)")
+-- Review of #64: meaning kept, Unicode tricks caught, no locale.
+check(RK("WTS [Lotus] 1.5g") ~= RK("WTS [Lotus] 15g"), "a decimal point between digits counts: 1.5g isn't 15g")
+check(RK("10,000g") ~= RK("100,00g") and RK("raid 7:30") ~= RK("raid 73:0"), "so do a comma and a colon between digits")
+eq(RK("Hunters R Druids - Apply"), RK("Hunters R Druids \226\128\147 Apply"), "an en dash is punctuation")
+eq(RK("Apply..."), RK("Apply\226\128\166"), "an ellipsis too")
+eq(RK("R Druids"), RK("R\194\160Druids"), "and a no-break space")
+eq(RK("Apply now"), RK("\208\144pply now"), "a look-alike letter is its Latin twin")
+eq(RK("Apply now"), RK("\239\188\161pply now"), "and a full-width one")
+-- Full-width digits and separators (Codex review of #64): the same price in
+-- any width is one post, a different price another.
+local FW1, FW5, FWDOT, FWBANG = "\239\188\145", "\239\188\149", "\239\188\142", "\239\188\129"
+eq(RK("WTS " .. FW1 .. "." .. FW5 .. "g"), RK("WTS 1.5g"), "full-width digits around a dot: still 1.5g")
+eq(RK("WTS 1" .. FWDOT .. "5g"), RK("WTS 1.5g"), "a full-width dot between digits: still 1.5g")
+eq(RK("WTS " .. FW1 .. FWDOT .. FW5 .. "g"), RK("WTS 1.5g"), "all full-width: still 1.5g")
+check(RK("WTS " .. FW1 .. "." .. FW5 .. "g") ~= RK("WTS 15g"), "and never 15g")
+check(RK("WTS 1" .. FWDOT .. "5g") ~= RK("WTS 15g"), "in any width")
+eq(RK("Apply" .. FWBANG), RK("Apply!"), "full-width punctuation elsewhere is still ignored")
+check(RK("caf\195\169 ok") ~= RK("caf\195\160 ok"), "accented letters stay whole letters (no byte classes)")
+eq(RK("caf\195\169"), RK("cafe"), "and an accent alone doesn't make a new post (Aggressive's letter map)")
+check(RK("\208\191\209\128\208\184\208\178\208\181\209\130") ~= RK("\208\191\209\128\208\184\208\178\208\190"), "two Russian words stay apart")
+eq(RK("!!!"), RK("! ! !"), "a punctuation-only line ignores its spacing")
+check(RK("!!!") ~= RK("???"), "but keeps its marks")
 
 -- Heuristics never touch you, friends, guild, group or the allow list.
 WoW.friends["Player-1-F1"] = true
