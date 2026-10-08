@@ -272,11 +272,20 @@ end
 
 -- Repeats: timed from the last SHOWN post, so a sender gets one post per
 -- window and is never hidden for ever (Codex's review of the plan).
+-- Evicted by the last shown post, not the first: each shown post is queued
+-- again with its time, and an old entry only evicts a key still holding that
+-- time. Kept by first sighting, a sender who kept posting was evicted after
+-- REPEAT_CAP newer lines, mid-window, and shown again (#67).
 local function isRepeat(event, guid, text)
     local key = event .. "|" .. guid .. "|" .. Text.RepeatKey(text)
-    local last = repeats[key]
-    if last and now() - last < Spam.db.repeatWindow then return true end
-    remember(repeats, repeatOrder, key, now(), Spam.REPEAT_CAP)
+    local last, t = repeats[key], now()
+    if last and t - last < Spam.db.repeatWindow then return true end
+    repeats[key] = t
+    repeatOrder[#repeatOrder + 1] = { key = key, at = t }
+    if #repeatOrder > Spam.REPEAT_CAP then
+        local old = table.remove(repeatOrder, 1)
+        if repeats[old.key] == old.at then repeats[old.key] = nil end
+    end
     return false
 end
 

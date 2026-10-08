@@ -93,6 +93,22 @@ check(say(CH, "<Dream> Immediate Openings Hunters RDruids and SPriests - Apply",
     "with its punctuation changed: a repeat")
 check(not say(CH, "<Dream> Immediate Openings Mages and Priests. Apply!", "Guild Ad", "Player-1-R4"),
     "other words are another post")
+-- A sender who keeps posting is timed from the last shown post, however much
+-- chat comes after the first one (owner's collected Trade chat, #67: the
+-- advert was shown twice per window once REPEAT_CAP newer lines came by).
+local AD = "<Dream> Top World Ranked guild LFM, apply at our discord"
+WoW.now = 2000
+check(not say(CH, AD, "Guild Ad", "Player-1-R5"), "a long-running advert: shown")
+local half = math.floor(Spam.REPEAT_CAP * 0.6)
+for i = 1, half do say(CH, "chatter line number " .. i, "Busy Channel", "Player-1-C" .. i) end
+WoW.now = 2400
+check(not say(CH, AD, "Guild Ad", "Player-1-R5"), "shown again after the window")
+for i = 1, half do say(CH, "later chatter " .. i, "Busy Channel", "Player-1-E" .. i) end
+WoW.now = 2460
+check(say(CH, AD, "Guild Ad", "Player-1-R5"), "a minute later it's still a repeat, after a busy channel")
+-- The store stays bounded, and the oldest shown post goes first.
+for i = 1, Spam.REPEAT_CAP do say(CH, "more chatter " .. i, "Busy Channel", "Player-1-D" .. i) end
+check(not say(CH, AD, "Guild Ad", "Player-1-R5"), "past REPEAT_CAP newer posts it's forgotten (bounded)")
 check(not say(CH, "!!!", "Punct Only", "Player-1-R5") and not say(CH, "???", "Punct Only", "Player-1-R5"),
     "a line of only punctuation keeps it: !!! and ??? aren't one post")
 local RK = GC.SpamText.RepeatKey
