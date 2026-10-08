@@ -93,22 +93,6 @@ check(say(CH, "<Dream> Immediate Openings Hunters RDruids and SPriests - Apply",
     "with its punctuation changed: a repeat")
 check(not say(CH, "<Dream> Immediate Openings Mages and Priests. Apply!", "Guild Ad", "Player-1-R4"),
     "other words are another post")
--- A sender who keeps posting is timed from the last shown post, however much
--- chat comes after the first one (owner's collected Trade chat, #67: the
--- advert was shown twice per window once REPEAT_CAP newer lines came by).
-local AD = "<Dream> Top World Ranked guild LFM, apply at our discord"
-WoW.now = 2000
-check(not say(CH, AD, "Guild Ad", "Player-1-R5"), "a long-running advert: shown")
-local half = math.floor(Spam.REPEAT_CAP * 0.6)
-for i = 1, half do say(CH, "chatter line number " .. i, "Busy Channel", "Player-1-C" .. i) end
-WoW.now = 2400
-check(not say(CH, AD, "Guild Ad", "Player-1-R5"), "shown again after the window")
-for i = 1, half do say(CH, "later chatter " .. i, "Busy Channel", "Player-1-E" .. i) end
-WoW.now = 2460
-check(say(CH, AD, "Guild Ad", "Player-1-R5"), "a minute later it's still a repeat, after a busy channel")
--- The store stays bounded, and the oldest shown post goes first.
-for i = 1, Spam.REPEAT_CAP do say(CH, "more chatter " .. i, "Busy Channel", "Player-1-D" .. i) end
-check(not say(CH, AD, "Guild Ad", "Player-1-R5"), "past REPEAT_CAP newer posts it's forgotten (bounded)")
 check(not say(CH, "!!!", "Punct Only", "Player-1-R5") and not say(CH, "???", "Punct Only", "Player-1-R5"),
     "a line of only punctuation keeps it: !!! and ??? aren't one post")
 local RK = GC.SpamText.RepeatKey
@@ -422,4 +406,48 @@ for _, l in ipairs(shown) do if stray(l) then bad[#bad + 1] = l end end
 eq(#bad, 0, "no stray | in printed help or status lines" .. (bad[1] and (": " .. bad[1]) or ""))
 check(#shown > 0, "the score log's status line was checked too")
 eq(next(GC.failures), nil, "nothing failed")
+--------------------------------------------------------------------------------
+-- The repeat store (#67): by age, then a flood cap. Last, after a reset: it
+-- fills the session's stores.
+--------------------------------------------------------------------------------
+Spam._test.reset()
+local window = Spam.db.repeatWindow
+eq(window, 300, "(the default window)")
+-- A sender who keeps posting is timed from the last shown post, however much
+-- chat came since the first one (owner's collected Trade chat: the advert was
+-- shown twice per window once 500 newer lines came by).
+local AD = "<Dream> Top World Ranked guild LFM, apply at our discord"
+local chat = 0
+local function chatter(n) for _ = 1, n do chat = chat + 1; say(CH, "chatter line " .. chat, "Busy Channel", "Player-1-C" .. chat) end end
+local some = math.floor(Spam.REPEAT_CAP * 0.6)
+WoW.now = 2000
+check(not say(CH, AD, "Guild Ad", "Player-1-R5"), "a long-running advert: shown")
+chatter(some)
+WoW.now = 2400
+check(not say(CH, AD, "Guild Ad", "Player-1-R5"), "shown again after the window")
+chatter(some)
+WoW.now = 2460
+check(say(CH, AD, "Guild Ad", "Player-1-R5"), "a minute later it's still a repeat, after a busy channel")
+-- Posts older than the window are forgotten first: they hold no cap slot.
+WoW.now = 2460 + window
+check(not say(CH, "a new post", "Late Poster", "Player-1-R6"), "a post after a quiet window")
+local keys, queued = Spam._test.repeatSizes()
+eq(keys, 1, "only it is remembered: every older post left by age")
+eq(queued, 1, "and queued")
+-- A flood within one window: bounded by REPEAT_CAP, oldest first.
+WoW.now = 4000
+check(not say(CH, AD, "Guild Ad", "Player-1-R5"), "the advert before a flood")
+chatter(Spam.REPEAT_CAP)
+keys, queued = Spam._test.repeatSizes()
+check(keys <= Spam.REPEAT_CAP and queued <= Spam.REPEAT_CAP, "a flood stays within REPEAT_CAP")
+WoW.now = 4010
+check(not say(CH, AD, "Guild Ad", "Player-1-R5"), "and its oldest post is the one forgotten")
+-- Window 0: nothing is a repeat, and nothing is kept.
+Spam._test.reset()
+Spam.db.repeatWindow = 0
+check(not say(CH, AD, "Guild Ad", "Player-1-R5") and not say(CH, AD, "Guild Ad", "Player-1-R5"), "window 0: no repeats")
+keys, queued = Spam._test.repeatSizes()
+check(keys == 0 and queued == 0, "and nothing remembered")
+Spam.db.repeatWindow = window
+
 done("test_spam")

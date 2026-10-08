@@ -4,7 +4,7 @@
 
 - **Spam & Ignore:** an advert reposted every minute is now shown once per repeat window, as
   intended. In a busy channel it could get through a second time a minute or two after being
-  shown.
+  shown. Only a flood of more than 2000 different posts within one window can still push it out.
 
 - **Your settings on your other WoW accounts:** `/gchat settings send` copies your GlassChat and
   Spam & Ignore settings (timestamps, glass, scrollback, the spam score and so on) to your other
