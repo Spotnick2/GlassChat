@@ -220,6 +220,35 @@ newChat()
 SlashCmdList.GLASSCHAT("settings undo")
 check(chatHas("nothing to undo"), "a second undo has nothing to do")
 
+-- Undo keeps what it can't put back (Codex review of #62): a setter that
+-- fails, and a section that isn't loaded, for another undo.
+db.timestamps, db.tabSize = false, 12
+sdb.cjk = false
+newChat()
+SS.Receive(table.concat({ "ST1", "V\tcore\ttimestamps\tb\t1", "V\tcore\ttabSize\ti\t16", "D\tspam\tcjk" }, "\n"),
+    { guid = "Player-1-0000000B", name = "Karuzo Memphisto" }, "1760000000250")
+check(db.timestamps == true and db.tabSize == 16 and rawget(sdb, "cjk") == nil, "(a copy changed three settings)")
+local realTabs = GC.Settings.SetTabSize
+GC.Settings.SetTabSize = function() error("boom") end
+local spamSection = secs.spam
+secs.spam = nil   -- the plugin isn't loaded this session
+newChat()
+SlashCmdList.GLASSCHAT("settings undo")
+eq(db.timestamps, false, "what can be put back is")
+local u = rawget(db, "settingsUndo")
+check(u and u.values["core.tabSize"] and u.values["spam.cjk"], "the failed one and the missing section's are kept")
+check(u and u.values["core.timestamps"] == nil, "the restored one isn't")
+check(chatHas("2 couldn't be put back") and chatHas("an addon that isn't loaded"), "and it says so")
+GC.failures["settings undo tabSize"] = nil
+GC.Settings.SetTabSize = realTabs
+secs.spam = spamSection
+newChat()
+SlashCmdList.GLASSCHAT("settings undo")
+eq(db.tabSize, 12, "a second undo retries the failed one")
+eq(sdb.cjk, false, "and the section that's back")
+eq(rawget(db, "settingsUndo"), nil, "then nothing is left")
+db.timestamps = true
+
 -- The same copy twice: nothing changes the second time.
 local same = table.concat({ "ST1", "V\tcore\ttimestamps\tb\t1" }, "\n")
 newChat()
@@ -338,6 +367,30 @@ newChat()
 SlashCmdList.GLASSCHAT("settings send")
 check(chatHas("wait a moment: your lists are still on their way"), "and the other way round")
 advance(AS.KIND_GAP + 1)
+-- A copy the receiver would refuse is never sent (Codex review of #62).
+db.layout = { id = 20, windows = {} }
+for i = 1, 10 do
+    local w = { name = "W" .. i, shown = true, messages = {}, channels = {} }
+    for g = 1, SS.GROUPS_MAX + 1 do w.messages[g] = "GROUP" .. g end
+    db.layout.windows[i] = w
+end
+before = #sentTo(Peer.id, "D1|")
+newChat()
+SlashCmdList.GLASSCHAT("settings send layout")
+check(chatHas("can't send this copy: your other accounts would refuse it") and chatHas("without the layout"),
+    "over the receiver's caps: refused here, with the settings-only command")
+eq(#sentTo(Peer.id, "D1|"), before, "and nothing sent")
+-- A real-sized layout fits: ten windows of 50 groups and a few channels.
+for i = 1, 10 do
+    local w = db.layout.windows[i]
+    w.messages = {}
+    for g = 1, 50 do w.messages[g] = "GROUP" .. g end
+    w.channels = { "General", "Trade", "LocalDefense" }
+end
+local big = SS.Build(true)
+check(SS.Parse(big), "a real-sized layout (10 windows, 50 groups each) is within the caps")
+check(#big < GC.AccountSync.MAX, "and the link's size")
+
 -- With layout, when none is saved: said, and the settings go alone.
 db.layout = nil
 newChat()

@@ -92,12 +92,17 @@ D	<section>	<key>                     at its default
 L	...                                    the layout, only with "send layout" (below)
 ```
 
-**Caps:**
-- the payload: 16 KB;
+**Caps** (raised while building, Codex review of #62: a real main window has 40+ message groups,
+so 400 records didn't fit a full layout):
+- the payload: 32 KB, the link's own ceiling;
 - each line: 256 bytes;
-- records in total, skipped ones included: 400;
+- records in total, skipped ones included: 2000;
 - layout windows: 1 to `NUM_CHAT_WINDOWS`;
-- per window: 64 message groups and 32 channels;
+- per window: 128 message groups and 32 channels;
+
+**A send checks its own copy with the receiver's parser first,** and refuses one every receiver
+would refuse, naming the reason and the settings-only command. **Undo keeps what it couldn't put
+back** (a failed setter, a section whose addon isn't loaded) for another undo.
 - names: 64 bytes, with no tab, newline or control character.
 
 **Parsing is all-or-nothing for the payload's shape.** Any of these refuses the whole payload:

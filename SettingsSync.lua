@@ -35,10 +35,12 @@ GC.SettingsSync = SS
 
 SS.KIND = "ST"
 SS.FORMAT = "ST1"
-SS.MAX = 16384
+-- Caps a real layout fits (a main window has 40+ message groups), up to what
+-- the link carries; a send is checked against them first (Codex review of #62).
+SS.MAX = 32768
 SS.LINE_MAX = 256
-SS.RECORDS_MAX = 400
-SS.GROUPS_MAX = 64
+SS.RECORDS_MAX = 2000
+SS.GROUPS_MAX = 128
 SS.CHANNELS_MAX = 32
 SS.NAME_MAX = 64
 
@@ -393,10 +395,13 @@ function SS.Apply(snap, from, guid)
     return changed, failed, labels
 end
 
+-- What can't be restored now (a setter failed, or its section isn't loaded:
+-- the plugin turned off) is kept for another undo, never lost (Codex review
+-- of #62).
 function SS.Undo()
     local u = rawget(GC.db, "settingsUndo")
     if type(u) ~= "table" or type(u.values) ~= "table" then say("nothing to undo"); return end
-    local n = 0
+    local n, left, missing = 0, {}, 0
     for id, old in pairs(u.values) do
         local sec, key = id:match("^([^%.]+)%.(.+)$")
         local section = sec and sections[sec]
@@ -405,14 +410,29 @@ function SS.Undo()
             local ok, err = pcall(function()
                 if old.unset then reset(spec) else spec.set(old.raw) end
             end)
-            if ok then n = n + 1 else API.Fail("settings undo " .. key, err) end
+            if ok then n = n + 1 else left[id] = old; API.Fail("settings undo " .. key, err) end
+        elseif type(old) == "table" then
+            left[id] = old
+            missing = missing + 1
         end
     end
-    if u.layout ~= nil then GC.db.layout = u.layout or nil end   -- its old id: answers stand; the counter isn't rewound
-    GC.db.settingsUndo = nil
+    local layout = u.layout ~= nil
+    if layout then GC.db.layout = u.layout or nil end   -- its old id: answers stand; the counter isn't rewound
+    local kept = 0
+    for _ in pairs(left) do kept = kept + 1 end
+    if kept > 0 then
+        GC.db.settingsUndo = { values = left, at = u.at }
+    else
+        GC.db.settingsUndo = nil
+    end
     say(string.format("settings back as they were before the last copy (%d)%s. A shorter sent history or "
         .. "scrollback, and what mirroring already changed, can't come back.", n,
-        u.layout ~= nil and ", and the saved chat layout" or ""))
+        layout and ", and the saved chat layout" or ""))
+    if kept > 0 then
+        say(string.format("|cffff6060%d couldn't be put back%s; they're kept: /gchat settings undo again|r", kept,
+            missing > 0 and (" (" .. missing .. " belong to an addon that isn't loaded, such as Spam & Ignore)") or
+            " (/gchat failures)"))
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -464,6 +484,14 @@ function SS.Send(withLayout)
     end
     local body, hasLayout = SS.Build(withLayout)
     if withLayout and not hasLayout then say("no chat layout saved (/gchat layout save); sending the settings alone") end
+    -- The receiver's own parser first: a copy every receiver would refuse
+    -- whole is never sent (Codex review of #62; the lists check their caps too).
+    local ok, why = SS.Parse(body)
+    if not ok then
+        say("|cffff6060can't send this copy: your other accounts would refuse it (" .. why .. ")|r"
+            .. (hasLayout and "; /gchat settings send copies the settings without the layout" or ""))
+        return nil, "refused"
+    end
     return GC.AccountSync.SendReported(SS.KIND, body, hasLayout and "your settings and chat layout" or "your settings",
         "/gchat settings send")
 end
