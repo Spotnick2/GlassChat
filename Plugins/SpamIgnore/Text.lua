@@ -116,10 +116,51 @@ end
 
 -- The repeat key: what's seen, with each link's own data kept, so two posts
 -- about different items are never one repeat (Codex's review of the plan).
+-- Spacing and punctuation don't count: "Rdruids", "R Druids" and "RDruids"
+-- are one advert re-posted with its spacing changed (owner's collected Trade
+-- chat, #63). Built from code points, never Lua's %s/%p (they follow the C
+-- locale and work on bytes: review of #64), with Aggressive's letter map, so
+-- the Unicode tricks count too: a no-break space, a dash or an ellipsis from
+-- General Punctuation, CJK and full-width punctuation, a look-alike letter.
+-- A "." "," or ":" between two digits is kept: "1.5g" and "15g" are different
+-- prices (review of #64). A line that's nothing but punctuation keeps its
+-- marks, without its spaces, so "!!!" and "???" stay apart.
+local function isDigitCp(cp) return cp >= 48 and cp <= 57 end
+local function separator(cp)
+    if cp < 128 then return not (isDigitCp(cp) or (cp >= 65 and cp <= 90) or (cp >= 97 and cp <= 122)) end
+    return cp == 0xA0 or (cp >= 0x2000 and cp <= 0x206F) or (cp >= 0x3000 and cp <= 0x303F)
+        or (cp >= 0xFF5F and cp <= 0xFF65)   -- half-width CJK punctuation (full-width ASCII is mapped first)
+end
+local KEEP_BETWEEN_DIGITS = { [44] = true, [46] = true, [58] = true }   -- , . :
+local function isSpace(cp) return cp == 32 or cp == 9 or cp == 10 or cp == 13 or cp == 0xA0 or cp == 0x3000 end
 function Text.RepeatKey(s)
     local links = {}
     for data in s:gmatch("|H(.-)|h") do links[#links + 1] = data end
-    return Text.Visible(s) .. "|" .. table.concat(links, ",")
+    local cps = Text.CodePoints(GC.Copy.Plain(s) or "")
+    -- Full-width ASCII first, digits and punctuation alike, so the
+    -- between-digits rule sees "1.5" in every width (Codex review of #64).
+    for i, cp in ipairs(cps) do
+        if cp >= 0xFF01 and cp <= 0xFF5E then cps[i] = cp - 0xFEE0 end
+    end
+    local out, marks = {}, {}
+    for i, cp in ipairs(cps) do
+        if separator(cp) then
+            local prev, nxt = cps[i - 1], cps[i + 1]
+            if KEEP_BETWEEN_DIGITS[cp] and prev and nxt and isDigitCp(prev) and isDigitCp(nxt) then
+                out[#out + 1] = string.char(cp)
+            end
+            if not isSpace(cp) then marks[#marks + 1] = cp < 128 and string.char(cp) or ("\\" .. cp) end
+        elseif cp >= 65 and cp <= 90 then
+            out[#out + 1] = string.char(cp + 32)
+        elseif cp < 128 then
+            out[#out + 1] = string.char(cp)
+        else
+            out[#out + 1] = GLYPHS[cp] or ("\\" .. cp)   -- unmapped: a token that never meets ASCII
+        end
+    end
+    local key = table.concat(out)
+    if key == "" then key = table.concat(marks) end
+    return key .. "|" .. table.concat(links, ",")
 end
 
 Text._test = { isCJK = isCJK }
