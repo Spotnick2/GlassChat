@@ -2,21 +2,25 @@
 -- embedded LibAccountSync-1.0 (Spotnick2/LibAccountSync; the TOC loads its
 -- XML first). GlassChat is the library's pilot consumer.
 --
--- One instance, tag "GlassChat" (wire-visible and permanent: never change
--- it). Its store holds the household key, so it must never be written into
+-- One instance per snapshot kind, on one store: tag "GlassChat" for the lists
+-- and "GlassChatST" for the settings (tags are wire-visible and permanent:
+-- never change them). The library keeps its replay floor per (tag, sender),
+-- so on one tag a small settings copy finishing first would drop a larger
+-- list copy sent before it (LibAccountSync#17, settled this way in r5). The
+-- store holds the household key, so it must never be written into
 -- SavedVariables\GlassChat.lua: that file holds focus mode's export, which is
 -- meant to be shared. The client writes ONE file per addon, whatever the
 -- number of variables (Codex review of #40), so the store is declared by the
--- Spam & Ignore plugin, the only feature that sends: GlassChatSpamIgnoreSyncDB,
--- in SavedVariables\GlassChatSpamIgnore.lua. Without the plugin there's no
+-- Spam & Ignore plugin, which every sending feature needs:
+-- GlassChatSpamIgnoreSyncDB, in SavedVariables\GlassChatSpamIgnore.lua. Without the plugin there's no
 -- store, and the library never chooses a key (it fails closed). The getter
 -- reads it raw, nil until those SavedVariables load (the library asks for it
 -- again on every access).
 --
--- A payload is "<kind>\n<body>", so features share the one tag: Spam &
--- Ignore's list snapshot registers kind "SI". The library gives the sender
--- from Blizzard's own sender id, never from the payload, and the payload is
--- data: handlers validate it and never run it.
+-- A payload is "<kind>\n<body>", and the kind alone picks the handler, on
+-- either tag: Spam & Ignore's list snapshot registers kind "SI". The library
+-- gives the sender from Blizzard's own sender id, never from the payload, and
+-- the payload is data: handlers validate it and never run it.
 
 GlassChat = GlassChat or {}
 local GC = GlassChat
@@ -25,6 +29,7 @@ local AS = {}
 GC.AccountSync = AS
 
 AS.TAG = "GlassChat"
+AS.TAGS = { ST = "GlassChatST" }   -- a kind not listed goes on AS.TAG
 AS.MAX = 32768          -- the wire ceiling; Spam & Ignore's large lists need more than the 16 KB default
 AS.REPORTS = 20
 
@@ -55,15 +60,22 @@ local function dispatch(payload, sender, sid)
     if not ok then API.Fail("account sync " .. kind, err) end
 end
 
+-- tag -> instance. AS.inst is AS.TAG's, the one the readout and peers use.
+AS.insts = {}
 local lib = rawget(_G, "LibStub") and LibStub("LibAccountSync-1.0", true)
 if lib then
-    local ok, inst = pcall(lib.New, lib, { addon = AS.TAG, store = store, report = report, maxPayload = AS.MAX })
-    if ok and inst then
-        AS.inst = inst
-        inst.OnMessage(dispatch)
-    else
-        API.Fail("account sync", inst or "no instance")
+    local tags = { AS.TAG }
+    for _, tag in pairs(AS.TAGS) do tags[#tags + 1] = tag end
+    for _, tag in ipairs(tags) do
+        local ok, inst = pcall(lib.New, lib, { addon = tag, store = store, report = report, maxPayload = AS.MAX })
+        if ok and inst then
+            AS.insts[tag] = inst
+            inst.OnMessage(dispatch)
+        else
+            API.Fail("account sync " .. tag, inst or "no instance")
+        end
     end
+    AS.inst = AS.insts[AS.TAG]
 end
 
 -- GlassChat's ADDON_LOADED: a store an earlier build kept in GlassChat.lua
@@ -94,8 +106,9 @@ function AS.On(kind, fn) handlers[kind] = fn end
 -- Send a feature's body to every own account online: the library's
 -- (count) or (nil, reason).
 function AS.Send(kind, body, onResult)
-    if not AS.inst then return nil, "not-ready" end
-    return AS.inst.Send(kind .. "\n" .. body, onResult)
+    local inst = AS.insts[AS.TAGS[kind] or AS.TAG]
+    if not inst then return nil, "not-ready" end
+    return inst.Send(kind .. "\n" .. body, onResult)
 end
 
 -- Send, telling the player how it went, for every feature alike (the lists'
@@ -129,21 +142,8 @@ function AS.WhyNot(why, what)
 end
 -- after: a line printed right after the summary (the lists' "couldn't be
 -- written" count).
--- Until LibAccountSync#17: the library keeps one replay floor per (tag,
--- sender), so a copy of one kind finishing after a later copy of another is
--- dropped on arrival (a small settings copy overtakes a large list copy).
--- A send of one kind waits KIND_GAP after a send of another.
-AS.KIND_GAP = 30
-local lastSent = {}   -- kind -> { at = GetTime(), what = "your lists" }
 function AS.SendReported(kind, body, what, again, after)
     local say = API.Print
-    for other, s in pairs(lastSent) do
-        local left = AS.KIND_GAP - (GetTime() - s.at)
-        if other ~= kind and left > 0 then
-            say(string.format("wait a moment: %s are still on their way (try again in %d s)", s.what, math.ceil(left)))
-            return nil, "busy"
-        end
-    end
     local inSend, waiting = true, {}
     local sent, why = AS.Send(kind, body, function(peer, status, reason)
         local who = (type(peer) == "table" and plainName(peer.name) and peer.name) or "your other account"
@@ -171,7 +171,6 @@ function AS.SendReported(kind, body, what, again, after)
     end
     -- 0: every account found is still mid-handshake; each result says so.
     if sent > 0 then
-        lastSent[kind] = { at = GetTime(), what = what }
         say(string.format("sending %s (%.1f KB) to %d other account%s...", what, #body / 1024, sent,
             sent == 1 and "" or "s"))
     end
@@ -181,7 +180,11 @@ function AS.SendReported(kind, body, what, again, after)
 end
 
 function AS.IsEnabled() return AS.inst ~= nil and AS.inst.IsEnabled() == true end
-function AS.SetEnabled(on) if AS.inst then AS.inst.SetEnabled(on and true or false) end end
+-- The switch is kept in the shared store, but one flipped this session is
+-- per instance: flip every one, so the kinds never disagree.
+function AS.SetEnabled(on)
+    for _, inst in pairs(AS.insts) do inst.SetEnabled(on and true or false) end
+end
 function AS.Rescan() if AS.inst then AS.inst.Rescan() end end
 function AS.Peers() return AS.inst and AS.inst.Peers() or {} end
 
@@ -198,8 +201,12 @@ function AS.Status()
         for line in AS.inst.Diagnostics() do out[#out + 1] = line end
     end)
     if not ok then out[#out + 1] = "diagnostics failed: " .. tostring(err) end
+    -- The other kinds' instances share these diagnostics; only a missing one is news.
+    for kind, tag in pairs(AS.TAGS) do
+        if not AS.insts[tag] then out[#out + 1] = "no link for " .. kind .. " (tag " .. tag .. "): see /gchat failures" end
+    end
     for _, r in ipairs(reports) do out[#out + 1] = "(" .. (r.kind or "info") .. ") " .. r.text end
     return out
 end
 
-AS._test = { dispatch = dispatch, reports = reports, store = store, resetSent = function() lastSent = {} end }
+AS._test = { dispatch = dispatch, reports = reports, store = store }

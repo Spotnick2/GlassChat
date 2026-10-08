@@ -1,7 +1,7 @@
 # Settings sync: your settings on your other WoW accounts (#52)
 
-**Status: built (#52), after Codex's review (2026-10-06, below).** It waits on
-Spotnick2/LibAccountSync#17 for independent streams; a stopgap covers the meantime.
+**Status: built (#52), after Codex's review (2026-10-06, below).** Since LibAccountSync r5
+(#65), settings travel on their own tag, so Spotnick2/LibAccountSync#17's stopgap is gone.
 
 ## What the owner wants
 
@@ -216,9 +216,12 @@ settings copy never touches an ignore list.
   The reverse happens too.
   - **Filed as Spotnick2/LibAccountSync#17:** a channel in `Send`, or several instances sharing one
     store.
-  - **The stopgap until then:** a send of one kind is refused for `KIND_GAP` (30 s) after a send
-    of the other, with "wait a moment: your lists are still on their way". It's on the sender
-    only, and it's removed once #17 ships.
+  - **Settled in r5 (#65):** one instance per kind, each with its own tag, on the same store
+    (the library's README). Settings go on `GlassChatST`, the lists stay on `GlassChat`, and each
+    tag has its own floor. `/gchat ignore sync on|off` flips both. Settings sync was unreleased,
+    so no released copy sends `ST` on `GlassChat`.
+  - **The stopgap it replaced:** a send of one kind refused for `KIND_GAP` (30 s) after a send of
+    the other. Removed.
 - **The sender** comes from the library (Blizzard's sender id), never from the payload. Its
   displayed name gets the same safe-field treatment as the list sync's.
 
@@ -273,11 +276,11 @@ settings copy never touches an ignore list.
   - without `layout`, the saved layout is untouched.
 - **Never sent:** none of the excluded keys, nor the switch, appears in a built payload.
 - **Without the plugin:** the precise refusal, and nothing is sent.
-- **The stopgap:** a settings send right after a list send is refused, and allowed after
-  `KIND_GAP`. **#17:** once the library has it, a real-library test with a reordered SI and ST
-  completion.
+- **Each kind on its own tag (#17, r5):** settings never go on the lists' tag; a list send right
+  after a settings send goes at once; a real-library test where a list copy with a lower sid
+  completes after a settings copy, and both are applied.
 - **Mutation-test** the reset path, the only-changes rule, the out-of-range skip, the never-sent
-  list and the stopgap.
+  list and the tags (both copies on one tag goes red).
 
 ## Codex review (2026-10-06, consult)
 
@@ -298,4 +301,5 @@ No P1. Every finding is taken, and none adds a framework:
 6. **The plugin store:** fine, with precise error causes. `mirror` is the stated exception.
 7. **Rules:** no conflict. Received names are checked like the list sync's.
 8. **The transport:** the library's floor per (tag, sender) drops the other kind. That's
-   LibAccountSync#17, verified in r3's source, with a stopgap here.
+   LibAccountSync#17, verified in r3's source, with a stopgap here (replaced by a tag per kind
+   with r5, #65).
