@@ -1,7 +1,8 @@
 -- Settings sync (#52; docs/PLAN-SETTINGS.md): the registry, the ST1 format,
 -- applying (only changes, defaults through the reset path), undo, the layout
--- through M2's offer, never-sent keys, the stopgap between kinds, and a round
--- trip against the real LibAccountSync-1.0 (test_sync's Peer).
+-- through M2's offer, never-sent keys, each kind on its own tag
+-- (LibAccountSync#17), and a round trip against the real LibAccountSync-1.0
+-- (test_sync's Peer).
 dofile("tests/wow_stubs.lua")
 dofile("tests/harness.lua")
 
@@ -71,22 +72,25 @@ function Peer.deliver(text) WoW.fire("BN_CHAT_MSG_ADDON", "LibAcctSync", text, "
 function Peer.hello()
     Peer.deliver(table.concat({ "H1", "1", Peer.name, Peer.guid, Peer.faction, Peer.realm, "", Peer.nonce, "" }, "|"))
 end
-function Peer.send(payload, sid)
+-- tag: the instance's, "GlassChatST" for settings, "GlassChat" for lists.
+function Peer.send(payload, sid, tag)
+    tag = tag or "GlassChatST"
     local enc = T.Encode(payload)
     local bodies = { enc:sub(1, T.BODY_FIRST) }
     local pos = T.BODY_FIRST + 1
     while pos <= #enc do bodies[#bodies + 1] = enc:sub(pos, pos + T.BODY_REST - 1); pos = pos + T.BODY_REST end
-    local mac = macFor(Peer.key, Peer.ourNonce() or "0000000000000000", Peer.guid, 18, 90, "GlassChat", sid, #bodies, payload)
+    local mac = macFor(Peer.key, Peer.ourNonce() or "0000000000000000", Peer.guid, 18, 90, tag, sid, #bodies, payload)
     for i = 1, #bodies do
-        Peer.deliver(table.concat({ "D1", "GlassChat", sid, tostring(i), tostring(#bodies), i == 1 and mac or "-", bodies[i] }, "|"))
+        Peer.deliver(table.concat({ "D1", tag, sid, tostring(i), tostring(#bodies), i == 1 and mac or "-", bodies[i] }, "|"))
     end
     advance(1)
 end
-function Peer.received()
+function Peer.received(want)
+    want = want or "GlassChatST"
     local streams, out = {}, {}
     for _, m in ipairs(sentTo(Peer.id, "D1|")) do
         local tag, sid, i, n, mac, body = m.text:match("^D1|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|(.*)$")
-        if tag == "GlassChat" then
+        if tag == want then
             streams[sid] = streams[sid] or { n = tonumber(n), chunks = {} }
             streams[sid].chunks[tonumber(i)] = body
             if i == "1" then streams[sid].mac = mac end
@@ -95,7 +99,7 @@ function Peer.received()
     for sid, s in pairs(streams) do
         local payload = T.Decode(table.concat(s.chunks, "", 1, s.n))
         out[#out + 1] = { payload = payload, sid = sid,
-            macOk = payload and s.mac == macFor(store.key, Peer.nonce, WoW.playerGUID, 18, 90, "GlassChat", sid, s.n, payload) }
+            macOk = payload and s.mac == macFor(store.key, Peer.nonce, WoW.playerGUID, 18, 90, want, sid, s.n, payload) }
     end
     return out
 end
@@ -344,7 +348,6 @@ GlassChatSpamIgnoreSyncDB = saved
 advance(70)
 Peer.hello()
 advance(2)
-AS._test.resetSent()
 local before = #sentTo(Peer.id, "D1|")
 newChat()
 db.timestamps = true
@@ -353,20 +356,20 @@ check(chatHas("sending your settings %(.-KB%) to 1 other account"), "settings go
 local got = Peer.received()
 local st
 for _, g in ipairs(got) do if g.payload and g.payload:find("^ST\nST1\n") then st = g end end
-check(st and st.macOk, "kind ST, format ST1, MAC'd for it")
+check(st and st.macOk, "kind ST, format ST1, on its own tag, MAC'd for it")
+local onLists = false
+for _, g in ipairs(Peer.received("GlassChat")) do if g.payload and g.payload:find("^ST\n") then onLists = true end end
+check(not onLists, "and never on the lists' tag")
 check(st and st.payload:find("\nV\tcore\ttimestamps\tb\t1"), "with the settings")
--- The stopgap (LibAccountSync#17): a list send right after is refused.
+-- Each kind on its own tag (LibAccountSync#17): a list send right after a
+-- settings send goes at once, and the other way round.
 newChat()
 SlashCmdList.GLASSCHAT("ignore send empty")
-check(chatHas("wait a moment: your settings are still on their way"), "a list send right after a settings send waits")
-advance(AS.KIND_GAP + 1)
-newChat()
-SlashCmdList.GLASSCHAT("ignore send empty")
-check(chatHas("sending your lists"), "and goes after KIND_GAP")
+check(chatHas("sending your lists"), "a list send right after a settings send goes at once")
+check(not chatHas("wait a moment"), "with no wait")
 newChat()
 SlashCmdList.GLASSCHAT("settings send")
-check(chatHas("wait a moment: your lists are still on their way"), "and the other way round")
-advance(AS.KIND_GAP + 1)
+check(chatHas("sending your settings"), "and the other way round")
 -- A copy the receiver would refuse is never sent (Codex review of #62).
 db.layout = { id = 20, windows = {} }
 for i = 1, 10 do
@@ -402,6 +405,22 @@ newChat()
 Peer.send("ST\nST1\nT\t1\nV\tcore\ttimestamps\tb\t0", "1760000009000")
 eq(db.timestamps, false, "a copy from the other account, through the library, is applied")
 check(chatHas("settings now follow Karuzo Memphisto's choices"), "and announced")
+
+-- A list copy sent before a settings copy but finishing after it (a large
+-- copy is overtaken by a small one) is still applied: each tag has its own
+-- replay floor. On one tag the library would drop it.
+newChat()
+Peer.send("ST\nST1\nT\t2\nV\tcore\ttimestamps\tb\t1", "1760000009500")
+Peer.send("SI\nSI1\nT\t1\nI\tPlayer-1-00000CCC\tLate Pest", "1760000009400", "GlassChat")
+eq(db.timestamps, true, "the later settings copy is applied")
+check(Spam.db.ignore["Player-1-00000CCC"], "and the earlier list copy finishing after it too")
+check(chatHas("your lists now match Karuzo Memphisto"), "announced")
+
+-- The switch: off and on for both kinds.
+SlashCmdList.GLASSCHAT("ignore sync off")
+for tag, inst in pairs(AS.insts) do eq(inst.IsEnabled(), false, tag .. ": switched off") end
+SlashCmdList.GLASSCHAT("ignore sync on")
+for tag, inst in pairs(AS.insts) do eq(inst.IsEnabled(), true, tag .. ": and on") end
 
 -- The help.
 newChat()

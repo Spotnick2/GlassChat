@@ -314,24 +314,30 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     selected for Ctrl+C. There is no clipboard API here (probe items 2-3).
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
-  - **One instance, tag `GlassChat`.** The tag is wire-visible and permanent: never change it.
+  - **One instance per snapshot kind, on one store** (`AS.insts`, tag → instance): `GlassChat`
+    for the lists, `GlassChatST` for the settings (`AS.TAGS`; a kind not listed goes on
+    `AS.TAG`). Tags are wire-visible and permanent: never change them. The library's replay floor
+    is per (tag, sender), so on one tag a settings copy finishing first dropped a list copy sent
+    before it (LibAccountSync#17, settled this way in r5). `AS.inst` is `GlassChat`'s, used for
+    peers and the readout; `AS.SetEnabled` flips every instance.
   - **The store holds the household key, so it is never written into `SavedVariables\GlassChat.lua`**,
     the file focus mode's export goes to, which is meant to be shared. The client writes **one file
     per addon**, whatever the number of variables (Codex, #40), so the store is
-    **`GlassChatSpamIgnoreSyncDB`, declared by the Spam & Ignore plugin**, the only feature that
-    sends. It lands in `GlassChatSpamIgnore.lua`.
+    **`GlassChatSpamIgnoreSyncDB`, declared by the Spam & Ignore plugin**, which every sending
+    feature needs. It lands in `GlassChatSpamIgnore.lua`.
     - Without the plugin there's no store, and the library fails closed.
     - A store an earlier build left in `GlassChat.lua` (`GlassChatDB.accountSync`, `GlassChatSyncDB`)
       is taken out at GlassChat's `ADDON_LOADED` and adopted at the plugin's, with its key.
     - The getter reads it raw, nil until the SavedVariables load.
   - **A payload is `"<kind>\n<body>"`.** Features register a kind with `AccountSync.On`;
-    Spam & Ignore's snapshot is `SI`. An unknown kind is ignored.
+    Spam & Ignore's snapshot is `SI`. The kind alone picks the handler, on either tag. An unknown
+    kind is ignored.
   - **The sender comes from the library** (Blizzard's sender id), never from the payload.
   - Library reports: `error` goes to `API.Fail` and chat; `info` is kept for
     `/gchat ignore sync` and printed only in developer mode.
   - **Embedding** follows LibGlass's pattern:
-    - `.pkgmeta` external at `tag: r3` (r2 is the commit the two-account check passed on; r3
-      changes no API);
+    - `.pkgmeta` external at `tag: r5` (r3 is the commit the two-account check passed on; r4's
+      `SendTo` and r5's messages mode are unused);
     - the TOC's XML line;
     - `tests/fetch_external.sh`, `$env:LIBACCOUNTSYNC` (default `..\LibAccountSync`), and the
       deploy calling the library's own deploy;
@@ -363,10 +369,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - **The layout is never applied.** It replaces the saved layout with a new id from
     `layoutRevision` and goes through `Layout.Offer`. The main window's place and size never
     travel; its `docked` does, since `Matches` compares it.
-  - **Order:** `GlassChatDB.settingsApplied[guid]`.
-  - **Until LibAccountSync#17**, the library's floor per (tag, sender) would drop the other kind,
-    so `AS.SendReported` refuses a send of one kind for `AS.KIND_GAP` (30 s) after a send of the
-    other.
+  - **Order:** `GlassChatDB.settingsApplied[guid]`. It travels on its own tag, `GlassChatST`, so
+    it never races the lists (LibAccountSync#17).
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It

@@ -22,12 +22,13 @@ externals:
   Libs/LibGlass-1.0:
     url: https://github.com/Spotnick2/LibGlass
     tag: r2
-  # Own-account messaging (Spam & Ignore's list copy, #33). r3 (6c888c5):
-  # faster hashing and a first-run fix; no API change from r2, the commit the
-  # owner's two-account check passed on.
+  # Own-account messaging (Spam & Ignore's list copy #33, settings sync #52).
+  # r5 (492ff90): one instance per snapshot kind gets each kind its own
+  # replay floor (#17). r3, the commit the owner's two-account check passed
+  # on, brought faster hashing; r4/r5 add SendTo and a messages mode, unused.
   Libs/LibAccountSync-1.0:
     url: https://github.com/Spotnick2/LibAccountSync
-    tag: r3
+    tag: r5
 
 manual-changelog:
   filename: CHANGELOG.md
