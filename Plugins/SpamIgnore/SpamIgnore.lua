@@ -24,7 +24,7 @@ Spam.ADDON = "GlassChatSpamIgnore"
 Spam.MEMO_SIZE = 200
 Spam.MUTE_MAX = 100   -- bytes; /gchat mute refuses longer, Load drops longer
 Spam.LOG_SIZE = 200
-Spam.REPEAT_CAP = 500
+Spam.REPEAT_CAP = 2000   -- shown public posts remembered within one repeat window (a flood guard)
 Spam.NAME_CAP = 500
 Spam.COLLECT_MAX = 3000   -- lines kept by /gchat spam collect, oldest dropped
 
@@ -118,7 +118,11 @@ end
 --------------------------------------------------------------------------------
 
 local memo, memoOrder = {}, {}
-local repeats, repeatOrder = {}, {}
+-- repeats: key -> time of its last shown post. ring: those posts, oldest
+-- first, as parallel arrays used as a ring of REPEAT_CAP slots.
+local repeats, ring
+local function newRing() return { key = {}, at = {}, head = 1, n = 0 } end
+repeats, ring = {}, newRing()
 local names, nameOrder = {}, {}   -- lower-case "first surname" -> guid
 local log = {}
 Spam.unseen = 0
@@ -272,11 +276,28 @@ end
 
 -- Repeats: timed from the last SHOWN post, so a sender gets one post per
 -- window and is never hidden for ever (Codex's review of the plan).
+-- Forgotten by age: each shown post is queued with its time, and posts older
+-- than the window leave first, so the cap only bites when more than
+-- REPEAT_CAP posts are shown within one window. An old entry only forgets a
+-- key still holding its time (a repost shown since has a newer entry). Kept
+-- by first sighting and line count, a sender who kept posting was forgotten
+-- mid-window in a busy channel and shown again (#67).
 local function isRepeat(event, guid, text)
+    local window = Spam.db.repeatWindow
+    if window <= 0 then return false end
     local key = event .. "|" .. guid .. "|" .. Text.RepeatKey(text)
-    local last = repeats[key]
-    if last and now() - last < Spam.db.repeatWindow then return true end
-    remember(repeats, repeatOrder, key, now(), Spam.REPEAT_CAP)
+    local last, t = repeats[key], now()
+    if last and t - last < window then return true end
+    local r, cap = ring, Spam.REPEAT_CAP
+    while r.n > 0 and (r.n >= cap or t - r.at[r.head] >= window) do
+        local k = r.key[r.head]
+        if repeats[k] == r.at[r.head] then repeats[k] = nil end
+        r.key[r.head], r.at[r.head] = nil, nil
+        r.head, r.n = r.head % cap + 1, r.n - 1
+    end
+    local slot = (r.head + r.n - 1) % cap + 1
+    r.key[slot], r.at[slot], r.n = key, t, r.n + 1
+    repeats[key] = t
     return false
 end
 
@@ -512,11 +533,17 @@ API.RegisterEvents(f, { "ADDON_LOADED", "PLAYER_LOGIN", "GROUP_ROSTER_UPDATE" })
 
 Spam._test = {
     reset = function()
-        memo, memoOrder, repeats, repeatOrder, names, nameOrder, log = {}, {}, {}, {}, {}, {}, {}
+        memo, memoOrder, repeats, ring, names, nameOrder, log = {}, {}, {}, newRing(), {}, {}, {}
         alt, altHooked = { guids = {}, names = {} }, false
         Spam.unseen = 0
         GC.SpamScore._test.reset()
         me = nil
     end,
     names = function() return names end,
+    -- (keys remembered, posts queued)
+    repeatSizes = function()
+        local k = 0
+        for _ in pairs(repeats) do k = k + 1 end
+        return k, ring.n
+    end,
 }
