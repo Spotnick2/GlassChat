@@ -416,11 +416,22 @@ eq(db.timestamps, true, "the later settings copy is applied")
 check(Spam.db.ignore["Player-1-00000CCC"], "and the earlier list copy finishing after it too")
 check(chatHas("your lists now match Karuzo Memphisto"), "announced")
 
--- The switch: off and on for both kinds.
+-- The switch: off and on for both kinds. The settings instance's own switch
+-- was flipped earlier this session, so it no longer follows the shared store:
+-- only flipping every instance turns it off.
+AS.insts.GlassChatST.SetEnabled(true)
 SlashCmdList.GLASSCHAT("ignore sync off")
 for tag, inst in pairs(AS.insts) do eq(inst.IsEnabled(), false, tag .. ": switched off") end
 SlashCmdList.GLASSCHAT("ignore sync on")
 for tag, inst in pairs(AS.insts) do eq(inst.IsEnabled(), true, tag .. ": and on") end
+
+-- A kind whose link couldn't be made is named in the readout.
+local stInst = AS.insts.GlassChatST
+AS.insts.GlassChatST = nil
+local missing = false
+for _, l in ipairs(AS.Status()) do if l:find("no link for ST (tag GlassChatST)", 1, true) then missing = true end end
+check(missing, "a missing settings link is named in /gchat ignore sync")
+AS.insts.GlassChatST = stInst
 
 -- The help.
 newChat()

@@ -11,16 +11,16 @@
 -- SavedVariables\GlassChat.lua: that file holds focus mode's export, which is
 -- meant to be shared. The client writes ONE file per addon, whatever the
 -- number of variables (Codex review of #40), so the store is declared by the
--- Spam & Ignore plugin, which every sending feature needs: GlassChatSpamIgnoreSyncDB,
--- in SavedVariables\GlassChatSpamIgnore.lua. Without the plugin there's no
+-- Spam & Ignore plugin, which every sending feature needs:
+-- GlassChatSpamIgnoreSyncDB, in SavedVariables\GlassChatSpamIgnore.lua. Without the plugin there's no
 -- store, and the library never chooses a key (it fails closed). The getter
 -- reads it raw, nil until those SavedVariables load (the library asks for it
 -- again on every access).
 --
 -- A payload is "<kind>\n<body>", and the kind alone picks the handler, on
--- either tag: Spam & Ignore's list snapshot registers kind "SI". The library gives the sender
--- from Blizzard's own sender id, never from the payload, and the payload is
--- data: handlers validate it and never run it.
+-- either tag: Spam & Ignore's list snapshot registers kind "SI". The library
+-- gives the sender from Blizzard's own sender id, never from the payload, and
+-- the payload is data: handlers validate it and never run it.
 
 GlassChat = GlassChat or {}
 local GC = GlassChat
@@ -201,6 +201,10 @@ function AS.Status()
         for line in AS.inst.Diagnostics() do out[#out + 1] = line end
     end)
     if not ok then out[#out + 1] = "diagnostics failed: " .. tostring(err) end
+    -- The other kinds' instances share these diagnostics; only a missing one is news.
+    for kind, tag in pairs(AS.TAGS) do
+        if not AS.insts[tag] then out[#out + 1] = "no link for " .. kind .. " (tag " .. tag .. "): see /gchat failures" end
+    end
     for _, r in ipairs(reports) do out[#out + 1] = "(" .. (r.kind or "info") .. ") " .. r.text end
     return out
 end
