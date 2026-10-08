@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Your settings on your other WoW accounts:** `/gchat settings send` copies your GlassChat and
+  Spam & Ignore settings (timestamps, glass, scrollback, the spam score and so on) to your other
+  accounts online, through the same account link as your lists. `/gchat settings send layout`
+  adds your saved chat layout, which each character there is offered once. `/gchat settings undo`
+  puts back what a copy changed. It needs the Spam & Ignore plugin.
 - **Spam & Ignore: a spam score** for public chat. It looks at a line's shape, never its words, so
   it isn't tied to English: a real-money price (`$5`, `10€`, `$1,000`), a word broken up to slip
   past filters (`g.o.l.d`), or letters from another alphabet disguised as Latin ones (`gоld`) or

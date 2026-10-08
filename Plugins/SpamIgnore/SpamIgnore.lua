@@ -59,6 +59,8 @@ Spam.PUBLIC = { CHAT_MSG_CHANNEL = true, CHAT_MSG_SAY = true, CHAT_MSG_YELL = tr
 -- lines in SavedVariables, to tune the score on real chat (owner: "a real
 -- database of spam"); temporary, it goes once the weights are settled.
 local DEFAULTS = { cjk = true, repeatWindow = 300, icon = false, mirror = true, score = "watch" }
+Spam.DEFAULTS = DEFAULTS
+Spam.REPEAT_MAX = 3600   -- seconds (/gchat spam repeat takes 0-60 minutes)
 
 function Spam.Load()
     if type(GlassChatSpamIgnoreDB) ~= "table" then GlassChatSpamIgnoreDB = {} end

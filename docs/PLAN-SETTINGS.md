@@ -1,6 +1,6 @@
 # Settings sync: your settings on your other WoW accounts (#52)
 
-**Status: plan, revised after Codex's review (2026-10-06, below).** It waits on
+**Status: built (#52), after Codex's review (2026-10-06, below).** It waits on
 Spotnick2/LibAccountSync#17 for independent streams; a stopgap covers the meantime.
 
 ## What the owner wants
@@ -92,12 +92,17 @@ D	<section>	<key>                     at its default
 L	...                                    the layout, only with "send layout" (below)
 ```
 
-**Caps:**
-- the payload: 16 KB;
+**Caps** (raised while building, Codex review of #62: a real main window has 40+ message groups,
+so 400 records didn't fit a full layout):
+- the payload: 32 KB, the link's own ceiling;
 - each line: 256 bytes;
-- records in total, skipped ones included: 400;
+- records in total, skipped ones included: 2000;
 - layout windows: 1 to `NUM_CHAT_WINDOWS`;
-- per window: 64 message groups and 32 channels;
+- per window: 128 message groups and 32 channels;
+
+**A send checks its own copy with the receiver's parser first,** and refuses one every receiver
+would refuse, naming the reason and the settings-only command. **Undo keeps what it couldn't put
+back** (a failed setter, a section whose addon isn't loaded) for another undo.
 - names: 64 bytes, with no tab, newline or control character.
 
 **Parsing is all-or-nothing for the payload's shape.** Any of these refuses the whole payload:
@@ -132,8 +137,11 @@ L	C	<i>	<channel>                       one channel (the client's own name)
 - **Each window is rebuilt and checked as a whole before anything is replaced:**
   - `messages` and `channels` are always tables, empty when there were no `M` or `C` records;
   - colour is all of `r/g/b/a` or none, and position is all of `point/x/y` or none;
-  - window 1 carries no position, size, dock, lock or shown fields, since those are Edit Mode's;
-    a payload that has them for window 1 is refused.
+  - window 1 carries no position or size (`width`, `height`, `point`, `x`, `y`), since those are
+    Edit Mode's, and a payload that has them for window 1 is refused. Its `docked`, `shown`,
+    `locked` and `uninteractable` do travel, because `Layout.Matches` compares `docked` for every
+    window and `Layout.Capture` records the rest; `Layout.Apply` ignores them for window 1
+    (corrected while building, #52).
 
 ## Applying, on the receiving account
 

@@ -209,10 +209,9 @@ end
 local function ignore(arg)
     local mirror = (arg == "mirror" and "") or arg:match("^mirror (on)$") or arg:match("^mirror (off)$")
     if mirror then
-        if mirror == "on" or mirror == "off" then Spam.db.mirror = mirror == "on" end
+        if mirror == "on" or mirror == "off" then UI.Set.mirror(mirror == "on") else GC.SpamMirror.Check("setting") end
         say("Blizzard's ignore list kept in step on each character: " .. (Spam.db.mirror and "on" or
             "off (lists are left as they are)") .. " (/gchat ignore mirror on/off)")
-        GC.SpamMirror.Check("setting")
         return
     end
     if arg == "import" then say(Spam.Import()); GC.SpamMirror.Check("import"); return end
@@ -234,33 +233,72 @@ local function allow(arg)
     say("allowed: " .. shown)
 end
 
+-- The settings' setters, shared by the slash commands and settings sync
+-- (GC.SettingsSync: a received value goes through the same steps).
+UI.Set = {
+    cjk = function(on) Spam.db.cjk = on and true or false end,
+    repeatWindow = function(seconds) Spam.db.repeatWindow = math.floor(seconds) end,
+    icon = function(on)
+        Spam.db.icon = on and true or false
+        GC.Skin.ReserveIcons(GC.Skin.CORE_ICONS + (Spam.db.icon and 1 or 0))
+        GC.Chat.Scan()
+    end,
+    mirror = function(on)
+        Spam.db.mirror = on and true or false
+        GC.SpamMirror.Check("setting")
+    end,
+    score = function(mode)
+        Spam.db.score = mode
+        Spam.ResetMemo()   -- earlier decisions were made under the old mode
+    end,
+}
+
+-- The plugin's section of settings sync (docs/PLAN-SETTINGS.md).
+local function registerSettings()
+    local SS = GC.SettingsSync
+    if not SS then return end
+    local function key(k, typ, extra)
+        local spec = {
+            key = k, type = typ,
+            default = function() return Spam.DEFAULTS[k] end,
+            get = function() return rawget(Spam.db, k) end,
+            set = UI.Set[k],
+            clear = function() Spam.db[k] = nil end,
+        }
+        for f, v in pairs(extra or {}) do spec[f] = v end
+        return spec
+    end
+    SS.Register("spam", {
+        key("cjk", "b", { label = "CJK posts hidden" }),
+        key("repeatWindow", "i", { lo = 0, hi = Spam.REPEAT_MAX, label = "repeat window (s)" }),
+        key("icon", "b", { label = "spam icon" }),
+        key("mirror", "b", { label = "Blizzard ignore list kept in step" }),
+        key("score", "e", { values = { "off", "watch", "hide" }, label = "spam score" }),
+    })
+end
+
 local function spam(arg)
     local cmd, rest = arg:match("^(%S*)%s*(.-)$")
     cmd = (cmd or ""):lower()
     if cmd == "log" then
         UI.Open()
     elseif cmd == "cjk" then
-        if rest == "on" or rest == "off" then Spam.db.cjk = rest == "on" end
+        if rest == "on" or rest == "off" then UI.Set.cjk(rest == "on") end
         say("CJK posts in public chat: " .. (Spam.db.cjk and "hidden" or "shown"))
     elseif cmd == "repeat" then
         local m = tonumber(rest)
-        if m and m == m and m >= 0 and m <= 60 then Spam.db.repeatWindow = math.floor(m * 60) end
+        if m and m == m and m >= 0 and m <= Spam.REPEAT_MAX / 60 then UI.Set.repeatWindow(m * 60) end
         say(string.format("repeats hidden for %g minute(s) after a post", Spam.db.repeatWindow / 60))
     elseif cmd == "debug" then
         if rest == "on" or rest == "off" then Spam.db.debug = rest == "on" end
         say("debug log: " .. (Spam.IsDebug() and "on" or "off") .. " (the icon changes after /reload)")
     elseif cmd == "icon" then
-        if rest == "on" or rest == "off" then
-            Spam.db.icon = rest == "on"
-            GC.Skin.ReserveIcons(GC.Skin.CORE_ICONS + (Spam.db.icon and 1 or 0))
-            GC.Chat.Scan()
-        end
+        if rest == "on" or rest == "off" then UI.Set.icon(rest == "on") end
         say("tab-strip icon: " .. (Spam.db.icon and "shown" or "hidden") .. " (/gchat spam icon on/off)")
     elseif cmd == "score" then
         local mode = rest:lower()
         if mode == "off" or mode == "watch" or mode == "hide" then
-            Spam.db.score = mode
-            Spam.ResetMemo()   -- earlier decisions were made under the old mode
+            UI.Set.score(mode)
             say("spam score: " .. mode .. (mode == "watch" and " (logged, still shown: /gchat spam score)" or ""))
             return
         elseif mode ~= "" then   -- never a typo taken for the log (review of #47)
@@ -304,6 +342,7 @@ local function spam(arg)
 end
 
 function UI.Start()
+    registerSettings()
     GC.Skin.ReserveIcons(GC.Skin.CORE_ICONS + (Spam.db.icon and 1 or 0))
     GC.Chat.OnEachFrame("spam icon", UI.Button)
     Spam.onHidden = UI.Blocked

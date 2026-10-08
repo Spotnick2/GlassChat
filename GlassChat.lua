@@ -22,6 +22,7 @@ local DEFAULTS = {
     urls = true,           -- web addresses in chat become click-to-copy links
     timestamps = false,    -- HH:MM:SS on every line, addon output included (owner: off by default)
 }
+GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default
 
 -- Read settings. Only what the player SET is saved: everything else falls
 -- through to DEFAULTS, so a changed default reaches everyone (the first
@@ -285,6 +286,8 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         if not ok then API.Fail("start tabs", err) end
         ok, err = pcall(GC.Url.Start)
         if not ok then API.Fail("start urls", err) end
+        ok, err = pcall(GC.SettingsSync.Start)
+        if not ok then API.Fail("start settings sync", err) end
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- arg1 = isInitialLogin: warn and offer at a real login, never on /reload.
         if arg1 and GC.Layout then GC.Layout.ScheduleOffer() end

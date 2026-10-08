@@ -20,4 +20,5 @@ Tabs.lua
 Focus.lua
 Url.lua
 AccountSync.lua
+SettingsSync.lua
 GlassChat.lua
