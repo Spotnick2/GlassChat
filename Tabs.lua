@@ -272,17 +272,19 @@ local lastMsg, lastSrc
 
 -- The line with its leading coloured prefix ("|cff..[AltStable]|r") made our
 -- link, its colour kept; nil when it has none, or for any other line.
--- The addon a line names in our link, when that link is the line's FIRST
--- link: Linkify puts it on the prefix, before any other. A line quoting a
--- decorated line further on isn't credited to that addon (review of #79).
--- The one reader of the link's grammar (Focus and OnLink use it).
-local NAME = "[%w_%-]+"
+-- The addon a line names in our link, only when that link IS the line's
+-- decorated prefix, as Linkify writes it: the line starts with its colour
+-- and our link, after nothing but GlassChat's own plain timestamp (Chat.lua's
+-- stampNow: no "|" in it). Any other text before it, a literal "||" included,
+-- is a quote of a decorated line and names nobody (Codex, #79). The one
+-- reader of the link's grammar (Focus and OnLink use it).
+local LEAD = "^([^|]-)|c%x%x%x%x%x%x%x%x|H" .. Tabs.SRC_LINK:gsub("%p", "%%%0") .. "([%w_%-]+)|h"
 function Tabs.LinkedSource(msg)
     if API.IsSecret(msg) or type(msg) ~= "string" then return nil end
-    local first = msg:match("|H(.-)|h")
-    if not first or first:sub(1, #Tabs.SRC_LINK) ~= Tabs.SRC_LINK then return nil end
-    local src = first:sub(#Tabs.SRC_LINK + 1)
-    return src:find("^" .. NAME .. "$") and src or nil
+    local lead, src = msg:match(LEAD)
+    if not src then return nil end
+    if lead ~= "" and not lead:find("^%[?%d%d?:%d%d") then return nil end   -- a timestamp, or nothing
+    return src
 end
 
 function Tabs.Linkify(msg)

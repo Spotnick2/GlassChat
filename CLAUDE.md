@@ -304,9 +304,11 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     passed to `AddMessage`. A line with no event is System when it carries a chat-type id
     (Blizzard's system, loot, money and XP lines: ChatFrameOverrides.lua:211-537), else Addons.
     **A line with no event also keeps the addon that wrote it**:
-    - first from our own `src` link, when it's the line's first link (`Tabs.LinkedSource`, the
-      one reader of the link's grammar): it outlives the map, and a line quoting a decorated one
-      isn't credited;
+    - first from our own `src` link, **only when it is the line's decorated prefix**: the line
+      starts with Linkify's colour and link, after nothing but our plain timestamp
+      (`Tabs.LinkedSource`, the one reader of the link's grammar). It outlives the map. Text
+      before it (`Forwarded: …`) or a literal `||` makes it a quote, credited to nobody (Codex,
+      #79);
     - then, **only for a line with no chat-type id**, `Tabs.SourceFor`: a two-generation
       text → source map that `Tabs.Route` fills, re-keyed by `Chat.Restamped` when the line is
       stamped. An addon wrapping `AddMessage` is on the stack for Blizzard's own id lines, so

@@ -236,6 +236,18 @@ eq(GC.Tabs.LinkedSource("[12:00:01] |cff33bbff|Haddon:GlassChat:src:AltStable|h[
     "after a timestamp")
 eq(GC.Tabs.LinkedSource("|Hplayer:Bob|h[Bob]|h quoted |Haddon:GlassChat:src:AltStable|h[AltStable]|h"), nil,
     "not when another link comes first")
+-- Only the decorated prefix names a writer (Codex, #79): text before it, or an
+-- escaped pipe, is a quote.
+local DEC = "|cff33bbff|Haddon:GlassChat:src:AltStable|h[AltStable]|h|r diag"
+eq(GC.Tabs.LinkedSource("Forwarded: " .. DEC), nil, "plain text before it: a quote")
+eq(GC.Tabs.LinkedSource("|" .. DEC), nil, "an escaped pipe before it (||c...): literal text")
+eq(GC.Tabs.LinkedSource("12:00 " .. DEC), "AltStable", "a timestamp in another format is fine")
+eq(GC.Tabs.LinkedSource("|Haddon:GlassChat:src:AltStable|h[AltStable]|h diag"), nil, "a link without its colour isn't ours")
+-- Through the real path: OtherAddon forwarding a decorated AltStable line stays OtherAddon's.
+addon("OtherAddon", "Forwarded: " .. DEC)
+local fw = Focus.Snapshot(main)
+fw = fw[#fw]
+eq(fw.source, "OtherAddon", "a forwarded decorated line is its writer's, not AltStable's")
 
 -- The status names a source with no lines, not a search or kind that emptied the view.
 Focus.Open(main, "", "AltStable")
