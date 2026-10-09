@@ -247,8 +247,13 @@ local function slash(msg, editBox)
             say("/gchat focus from <Addon> - only that addon's lines (its folder name)")
         elseif name then
             local real = API.AddOnName(name)
-            if not real then say("no addon named " .. name .. " is installed"); return end
-            GC.Focus.Open(f, "", real)
+            if real then
+                GC.Focus.Open(f, "", real)
+            else
+                -- Not an addon: the search it was before #78 ("from Bob"; review of #79).
+                say("no addon named " .. name .. ": searching for \"" .. raw .. "\"")
+                GC.Focus.Open(f, raw)
+            end
         else
             GC.Focus.Open(f, raw)
         end

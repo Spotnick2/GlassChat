@@ -255,8 +255,9 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - **A plain left-click opens focus mode filtered to that addon** (#78). Shift, Ctrl and Alt
       clicks do nothing. The menu's first item, "Show its lines", does the same.
     - **The window** is `SetItemRef`'s 4th argument (ChatFrame.lua:19 passes the clicked frame),
-      used only if it's a chat window, else `Copy.CurrentFrame()`. The menu captures it when it
-      opens, not when an item is picked.
+      used only if it's one of `Chat.Frames()` (another addon's message frame isn't), else the
+      window in view. The menu captures it when it opens, not when an item is picked. Without
+      `MenuUtil`, the fallback links include `tabs:show:<Addon>`.
   - **Developer mode** (`GC.IsDev()`: version "dev" or the unreplaced token;
     `GlassChatDB.devMode` overrides it):
     - an addon named `*Probe` gets its tab at its first line, once a session;
@@ -288,10 +289,14 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     copy icon. `Skin.CORE_ICONS = 2`, and a plugin's icon comes after them.
   - **One addon's lines** (#78): click its `[Name]` (Tabs above), or `/gchat focus from <Addon>`.
     The name is the folder name, resolved in any case through `API.AddOnName`. Only an exact
-    `from` or `from <one word>` is the command: anything else is a search.
+    `from` or `from <one word>` is the command; a word that isn't an installed addon falls back
+    to the search it always was (`from Bob`), with a note. Anything else is a search.
     - **A requested source stays chosen with no lines** (Codex): falling back to "any" would show,
       copy and export everything. The status then reads "No attributed X lines in this window's
       newest N messages".
+    - The status names a source with no lines only when the source alone matches nothing: a
+      search or a kind that empties the view is a count. From, from a source with no lines here,
+      goes to the first source present.
     - It's the window's newest `Copy.MAX` messages of every kind, not a session log. For a long
       diagnostic session, route the addon to a tab first.
   - **A frozen snapshot of the window** (`Focus.Snapshot`, through `Copy.Read`, the one
@@ -299,10 +304,14 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     passed to `AddMessage`. A line with no event is System when it carries a chat-type id
     (Blizzard's system, loot, money and XP lines: ChatFrameOverrides.lua:211-537), else Addons.
     **A line with no event also keeps the addon that wrote it**:
-    - first from our own `src` link on its prefix, which outlives the map;
-    - then `Tabs.SourceFor`, a two-generation text → source map that `Tabs.Route` fills,
-      re-keyed by `Chat.Restamped` when the line is stamped.
-    - A known writer makes the line Addons even with a chat-type id (Codex, #78).
+    - first from our own `src` link, when it's the line's first link (`Tabs.LinkedSource`, the
+      one reader of the link's grammar): it outlives the map, and a line quoting a decorated one
+      isn't credited;
+    - then, **only for a line with no chat-type id**, `Tabs.SourceFor`: a two-generation
+      text → source map that `Tabs.Route` fills, re-keyed by `Chat.Restamped` when the line is
+      stamped. An addon wrapping `AddMessage` is on the stack for Blizzard's own id lines, so
+      the map would credit loot and system lines to it (review of #79).
+    - A line with an id and our link is Addons (Codex, #78).
   - **`Focus.Filter`:**
     - kinds: a set, empty = all;
     - one source;

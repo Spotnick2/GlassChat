@@ -272,6 +272,19 @@ local lastMsg, lastSrc
 
 -- The line with its leading coloured prefix ("|cff..[AltStable]|r") made our
 -- link, its colour kept; nil when it has none, or for any other line.
+-- The addon a line names in our link, when that link is the line's FIRST
+-- link: Linkify puts it on the prefix, before any other. A line quoting a
+-- decorated line further on isn't credited to that addon (review of #79).
+-- The one reader of the link's grammar (Focus and OnLink use it).
+local NAME = "[%w_%-]+"
+function Tabs.LinkedSource(msg)
+    if API.IsSecret(msg) or type(msg) ~= "string" then return nil end
+    local first = msg:match("|H(.-)|h")
+    if not first or first:sub(1, #Tabs.SRC_LINK) ~= Tabs.SRC_LINK then return nil end
+    local src = first:sub(#Tabs.SRC_LINK + 1)
+    return src:find("^" .. NAME .. "$") and src or nil
+end
+
 function Tabs.Linkify(msg)
     if msg ~= lastMsg or not lastSrc or not lastSrc:find("^[%w_%-]+$") then return nil end
     local color, inner, rest = msg:match("^(|c%x%x%x%x%x%x%x%x)(.-)|r(.*)$")
@@ -385,17 +398,20 @@ function Tabs.Menu(src, frame)
     end) then return end
     -- No menu: the same choices as links.
     local function link(kind, text) return "|H" .. Tabs.LINK .. kind .. ":" .. src .. "|h|cff7fd4ff[" .. text .. "]|r|h" end
-    say(src .. ": " .. link("session", "Own tab for this session") .. " " .. link("always", "Always"))
+    say(src .. ": " .. link("show", "Show its lines") .. " " .. link("session", "Own tab for this session") .. " "
+        .. link("always", "Always"))
 end
 
 -- The chat window a link was clicked in: SetItemRef's 4th argument
--- (ChatFrame.lua:19 passes the clicked frame). Anything else (nil, a secret,
--- a widget that isn't a chat window): the window in view (Codex, #78).
+-- (ChatFrame.lua:19 passes the clicked frame), if it is one of the chat
+-- windows. Anything else (nil, a secret, another addon's message frame): nil,
+-- so Focus.Open takes the window in view (Codex, #78; review of #79).
 local function clickedWindow(frame)
-    if not API.IsSecret(frame) and type(frame) == "table" and frame.GetMessageInfo and frame.GetNumMessages then
-        return frame
+    if API.IsSecret(frame) or type(frame) ~= "table" then return nil end
+    for _, f in ipairs(GC.Chat.Frames()) do
+        if f == frame then return frame end
     end
-    return GC.Copy.CurrentFrame()
+    return nil
 end
 
 local function modified()
@@ -406,11 +422,11 @@ end
 -- modified clicks do nothing, as before); a right-click opens its menu.
 function Tabs.OnLink(_, link, _, button, frame)
     if API.IsSecret(link) or type(link) ~= "string" then return end
-    local src = link:match("^addon:GlassChat:src:(.+)$")
+    local src = link:sub(1, #Tabs.SRC_LINK) == Tabs.SRC_LINK and link:sub(#Tabs.SRC_LINK + 1) or nil
     if src then
         if API.IsSecret(button) then return end
         if button == "RightButton" then
-            Tabs.Menu(src, clickedWindow(frame))
+            Tabs.Menu(src, clickedWindow(frame) or GC.Copy.CurrentFrame())   -- captured now
         elseif button == "LeftButton" and not modified() then
             GC.Focus.Open(clickedWindow(frame), "", src)
         end
@@ -418,7 +434,8 @@ function Tabs.OnLink(_, link, _, button, frame)
     end
     local kind
     kind, src = link:match("^addon:GlassChat:tabs:(%a+):(.+)$")
-    if kind then Tabs.SetRule(src, kind) end
+    if kind == "show" then GC.Focus.Open(clickedWindow(frame), "", src)   -- the no-menu fallback's link
+    elseif kind then Tabs.SetRule(src, kind) end
 end
 
 -- An addon's name as its rule spells it (case-insensitive), else as typed.

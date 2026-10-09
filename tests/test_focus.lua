@@ -214,13 +214,57 @@ for _, e in ipairs(Focus.Snapshot(main)) do byText[e.text] = e end
 eq(byText["[AltStable] old diag"].source, "AltStable", "a linked line: its link names the writer")
 eq(byText["bare old line"].source, nil, "(an unlinked one is forgotten: the map's limit)")
 
--- An addon line carrying a chat-type id is still its writer's (Codex, #78).
-WoW.stack = by("Idder"); main:AddMessage("Idder status", 1, 1, 1, 23); WoW.stack = nil
+-- A line with a chat-type id: credited only through our link (review of #79).
+WoW.stack = by("Idder"); main:AddMessage("|cff33bbff[Idder]|r status", 1, 1, 1, 23); WoW.stack = nil
 local lastE = Focus.Snapshot(main)
 lastE = lastE[#lastE]
-eq(lastE.kind, "Addons", "a known writer makes it Addons")
+eq(lastE.kind, "Addons", "an addon line with an id and its link: Addons (Codex, #78)")
 eq(lastE.source, "Idder", "with its writer")
+-- An addon wrapping AddMessage is on the stack for Blizzard's own id lines:
+-- without a link, such a line stays System and nobody's.
+WoW.stack = by("Wrapper"); main:AddMessage("You receive loot: [Copper Ore].", 0, 0.67, 0, 23); WoW.stack = nil
+lastE = Focus.Snapshot(main)
+lastE = lastE[#lastE]
+eq(lastE.kind, "System", "an unlinked line with an id stays System")
+eq(lastE.source, nil, "and isn't credited to the addon on the stack")
 eq(snap[4].kind, "System", "a Blizzard line with an id stays System")
+
+-- Only a line's FIRST link names its writer: a line quoting a decorated one isn't
+-- credited to that addon (review of #79).
+eq(GC.Tabs.LinkedSource("|cff33bbff|Haddon:GlassChat:src:AltStable|h[AltStable]|h|r hi"), "AltStable", "the prefix link")
+eq(GC.Tabs.LinkedSource("[12:00:01] |cff33bbff|Haddon:GlassChat:src:AltStable|h[AltStable]|h|r hi"), "AltStable",
+    "after a timestamp")
+eq(GC.Tabs.LinkedSource("|Hplayer:Bob|h[Bob]|h quoted |Haddon:GlassChat:src:AltStable|h[AltStable]|h"), nil,
+    "not when another link comes first")
+
+-- The status names a source with no lines, not a search or kind that emptied the view.
+Focus.Open(main, "", "AltStable")
+win.search:SetText("no such text"); WoW.flushTimers()
+check(not win.status:GetText():find("No attributed", 1, true), "an empty search isn't 'no lines'")
+check(win.status:GetText():find("^0 of"), "it's a count")
+win.search:SetText(""); WoW.flushTimers()
+
+-- From, from a source with no lines here: the first one present (review of #79).
+Focus.Open(main, "", "Nobody")
+win.from._scripts.OnClick(win.from)
+check(win.from:GetText() ~= "From: any", "From goes to an addon present, not to any")
+
+-- A click forwarded from a frame that isn't a chat window: the window in view.
+local foreign = WoW.newWidget("ScrollingMessageFrame", UIParent, nil)
+WoW.callbacks.SetItemRef(nil, SRC, "[AltStable]", "LeftButton", foreign)
+eq(state.frame, GC.Copy.CurrentFrame(), "another addon's message frame: the window in view")
+
+-- No menu (MenuUtil missing): the fallback links include "Show its lines".
+local realMenu = MenuUtil
+MenuUtil = nil
+newChat()
+WoW.callbacks.SetItemRef(nil, SRC, "[AltStable]", "RightButton", main)
+local fb = newChat()
+check(fb[1] and fb[1]:find("addon:GlassChat:tabs:show:AltStable", 1, true), "the fallback offers its lines")
+MenuUtil = realMenu
+win:Hide()
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:show:AltStable", "[Show its lines]", "LeftButton", ChatFrame5)
+check(win:IsShown() and state.frame == ChatFrame5 and state.source == "AltStable", "and that link opens them")
 win:Hide()
 
 -- /gchat focus from <Addon>: the installed addon's own name, in any case.
@@ -229,9 +273,11 @@ eq(state.source, "AltStable", "/gchat focus from altstable: AltStable")
 check(win:IsShown(), "opened")
 win:Hide()
 newChat()
-SlashCmdList.GLASSCHAT("focus from NoSuchAddon")
-check(not win:IsShown(), "an unknown addon opens nothing")
-check(chatHas("no addon named NoSuchAddon"), "and says so")
+SlashCmdList.GLASSCHAT("focus from Bob")
+check(win:IsShown() and win.search:GetText() == "from Bob", "not an addon: the search it was (review of #79)")
+eq(state.source, nil, "with no source")
+check(chatHas("no addon named Bob"), "and says so")
+win:Hide()
 SlashCmdList.GLASSCHAT("focus from")
 check(not win:IsShown(), "a bare from opens nothing")
 check(chatHas("/gchat focus from <Addon>"), "and gives the usage")
