@@ -373,6 +373,17 @@ end
 -- Blizzard's own per-tab updates the addon hooks.
 WoW.tabAlphas = {}
 WoW.messageFilters = {}
+WoW.nameFilters = {}
+-- GetDecoratedSenderName's last step (ChatFrameUtil.lua:1112): each filter
+-- gets (event, name, arg1..arg14); a nil return keeps the name
+-- (ChatFrameFilters.lua:59-66). guid goes in arg12.
+function WoW.decorateName(event, name, guid)
+    for _, fn in ipairs(WoW.nameFilters) do
+        local new = fn(event, name, "hi", "Sender", "", "", "", "", 0, 0, "", 0, 1, guid)
+        if new ~= nil then name = new end
+    end
+    return name
+end
 ChatFrameUtil = {
     -- The edit box being typed in, else nil (ChatFrameUtil.lua:496).
     GetActiveWindow = function() return WoW.activeBox end,
@@ -384,6 +395,8 @@ ChatFrameUtil = {
         local v = WoW.cvars.showTimestamps
         if v ~= nil and v ~= "none" then return v end
     end,
+    -- Sender-name filters (ChatFrameFilters.lua:183); WoW.decorateName runs them.
+    AddSenderNameFilter = function(fn) table.insert(WoW.nameFilters, fn) end,
     AddMessageEventFilter = function(event, fn)
         WoW.messageFilters[event] = WoW.messageFilters[event] or {}
         table.insert(WoW.messageFilters[event], fn)
@@ -514,6 +527,8 @@ end
 WoW.friends, WoW.guild, WoW.bnet, WoW.group = {}, {}, {}, {}
 C_FriendList = {
     IsFriend = function(guid) return WoW.friends[guid] == true end,
+    GetNumFriends = function() return #WoW.friendList end,
+    GetFriendInfoByIndex = function(i) return WoW.friendList[i] end,
     GetNumIgnores = function() return WoW.ignores and #WoW.ignores or nil end,
     GetIgnoreName = function(i) return WoW.ignores and WoW.ignores[i] end,
 }
@@ -522,8 +537,30 @@ function IsGuildMember(guid) return WoW.guild[guid] == true end
 function RegionalUniqueNamesEnabled() return WoW.uniqueNames ~= false end
 C_BattleNet = { GetGameAccountInfoByGUID = function(guid) if WoW.bnet[guid] then return {} end end }
 function GetNumGroupMembers() return #WoW.group end
-function IsInRaid() return false end
-function UnitIsPlayer(unit) return unit == "target" and WoW.targetName ~= nil end
+function IsInRaid() return WoW.inRaid == true end
+-- Other players' units: WoW.unitGUIDs[unit] and WoW.unitLevels[unit]; a unit
+-- with a level is a player.
+WoW.unitLevels = {}
+function UnitIsPlayer(unit)
+    return unit == "player" or (unit == "target" and WoW.targetName ~= nil) or WoW.unitLevels[unit] ~= nil
+end
+function UnitLevel(unit)
+    if unit == "player" then return WoW.playerLevel or 60 end
+    return WoW.unitLevels[unit] or 0
+end
+-- The friends list (FriendInfo, a table) and the guild roster (Retail's
+-- GetGuildRosterInfo returns, level 4th and GUID 17th; unmeasured here).
+WoW.friendList, WoW.guildRoster = {}, {}
+function IsInGuild() return #WoW.guildRoster > 0 end
+function GetNumGuildMembers() return #WoW.guildRoster end
+function GetGuildRosterInfo(i)
+    local m = WoW.guildRoster[i]
+    if m then return m.name, "Rank", 1, m.level, "Class", "Zone", "", "", true, 0, "WARRIOR",
+        0, 0, false, false, 0, m.guid end
+end
+C_GuildInfo = { GuildRoster = function() WoW.guildRosterRequested = true end }
+-- DifficultyUtil.lua:68: a colour table.
+function GetQuestDifficultyColor(level) return { r = 1, g = 0.82, b = 0 } end
 function GetUnitName(unit) if unit == "target" then return WoW.targetName end end
 WoW.addonVersion = "dev"
 -- Installed addons by folder name (GetAddOnInfo's first return is the folder as spelled).

@@ -55,8 +55,8 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 
 TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
 `Libs\LibAccountSync-1.0\LibAccountSync-1.0.xml` (own-account messaging) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `AccountSync.lua` →
-`SettingsSync.lua` → `GlassChat.lua`.
+`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `Levels.lua` →
+`AccountSync.lua` → `SettingsSync.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -312,6 +312,17 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - `Copy.Plain` turns our address links back into the plain address, without the brackets.
   - **The click:** `EventRegistry "SetItemRef"` opens a small read-only box with the address
     selected for Ctrl+C. There is no clipboard API here (probe items 2-3).
+- **`Levels.lua`** (#71): a known player's level before their name, `[60:Name]` (`db.levels`, on by
+  default, as in Prat's PlayerNames).
+  - **A session cache keyed by GUID**, filled from you (`PLAYER_LEVEL_UP`'s own level), the group
+    (`UNIT_LEVEL`), target, mouseover, friends (`FriendInfo.guid`) and the guild
+    (`GetGuildRosterInfo`'s 4th and 17th returns, Retail's order, unmeasured here: each value is
+    checked). No `/who` queries: their answers carry no GUID.
+  - **The display is a sender-name filter** (`ChatFrameUtil.AddSenderNameFilter`): arg12 is the
+    sender's GUID, and the returned name goes inside the player link's brackets
+    (ChatFrameOverrides.lua:415-417). An unknown sender, a secret or the setting off returns nil,
+    which keeps the stock name. The level is coloured with `GetQuestDifficultyColor`, plain when
+    that fails.
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
   - **One instance per snapshot kind, on one store** (`AS.insts`, tag → instance): `GlassChat`

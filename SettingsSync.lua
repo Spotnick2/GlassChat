@@ -158,6 +158,7 @@ function SS.RegisterCore()
         coreKey("shortChannels", "b", "SetShortChannels", nil, nil, "short channel names"),
         coreKey("urls", "b", "SetUrls", nil, nil, "click-to-copy addresses"),
         coreKey("timestamps", "b", "SetTimestamps"),
+        coreKey("levels", "b", "SetLevels", nil, nil, "player levels"),
     }
     local looks = {}
     for k in pairs(GC.Skin.LOOK) do looks[#looks + 1] = k end
