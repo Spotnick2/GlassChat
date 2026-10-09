@@ -391,7 +391,7 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
   `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It
-  also holds `/gchat` and the login warning when the build differs from `MEASURED_ON_BUILD`.
+  also holds `/gchat` and the login warning when the build differs from `MEASURED_ON_BUILD` (dev builds only).
   There's no combat queue: chat frames aren't protected. If a feature ever needs one, lift
   GlassRaidFrames' `WhenOutOfCombat` (one queue only).
 - **Plugins** (`Plugins/<Name>/`, GlassPanel's pattern): each is its own addon, with
@@ -506,7 +506,7 @@ exists here.
   notes, measured on the live client. Treat them as fact; don't re-derive them. Other sessions
   edit this file, so write new addon-agnostic findings there (it has no chat section yet; the
   probe results belong in one), not into a copy in this repo.
-- `C:\Projects\References\forever-api-1.60.1.70205.md` is the full API dump for the current
+- `C:\Projects\References\forever-api-1.60.1.70291.md` is the full API dump for the current
   build. It lists documented functions and events, enums, **widget methods** (the only list of
   those) and the `_G` walk. FrameXML tables such as `ChatTypeInfo` aren't in it. It proves a name
   exists, not that it works. **Presence is not a contract.**
@@ -543,8 +543,9 @@ we don't use. Worth reading:
 Prat is **GPL-3.0, like this repo**, so lifting code is allowed with attribution in the file
 header. Prefer our own code anyway: Prat's is written for its Ace3 pipeline.
 
-Keep a `MEASURED_ON_BUILD` constant in the source, matching the dump's build (`1.60.1.70205`),
-and warn at login when `GetBuildInfo()` differs. Bump it only after re-measuring in game.
+Keep a `MEASURED_ON_BUILD` constant in the source, matching the dump's build (`1.60.1.70291`),
+and warn at login when `GetBuildInfo()` differs, in a dev build only (owner: a player can't act on
+it; `/gchat version` shows both). Bump it only after re-measuring in game.
 
 ## Toolchain and commands
 
@@ -621,7 +622,7 @@ The `tests\` harness follows the siblings': plain Lua 5.1 scripts with no depend
 `tests\wow_stubs.lua` API mock driven through an exported `WoW` table, `tests\harness.lua`
 (`check` / `eq` / `loadAddon` / `newChat` / `chatHas`), and `tests\run.ps1` to run them all. The
 stub does three more things:
-- It validates event names against the API dump, or against `tests\events-70205.txt` when the
+- It validates event names against the API dump, or against `tests\events-70291.txt` when the
   dump is absent (CI). `test_toc` fails if the two drift.
 - It models `FontString:SetFormattedText` taking secrets without formatting them in Lua.
 - It records every widget method called. `test_methods.lua` checks each one exists in the dump.

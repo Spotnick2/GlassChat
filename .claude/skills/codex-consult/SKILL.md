@@ -89,7 +89,7 @@ For GlassChat, good things to hand Codex:
 were measured on the live client. Without them, a cold reviewer argues from Classic-era or Retail
 behaviour that doesn't hold here: that chat payloads may be secret, that names carry surnames,
 that secure snippets are broken.
-`C:/Projects/References/forever-api-1.60.1.70205.md` is the full API surface when a question
+`C:/Projects/References/forever-api-1.60.1.70291.md` is the full API surface when a question
 turns on whether something exists, and `C:/Projects/wow-ui-source` (branch `forever`) is the
 client's own FrameXML. The design reference is `C:/Projects/References/Prat-3.0`; its
 mechanism (replacing the message handler, RawHooks) is the part we deliberately don't use.
