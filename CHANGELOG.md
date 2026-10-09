@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Player levels in chat:** a player's level now shows before their name, `[60:Name]`, coloured
+  by how it compares with yours. Levels come from players GlassChat has seen: you, your group,
+  your target or mouseover, your friends and your guild. Anyone else keeps the plain name until
+  you target them, mouse over them or group with them. Emotes and Battle.net messages are left as they are. `/gchat levels off` turns
+  it off.
+
 - **Spam & Ignore:** an advert reposted every minute is now shown once per repeat window, as
   intended. In a busy channel it could get through a second time a minute or two after being
   shown. Only a flood of more than 2000 different posts within one window can still push it out.
