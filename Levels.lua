@@ -11,9 +11,11 @@
 -- last in GetDecoratedSenderName (ChatFrameUtil.lua:1112) with
 -- (event, decoratedName, arg1..arg14), arg12 being the sender's GUID. The
 -- name we return goes inside the player link's brackets
--- (ChatFrameOverrides.lua:415-417, 576-585); the link itself (arg2) is never
--- touched. Blizzard skips the filter when the name is secret
--- (ChatFrameFilters.lua:36-41), and a nil return keeps the name as it was.
+-- (ChatFrameOverrides.lua:576-585); the link itself (arg2) is never
+-- touched. Emotes print it without brackets (same lines), so they get no
+-- level: "60:Name waves" reads as stray text. Blizzard skips the filter when
+-- the name is secret (ChatFrameFilters.lua:36-41), and a nil return keeps
+-- the name as it was.
 
 GlassChat = GlassChat or {}
 local GC = GlassChat
@@ -47,8 +49,10 @@ function Levels.NoteUnit(unit)
     Levels.Note(guid, level)
 end
 
+-- Not "player": UnitLevel can lag PLAYER_LEVEL_UP, and a roster change right
+-- after a level-up would put the old level back (review of #72). You are
+-- noted at login and by your own level events.
 function Levels.NoteGroup()
-    Levels.NoteUnit("player")
     local n = GetNumGroupMembers()
     if not plain(n) or type(n) ~= "number" or n == 0 then return end
     local prefix, count = "party", 4
@@ -74,9 +78,23 @@ function Levels.NoteGuild()
     local n = GetNumGuildMembers()
     if not plain(n) or type(n) ~= "number" then return end
     for i = 1, n do
-        local r = { GetGuildRosterInfo(i) }
-        Levels.Note(r[17], r[4])
+        local _, _, _, level, _, _, _, _, _, _, _, _, _, _, _, _, guid = GetGuildRosterInfo(i)
+        Levels.Note(guid, level)
     end
+end
+
+-- Ask for the guild roster (GUILD_ROSTER_UPDATE follows), at most once per
+-- Levels.ROSTER_EVERY seconds: at login, when the guild info arrives
+-- (PLAYER_GUILD_UPDATE, often after PLAYER_LOGIN), and on a guild line, so a
+-- guildmate's level-up shows without the guild window open (review of #72).
+Levels.ROSTER_EVERY = 120
+local lastRoster
+function Levels.RequestRoster()
+    if not IsInGuild() then return end
+    local now = GetTime()
+    if lastRoster and now - lastRoster < Levels.ROSTER_EVERY then return end
+    lastRoster = now
+    C_GuildInfo.GuildRoster()
 end
 
 -- The difficulty colour for a level, as hex; nil when the client gives none.
@@ -98,15 +116,24 @@ function Levels.Decorate(name, level)
     return text .. ":" .. name
 end
 
-function Levels.Filter(_, name, ...)
+-- Emotes show the name unbracketed; a Battle.net line names the account, not
+-- a character (Prat treats it apart, PlayerNames.lua:741-749).
+local function skipped(event)
+    return event == "CHAT_MSG_EMOTE" or event == "CHAT_MSG_TEXT_EMOTE"
+        or event:sub(1, 12) == "CHAT_MSG_BN_"
+end
+
+function Levels.Filter(event, name, ...)
     if not GC.db.levels then return nil end
+    if not plain(event) or type(event) ~= "string" or skipped(event) then return nil end
     local level = Levels.Of((select(12, ...)))   -- arg12: senderGUID
     if not level or not plain(name) or type(name) ~= "string" or name == "" then return nil end
     return Levels.Decorate(name, level)
 end
 
 local EVENTS = { "PLAYER_LOGIN", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "GROUP_ROSTER_UPDATE",
-    "UNIT_LEVEL", "PLAYER_LEVEL_UP", "FRIENDLIST_UPDATE", "GUILD_ROSTER_UPDATE" }
+    "UNIT_LEVEL", "PLAYER_LEVEL_UP", "FRIENDLIST_UPDATE", "GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE",
+    "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER" }
 
 local function onEvent(_, event, arg1)
     if event == "PLAYER_TARGET_CHANGED" then
@@ -122,11 +149,14 @@ local function onEvent(_, event, arg1)
         Levels.NoteFriends()
     elseif event == "GUILD_ROSTER_UPDATE" then
         Levels.NoteGuild()
+    elseif event == "PLAYER_GUILD_UPDATE" or event == "CHAT_MSG_GUILD" or event == "CHAT_MSG_OFFICER" then
+        Levels.RequestRoster()
     else   -- PLAYER_LOGIN, GROUP_ROSTER_UPDATE
         Levels.NoteGroup()
         if event == "PLAYER_LOGIN" then
+            Levels.NoteUnit("player")
             Levels.NoteFriends()
-            if IsInGuild() then C_GuildInfo.GuildRoster() end   -- GUILD_ROSTER_UPDATE follows
+            Levels.RequestRoster()
         end
     end
 end
@@ -146,4 +176,4 @@ function Levels.Start()
     end
 end
 
-Levels._test = { reset = function() byGUID = {} end, onEvent = onEvent }
+Levels._test = { reset = function() byGUID, lastRoster = {}, nil end, onEvent = onEvent }

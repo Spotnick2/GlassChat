@@ -318,11 +318,16 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     (`UNIT_LEVEL`), target, mouseover, friends (`FriendInfo.guid`) and the guild
     (`GetGuildRosterInfo`'s 4th and 17th returns, Retail's order, unmeasured here: each value is
     checked). No `/who` queries: their answers carry no GUID.
+  - **The guild roster is requested** (`C_GuildInfo.GuildRoster`, at most every `ROSTER_EVERY`
+    120 s) at login, on `PLAYER_GUILD_UPDATE` (guild info often lands after login) and on a guild
+    line, so levels don't go stale. Your own level comes only from login and your level events:
+    `UnitLevel("player")` can lag `PLAYER_LEVEL_UP`.
   - **The display is a sender-name filter** (`ChatFrameUtil.AddSenderNameFilter`): arg12 is the
     sender's GUID, and the returned name goes inside the player link's brackets
-    (ChatFrameOverrides.lua:415-417). An unknown sender, a secret or the setting off returns nil,
-    which keeps the stock name. The level is coloured with `GetQuestDifficultyColor`, plain when
-    that fails.
+    (ChatFrameOverrides.lua:576-585). Emotes print it without brackets, so they get no level, and
+    Battle.net lines (`CHAT_MSG_BN_*`) name the account, so neither do they. An unknown sender, a
+    secret or the setting off returns nil, which keeps the stock name. The level is coloured with
+    `GetQuestDifficultyColor`, plain when that fails.
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
   - **One instance per snapshot kind, on one store** (`AS.insts`, tag → instance): `GlassChat`

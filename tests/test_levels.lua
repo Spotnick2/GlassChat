@@ -53,6 +53,37 @@ WoW.guildRoster = { { name = "Gus", level = 55, guid = "Player-1-G" }, { name = 
 WoW.fire("GUILD_ROSTER_UPDATE")
 eq(Levels.Of("Player-1-G"), 55, "a guild member's level")
 
+-- The roster is asked for when the guild info lands (often after
+-- PLAYER_LOGIN) and on a guild line, at most every ROSTER_EVERY seconds.
+WoW.now, WoW.guildRosterRequested = 1000, nil
+WoW.fire("PLAYER_GUILD_UPDATE")
+eq(WoW.guildRosterRequested, true, "PLAYER_GUILD_UPDATE asks for the roster")
+WoW.guildRosterRequested = nil
+WoW.fire("CHAT_MSG_GUILD", "hi", "Gus")
+eq(WoW.guildRosterRequested, nil, "not again within ROSTER_EVERY")
+WoW.now = 1000 + Levels.ROSTER_EVERY + 1
+WoW.fire("CHAT_MSG_GUILD", "hi", "Gus")
+eq(WoW.guildRosterRequested, true, "a guild line asks again once it has passed")
+
+-- A raid's units.
+WoW.inRaid, WoW.unitGUIDs.raid7, WoW.unitLevels.raid7 = true, "Player-1-R", 44
+WoW.fire("GROUP_ROSTER_UPDATE")
+eq(Levels.Of("Player-1-R"), 44, "a raid member's level")
+WoW.inRaid = false
+
+-- Your level-up survives a roster change while UnitLevel still lags.
+WoW.playerLevel = 61
+WoW.fire("PLAYER_LEVEL_UP", 62)
+WoW.fire("GROUP_ROSTER_UPDATE")
+eq(Levels.Of(WoW.playerGUID), 62, "a roster change never puts the old level back")
+WoW.playerLevel = 62
+
+-- No level on emotes (the name isn't bracketed) or Battle.net lines.
+eq(WoW.decorateName("CHAT_MSG_EMOTE", "Gus", "Player-1-G"), "Gus", "no level on an emote")
+eq(WoW.decorateName("CHAT_MSG_TEXT_EMOTE", "Gus", "Player-1-G"), "Gus", "nor a text emote")
+eq(WoW.decorateName("CHAT_MSG_BN_WHISPER", "Gus", "Player-1-G"), "Gus", "nor a Battle.net whisper")
+eq(WoW.decorateName("CHAT_MSG_GUILD", "Gus", "Player-1-G"), decorated(55, "Gus"), "guild chat does")
+
 -- Junk and secrets are never noted or read.
 Levels.Note("Player-1-X", -1)
 Levels.Note("Player-1-Y", 999)
