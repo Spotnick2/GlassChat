@@ -95,7 +95,7 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     default `..\LibGlass`) through its own `Tools\deploy.ps1`, which `Tools\deploy.ps1` here
     calls first.
   - The tests load the same checkout, and fail loudly without one.
-- **The pin:** `.pkgmeta` pins a tag (`r4`), **never `tag: latest`**.
+- **The pin:** `.pkgmeta` pins a tag (read the tag there: it is written only once), **never `tag: latest`**.
   - Bump it only in a release made anyway: players get library fixes earlier through whichever
     glass addon ships the newest copy, since LibStub runs that one.
   - CI reads the pin from `.pkgmeta` (`tests/fetch_external.sh <Libs/Name-1.0> <dest>`) and tests against it.
