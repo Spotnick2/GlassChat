@@ -34,7 +34,7 @@ local lines = newChat()
 check(lines[1] and lines[1]:find("no failures"), "/gchat failures reports none")
 SlashCmdList.GLASSCHAT("version")
 lines = newChat()
-check(lines[1] and lines[1]:find("1.60.1.70205", 1, true), "/gchat version names the measured build")
+check(lines[1] and lines[1]:find("1.60.1.70291", 1, true), "/gchat version names the measured build")
 
 -- A failure recorded anywhere shows up in /gchat failures.
 GC.API.Fail("demo", "boom")
@@ -48,5 +48,27 @@ rawset(_G, "C_UI", { Reload = function() reloads = reloads + 1 end })
 SlashCmdList.GLASSCHATRELOAD("")
 eq(reloads, 1, "/rl reloads the UI")
 eq(SLASH_GLASSCHATRELOAD1, "/rl", "on /rl")
+
+-- The build warning: at a real login on another build, in a dev build only
+-- (owner: a player can't act on it). Never on /reload.
+local realBuild = GetBuildInfo
+GetBuildInfo = function() return "1.60.1", "99999", "Oct 9 2026", 16001 end
+local function warned()   -- in the lines since the last call
+    for _, l in ipairs(newChat()) do if l:find("differs from") then return true end end
+    return false
+end
+newChat()
+WoW.fire("PLAYER_ENTERING_WORLD", true, false)
+check(warned(), "a dev build warns at login on another build")
+WoW.fire("PLAYER_ENTERING_WORLD", false, true)
+check(not warned(), "never on /reload")
+WoW.addonVersion = "1.2.0"
+WoW.fire("PLAYER_ENTERING_WORLD", true, false)
+check(not warned(), "a release never warns")
+SlashCmdList.GLASSCHAT("version")
+local v = newChat()
+check(v[1] and v[1]:find("99999", 1, true), "/gchat version still shows the client build")
+WoW.addonVersion = "dev"
+GetBuildInfo = realBuild
 
 done("test_boot")
