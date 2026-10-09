@@ -19,6 +19,7 @@ Layout.lua
 Tabs.lua
 Focus.lua
 Url.lua
+Levels.lua
 AccountSync.lua
 SettingsSync.lua
 GlassChat.lua

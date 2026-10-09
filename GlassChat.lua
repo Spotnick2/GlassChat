@@ -21,6 +21,7 @@ local DEFAULTS = {
     shortChannels = true,  -- "[1. General - The Barrens]" -> "[1. General]"
     urls = true,           -- web addresses in chat become click-to-copy links
     timestamps = false,    -- HH:MM:SS on every line, addon output included (owner: off by default)
+    levels = true,         -- "[60:Name]": a known player's level before their name (Prat's default)
 }
 GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default
 
@@ -125,6 +126,10 @@ function Settings.SetUrls(on)
     GC.db.urls = on and true or false
 end
 
+function Settings.SetLevels(on)
+    GC.db.levels = on and true or false
+end
+
 function Settings.SetShortChannels(on)
     GC.db.shortChannels = on and true or false
 end
@@ -168,6 +173,7 @@ local function help()
     say("/gchat history N - sent lines kept (" .. db.history .. ")")
     say("/gchat channels on/off - drop the zone from channel names (" .. onOff(db.shortChannels) .. ")")
     say("/gchat urls on/off - click a web address in chat to copy it (" .. onOff(db.urls) .. ")")
+    say("/gchat levels on/off - a player's level before their name, once seen (" .. onOff(db.levels) .. ")")
     say("/gchat stamps on/off - a time on every line, addon output too (" .. onOff(db.timestamps) .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
     say("/gchat layout - save this character's chat windows for your other characters")
@@ -186,7 +192,8 @@ local function flag(arg)
 end
 
 local TOGGLES = { glass = Settings.SetGlass, colors = Settings.SetClassColors, arrows = Settings.SetPlainArrows,
-    channels = Settings.SetShortChannels, stamps = Settings.SetTimestamps, urls = Settings.SetUrls }
+    channels = Settings.SetShortChannels, stamps = Settings.SetTimestamps, urls = Settings.SetUrls,
+    levels = Settings.SetLevels }
 local NUMBERS = { alpha = Settings.SetAlpha, lines = Settings.SetLines, history = Settings.SetHistory,
     tabsize = Settings.SetTabSize }
 
@@ -286,6 +293,8 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         if not ok then API.Fail("start tabs", err) end
         ok, err = pcall(GC.Url.Start)
         if not ok then API.Fail("start urls", err) end
+        ok, err = pcall(GC.Levels.Start)
+        if not ok then API.Fail("start levels", err) end
         ok, err = pcall(GC.SettingsSync.Start)
         if not ok then API.Fail("start settings sync", err) end
     elseif event == "PLAYER_ENTERING_WORLD" then
