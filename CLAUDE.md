@@ -664,12 +664,23 @@ it goes red.
   - Verify its claims before acting. It has been right, and it has been confidently wrong.
   - Take its bug-catching seriously.
   - Push back when it adds complexity to a single-owner addon, or grows scope back toward Prat.
-- Releases are built by **CurseForge's own packager from the tag webhook**, reading `.pkgmeta`.
-  Don't add a GitHub release workflow. CI (`package-check.yml`) only dry-runs
-  `BigWigsMods/packager` with `-d`. The packager derives the `forever` flavor from
-  `## Interface: 16001`.
-- **Every tag needs a `CHANGELOG.md` entry committed first**, written for players. The tag name
-  sets the channel: `alpha` / `beta` / anything else → Release.
+- **CurseForge releases** are built by **CurseForge's own packager from the tag webhook**, reading
+  `.pkgmeta`. CI (`package-check.yml`) dry-runs `BigWigsMods/packager` with `-d`: its `check` job
+  builds and checks the zip. The packager derives the `forever` flavor from `## Interface: 16001`.
+- **A GitHub Release for every `v*` tag** (#70, AltStable's job from its #209): `package-check.yml`'s
+  `release` job, the only one with `contents: write`.
+  - It publishes the zip `check` built and checked, never a second build. The zip must be named
+    `GlassChat-<tag>-forever.zip`.
+  - The notes are the tag's `## vX.Y.Z` section of `CHANGELOG.md`. A missing section fails the job
+    rather than publishing. Never the packager's own GitHub upload, which posts the whole changelog.
+  - `gh release create --verify-tag` refuses to overwrite an existing release.
+  - **Retrying a failed release:** fix the cause on `main`, delete any half-made release, then run
+    **Actions → Package check → Run workflow** with the tag. That run reads the notes from `main`,
+    so the tag never moves (a moved tag re-fires CurseForge).
+- **Every tag needs a `CHANGELOG.md` entry committed first**, written for players, headed exactly
+  `## vX.Y.Z` (the tag name; rename `## Unreleased`). Tags are `v`-prefixed. The tag name sets
+  the channel: `alpha` / `beta` (any case) → pre-release on GitHub, alpha / beta on CurseForge;
+  anything else → Release.
 - `.pkgmeta` ignores `.github`, `.claude`, `docs`, `tests`, `Tools`, `CLAUDE.md`, `README.md` and
   `CHANGELOG.md`.
 
