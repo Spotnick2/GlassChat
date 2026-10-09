@@ -78,11 +78,19 @@ WoW.fire("GROUP_ROSTER_UPDATE")
 eq(Levels.Of(WoW.playerGUID), 62, "a roster change never puts the old level back")
 WoW.playerLevel = 62
 
+-- An older reading never replaces a newer level (Codex, #72): a target seen
+-- at 56, then a roster fetched before that level-up still says 55.
+WoW.unitGUIDs.target, WoW.unitLevels.target = "Player-1-G", 56
+WoW.fire("PLAYER_TARGET_CHANGED")
+WoW.fire("GUILD_ROSTER_UPDATE")
+eq(Levels.Of("Player-1-G"), 56, "a stale roster doesn't lower a level just seen")
+WoW.unitLevels.target = nil
+
 -- No level on emotes (the name isn't bracketed) or Battle.net lines.
 eq(WoW.decorateName("CHAT_MSG_EMOTE", "Gus", "Player-1-G"), "Gus", "no level on an emote")
 eq(WoW.decorateName("CHAT_MSG_TEXT_EMOTE", "Gus", "Player-1-G"), "Gus", "nor a text emote")
 eq(WoW.decorateName("CHAT_MSG_BN_WHISPER", "Gus", "Player-1-G"), "Gus", "nor a Battle.net whisper")
-eq(WoW.decorateName("CHAT_MSG_GUILD", "Gus", "Player-1-G"), decorated(55, "Gus"), "guild chat does")
+eq(WoW.decorateName("CHAT_MSG_GUILD", "Gus", "Player-1-G"), decorated(56, "Gus"), "guild chat does")
 
 -- Junk and secrets are never noted or read.
 Levels.Note("Player-1-X", -1)

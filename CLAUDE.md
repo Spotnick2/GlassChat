@@ -317,7 +317,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - **A session cache keyed by GUID**, filled from you (`PLAYER_LEVEL_UP`'s own level), the group
     (`UNIT_LEVEL`), target, mouseover, friends (`FriendInfo.guid`) and the guild
     (`GetGuildRosterInfo`'s 4th and 17th returns, Retail's order, unmeasured here: each value is
-    checked). No `/who` queries: their answers carry no GUID.
+    checked). No `/who` queries: their answers carry no GUID. **A cached level never goes down**:
+    the sources lag, and an older reading must never replace a newer one (Codex, #72).
   - **The guild roster is requested** (`C_GuildInfo.GuildRoster`, at most every `ROSTER_EVERY`
     120 s) at login, on `PLAYER_GUILD_UPDATE` (guild info often lands after login) and on a guild
     line, so levels don't go stale. Your own level comes only from login and your level events:

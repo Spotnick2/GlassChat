@@ -29,12 +29,17 @@ local byGUID = {}
 local function plain(v) return not API.IsSecret(v) end
 
 -- Record one player's level. Secrets, non-players and unknown levels (0, or
--- -1 for "??") are ignored.
+-- -1 for "??") are ignored. A level never goes down: the sources lag (a
+-- roster fetched before a level-up, an offline friend's last level,
+-- UnitLevel just after PLAYER_LEVEL_UP), and an older reading must never
+-- replace a newer one (Codex, #72).
 function Levels.Note(guid, level)
     if not plain(guid) or not plain(level) then return end
     if type(guid) ~= "string" or not guid:find("^Player%-") then return end
     if type(level) ~= "number" or level < 1 or level > Levels.MAX_LEVEL then return end
-    byGUID[guid] = math.floor(level)
+    level = math.floor(level)
+    local known = byGUID[guid]
+    if not known or level > known then byGUID[guid] = level end
 end
 
 function Levels.Of(guid)
