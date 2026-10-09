@@ -369,13 +369,16 @@ function Tabs.Request(src)
     return false
 end
 
--- Right-click on an addon's name: a menu of the rules for it.
-function Tabs.Menu(src)
+-- Right-click on an addon's name: a menu of the rules for it, and its lines
+-- in focus mode. frame: the window clicked, resolved now, not when an item is
+-- picked (Codex, #78).
+function Tabs.Menu(src, frame)
     local always = rules()
     Tabs.CheckTab(src)                  -- closed since its last line? (Codex review of #36)
     local routed = Tabs.IsRouted(src)   -- a closed tab isn't routed (review of #36)
     if API.ContextMenu(function(root)
         root:CreateTitle(src)
+        root:CreateButton("Show its lines", function() GC.Focus.Open(frame, "", src) end)
         if not routed then root:CreateButton("Own tab for this session", function() Tabs.SetRule(src, "session") end) end
         if not always[src] then root:CreateButton("Own tab, always", function() Tabs.SetRule(src, "always") end) end
         if routed then root:CreateButton("Back to the main chat", function() Tabs.SetRule(src, "main") end) end
@@ -385,11 +388,32 @@ function Tabs.Menu(src)
     say(src .. ": " .. link("session", "Own tab for this session") .. " " .. link("always", "Always"))
 end
 
-function Tabs.OnLink(_, link, _, button)
+-- The chat window a link was clicked in: SetItemRef's 4th argument
+-- (ChatFrame.lua:19 passes the clicked frame). Anything else (nil, a secret,
+-- a widget that isn't a chat window): the window in view (Codex, #78).
+local function clickedWindow(frame)
+    if not API.IsSecret(frame) and type(frame) == "table" and frame.GetMessageInfo and frame.GetNumMessages then
+        return frame
+    end
+    return GC.Copy.CurrentFrame()
+end
+
+local function modified()
+    return IsShiftKeyDown() or IsControlKeyDown() or IsAltKeyDown()
+end
+
+-- An addon's name: a plain left-click shows its lines in focus mode (#78;
+-- modified clicks do nothing, as before); a right-click opens its menu.
+function Tabs.OnLink(_, link, _, button, frame)
     if API.IsSecret(link) or type(link) ~= "string" then return end
     local src = link:match("^addon:GlassChat:src:(.+)$")
     if src then
-        if not API.IsSecret(button) and button == "RightButton" then Tabs.Menu(src) end
+        if API.IsSecret(button) then return end
+        if button == "RightButton" then
+            Tabs.Menu(src, clickedWindow(frame))
+        elseif button == "LeftButton" and not modified() then
+            GC.Focus.Open(clickedWindow(frame), "", src)
+        end
         return
     end
     local kind

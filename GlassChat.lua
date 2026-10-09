@@ -179,6 +179,7 @@ local function help()
     say("/gchat layout - save this character's chat windows for your other characters")
     say("/gchat tabs - chatty addons with their own tab (offered in chat)")
     say("/gchat focus [text] - freeze this window to search, filter, copy and export (or the magnifier)")
+    say("/gchat focus from <Addon> - only that addon's lines (or click its [Name] in chat)")
     say("/gchat copy - this window's lines, selected for Ctrl+C (or the Copy button)")
     say("/gchat tune - adjust the panel's edge, shadow and sheen live")
     say("/gchat failures - what failed to build or register")
@@ -237,7 +238,20 @@ local function slash(msg, editBox)
     elseif cmd == "focus" then
         -- The window the command was typed in, as /gchat copy does; the search keeps its case.
         local f = editBox and editBox.GetParent and editBox:GetParent()
-        GC.Focus.Open(f and f.GetMessageInfo and f or nil, (msg or ""):match("^%s*%S+%s*(.-)%s*$") or "")
+        f = f and f.GetMessageInfo and f or nil
+        local raw = (msg or ""):match("^%s*%S+%s*(.-)%s*$") or ""
+        -- "from <Addon>": only that addon's lines (#78), by its folder name in any
+        -- case. One word after "from"; anything else is a search ("from the bank").
+        local name = raw:match("^[Ff][Rr][Oo][Mm]%s+(%S+)$")
+        if raw:lower() == "from" then
+            say("/gchat focus from <Addon> - only that addon's lines (its folder name)")
+        elseif name then
+            local real = API.AddOnName(name)
+            if not real then say("no addon named " .. name .. " is installed"); return end
+            GC.Focus.Open(f, "", real)
+        else
+            GC.Focus.Open(f, raw)
+        end
     elseif cmd == "tabs" then
         GC.Tabs.Command((msg or ""):match("^%s*%S+%s*(.-)%s*$") or "")   -- addon names keep their case
     elseif cmd == "copy" then

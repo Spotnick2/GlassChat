@@ -576,6 +576,11 @@ C_Texture = { GetAtlasInfo = function(name) return name == "socialqueuing-icon-e
 date = os.date
 time = os.time
 function GetTime() return WoW.now or 0 end
+-- Modifier keys held (WoW.mods.shift / ctrl / alt).
+WoW.mods = {}
+function IsShiftKeyDown() return WoW.mods.shift == true end
+function IsControlKeyDown() return WoW.mods.ctrl == true end
+function IsAltKeyDown() return WoW.mods.alt == true end
 function UnitName(unit) if unit == "player" then return WoW.playerName or "Karuzo", "Morphisto" end end
 function GetRealmName() return "Doomhowl" end
 -- EventRegistry callbacks: several per event, each called with its owner
