@@ -276,14 +276,18 @@ local lastMsg, lastSrc
 -- decorated prefix, as Linkify writes it: the line starts with its colour
 -- and our link, after nothing but GlassChat's own plain timestamp (Chat.lua's
 -- stampNow: no "|" in it). Any other text before it, a literal "||" included,
--- is a quote of a decorated line and names nobody (Codex, #79). The one
--- reader of the link's grammar (Focus and OnLink use it).
+-- is a quote of a decorated line and names nobody (Codex, #79). The whole
+-- lead must be the timestamp: "[12:00:01] Forwarded: " is a quote too. A
+-- format this doesn't know (a localized AM/PM) only loses the link, and the
+-- line falls back to Tabs.SourceFor. The one reader of the link's grammar
+-- (Focus and OnLink use it).
+local STAMP = "^%[?%d%d?:%d%d[:%d]*%s?[AaPp]?[Mm]?%]?%s*$"
 local LEAD = "^([^|]-)|c%x%x%x%x%x%x%x%x|H" .. Tabs.SRC_LINK:gsub("%p", "%%%0") .. "([%w_%-]+)|h"
 function Tabs.LinkedSource(msg)
     if API.IsSecret(msg) or type(msg) ~= "string" then return nil end
     local lead, src = msg:match(LEAD)
     if not src then return nil end
-    if lead ~= "" and not lead:find("^%[?%d%d?:%d%d") then return nil end   -- a timestamp, or nothing
+    if lead ~= "" and not lead:find(STAMP) then return nil end   -- a timestamp alone, or nothing
     return src
 end
 

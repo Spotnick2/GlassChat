@@ -242,12 +242,23 @@ local DEC = "|cff33bbff|Haddon:GlassChat:src:AltStable|h[AltStable]|h|r diag"
 eq(GC.Tabs.LinkedSource("Forwarded: " .. DEC), nil, "plain text before it: a quote")
 eq(GC.Tabs.LinkedSource("|" .. DEC), nil, "an escaped pipe before it (||c...): literal text")
 eq(GC.Tabs.LinkedSource("12:00 " .. DEC), "AltStable", "a timestamp in another format is fine")
+eq(GC.Tabs.LinkedSource("12:00:01 PM " .. DEC), "AltStable", "and with AM/PM")
+eq(GC.Tabs.LinkedSource("[12:00:01] Forwarded: " .. DEC), nil, "a timestamp then text: still a quote")
+eq(GC.Tabs.LinkedSource("12:00 Forwarded " .. DEC), nil, "the whole lead must be the timestamp")
 eq(GC.Tabs.LinkedSource("|Haddon:GlassChat:src:AltStable|h[AltStable]|h diag"), nil, "a link without its colour isn't ours")
 -- Through the real path: OtherAddon forwarding a decorated AltStable line stays OtherAddon's.
 addon("OtherAddon", "Forwarded: " .. DEC)
 local fw = Focus.Snapshot(main)
 fw = fw[#fw]
 eq(fw.source, "OtherAddon", "a forwarded decorated line is its writer's, not AltStable's")
+-- The same with timestamps on: the stamp before "Forwarded:" doesn't make it a prefix (Codex, #79).
+SlashCmdList.GLASSCHAT("stamps on")
+addon("OtherAddon", "Forwarded: " .. DEC)
+SlashCmdList.GLASSCHAT("stamps off")
+fw = Focus.Snapshot(main)
+fw = fw[#fw]
+check(fw.text:find("^%[%d%d:%d%d:%d%d%] Forwarded: %[AltStable%] diag"), "the forwarded line is stamped")
+eq(fw.source, "OtherAddon", "and still OtherAddon's, not AltStable's")
 
 -- The status names a source with no lines, not a search or kind that emptied the view.
 Focus.Open(main, "", "AltStable")
