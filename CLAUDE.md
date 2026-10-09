@@ -305,9 +305,9 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     (Blizzard's system, loot, money and XP lines: ChatFrameOverrides.lua:211-537), else Addons.
     **A line with no event also keeps the addon that wrote it**:
     - first from our own `src` link, **only when it is the line's decorated prefix**: the line
-      starts with Linkify's colour and link, after nothing but our plain timestamp
+      starts with Linkify's colour and link, after nothing but a timestamp, the **whole** lead
       (`Tabs.LinkedSource`, the one reader of the link's grammar). It outlives the map. Text
-      before it (`Forwarded: …`) or a literal `||` makes it a quote, credited to nobody (Codex,
+      before it (`Forwarded: …`, stamped or not) or a literal `||` makes it a quote, credited to nobody (Codex,
       #79);
     - then, **only for a line with no chat-type id**, `Tabs.SourceFor`: a two-generation
       text → source map that `Tabs.Route` fills, re-keyed by `Chat.Restamped` when the line is
