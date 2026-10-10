@@ -3,7 +3,8 @@
 ## Unreleased
 
 - **Alerts when chat mentions you:** when someone writes your character's first name in public,
-  guild, party or raid chat, the raid-warning sound plays and the game blinks in the taskbar.
+  guild, party or raid chat, a sound plays (LFG Bulletin Board's notification sound) and the game
+  blinks in the taskbar.
   - **The alerts button:** a new button beside the chat, above the chat-menu bubble, lights up
     with a count. Click it to see what mentioned you.
   - **Your name:** a player link to another character with your first name doesn't count.

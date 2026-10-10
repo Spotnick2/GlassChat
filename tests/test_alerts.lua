@@ -89,7 +89,7 @@ fresh()
 local s0, f0 = sounds(), WoW.flashes
 post(SAY, "karuzo come here")
 eq(sounds(), s0 + 1, "a mention plays the sound")
-eq(WoW.sounds[#WoW.sounds].kit, 8959, "the raid warning by default")
+eq(WoW.sounds[#WoW.sounds].kit, 1210, "LFG Bulletin Board's sound by default (owner's pick)")
 eq(WoW.sounds[#WoW.sounds].channel, "Master", "on Master")
 eq(WoW.flashes, f0 + 1, "and flashes the taskbar")
 eq(Alerts.unseen, 1, "and waits behind the button")

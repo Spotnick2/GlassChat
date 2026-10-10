@@ -24,7 +24,7 @@ local DEFAULTS = {
     levels = true,         -- "[60:Name]": a known player's level before their name (Prat's default)
     alerts = true,         -- a sound when chat mentions you or your words (#83)
     alertName = "first",   -- first / full / off: which of your names counts
-    alertSound = "raid",   -- raid / ready / tell / off
+    alertSound = "lfg",    -- lfg (LFG Bulletin Board's, owner's pick) / raid / ready / tell / off
     alertFlash = true,     -- blink the game in the taskbar on an alert
 }
 GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default

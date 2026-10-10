@@ -21,7 +21,7 @@ Alerts.EVENTS = { "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_EMOTE", "CHAT_MSG_G
     "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER", "CHAT_MSG_CHANNEL" }
 -- SOUNDKIT ids (SoundKitConstants.lua:71-85), long-standing UI kits, and
 -- 1210, the one LFG Bulletin Board notifies with (GroupBulletinBoard.lua:17;
--- no SOUNDKIT name for it), owner's pick to compare.
+-- no SOUNDKIT name for it), the default: owner's pick after hearing all four.
 Alerts.SOUNDS = { raid = 8959, ready = 8960, tell = 3081, lfg = 1210 }   -- RAID_WARNING, READY_CHECK, TELL_MESSAGE
 Alerts.SOUND_NAMES = { "raid", "ready", "tell", "lfg", "off" }
 Alerts.NAME_MODES = { "first", "full", "off" }
