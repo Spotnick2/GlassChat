@@ -384,7 +384,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - A glass button beside the chat, **just above Blizzard's chat-menu bubble**. The bubble is
       pinned to the column's bottom, while the voice buttons stack from its top and show only
       while logged in to voice, so the spot never moves.
-    - It's lit gold with a count while alerts wait, and a click lists them (`Copy.Show`).
+    - Its neighbours' colours (owner): a gold `!` at rest, green with a green glow and a count
+      while alerts wait (as the channel button's green headset). A click lists them (`Copy.Show`).
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
   - **One instance per snapshot kind, on one store** (`AS.insts`, tag → instance): `GlassChat`

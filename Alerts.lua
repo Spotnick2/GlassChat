@@ -252,22 +252,24 @@ end
 -- The button: just above Blizzard's chat-menu bubble, in the column beside
 -- the chat. The bubble sits at the column's bottom (FloatingChatFrame.xml:
 -- 726) and the voice buttons stack from its top, shown only while logged in
--- to voice (VoiceToggleButton.lua:20), so this spot never moves. Lit gold,
--- with a count, while alerts wait; a click lists them.
+-- to voice (VoiceToggleButton.lua:20), so this spot never moves.
+-- Its neighbours' colours (owner): gold at rest, green while active, as the
+-- channel button turns into the green headset (ChannelFrameButtonMixin.lua:
+-- 20-21). Green, with a count, while alerts wait; a click lists them.
 --------------------------------------------------------------------------------
 
 Alerts.SIZE = 24
 Alerts.GLOW = 0.35
+Alerts.GREEN = { 0.3, 0.9, 0.3 }
 local button
 
 local function paint()
     if not button then return end
     local n = Alerts.unseen
     button.count:SetText(n > 0 and tostring(math.min(n, 99)) or "")
-    local lit = n > 0 or button.hovered
-    local c = lit and GC.Skin.TAB_GOLD or GC.Skin.TAB_GREY
+    local c = n > 0 and Alerts.GREEN or GC.Skin.TAB_GOLD
     button.mark:SetTextColor(c[1], c[2], c[3])
-    button.mark:SetAlpha(lit and 1 or 0.7)
+    button.mark:SetAlpha((n > 0 or button.hovered) and 1 or 0.8)
     button.glow:SetShown(n > 0)
 end
 Alerts.Lit = paint
@@ -298,7 +300,7 @@ function Alerts.Button()
         b.pill = pill
         local glow = b:CreateTexture(nil, "ARTWORK")
         glow:SetAllPoints(b)
-        glow:SetColorTexture(GC.Skin.TAB_GOLD[1], GC.Skin.TAB_GOLD[2], GC.Skin.TAB_GOLD[3], Alerts.GLOW)
+        glow:SetColorTexture(Alerts.GREEN[1], Alerts.GREEN[2], Alerts.GREEN[3], Alerts.GLOW)
         glow:SetBlendMode("ADD")
         glow:Hide()
         b.glow = glow
