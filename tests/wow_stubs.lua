@@ -583,6 +583,14 @@ function IsControlKeyDown() return WoW.mods.ctrl == true end
 function IsAltKeyDown() return WoW.mods.alt == true end
 function UnitName(unit) if unit == "player" then return WoW.playerName or "Karuzo", "Morphisto" end end
 function GetRealmName() return "Doomhowl" end
+function GetNormalizedRealmName() return WoW.realm or "Doomhowl" end
+-- Sounds and the taskbar flash (#83): recorded; WoW.willPlay = false refuses.
+WoW.sounds, WoW.flashes = {}, 0
+function PlaySound(kit, channel)
+    WoW.sounds[#WoW.sounds + 1] = { kit = kit, channel = channel }
+    return WoW.willPlay ~= false, 1
+end
+function FlashClientIcon() WoW.flashes = WoW.flashes + 1 end
 -- EventRegistry callbacks: several per event, each called with its owner
 -- first (CallbackRegistry.lua:112). WoW.callbacks[event](_, ...) fires them all.
 WoW.callbacks, WoW.callbackList = {}, {}

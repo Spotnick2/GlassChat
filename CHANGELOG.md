@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Alerts when chat mentions you:** when someone writes your character's first name in public,
+  guild, party or raid chat, the raid-warning sound plays and the game blinks in the taskbar.
+  - **The alerts button:** a new button beside the chat, above the chat-menu bubble, lights up
+    with a count. Click it to see what mentioned you.
+  - **Your name:** a player link to another character with your first name doesn't count.
+    `/gchat alert name full` waits for your full name.
+  - **Your own words:** add them with `/gchat alert add <words>` (one list for all your
+    characters).
+  - **Settings:**
+    - `/gchat alert sound raid|ready|tell|off` picks the sound;
+    - `/gchat alert flash off` stops the blinking;
+    - `/gchat alert off` turns it all off.
+  - **What doesn't alert:** whispers, which already have their sound, your own lines and hidden
+    spam.
 - **One addon's lines, without the chat in between:** click an addon's name at the start of its
   lines (the coloured `[AltStable]`) to open focus mode with only that addon's lines from that
   window. Select all, then Ctrl+C, to copy them. Right-click the name for the same, as "Show its

@@ -55,7 +55,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 
 TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
 `Libs\LibAccountSync-1.0\LibAccountSync-1.0.xml` (own-account messaging) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `Levels.lua` →
+`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `Levels.lua` → `Alerts.lua` →
 `AccountSync.lua` → `SettingsSync.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
@@ -355,6 +355,36 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     Battle.net lines (`CHAT_MSG_BN_*`) name the account, so neither do they. An unknown sender, a
     secret or the setting off returns nil, which keeps the stock name. The level is coloured with
     `GetQuestDifficultyColor`, plain when that fails.
+- **`Alerts.lua`** (#83; plan reviewed by Codex): a sound when chat mentions you or your words
+  (`db.alerts`, on by default; `/gchat alert`).
+  - **One read-only message filter** on public and group chat (`Alerts.EVENTS`). Never whispers,
+    Battle.net lines, `TEXT_EMOTE` or your own lines (sender GUID). It returns plain `false`.
+  - **It goes in at `PLAYER_LOGIN`**, after `Url.AddFilters()` and after the Spam & Ignore filter
+    (added at the plugin's `ADDON_LOADED`). A hiding filter stops the loop, so hidden spam never
+    alerts.
+  - **Your names**, read at login and never saved (`API.PlayerFullName`):
+    - `db.alertName` is `first` (default: the first name as a whole word), `full` ("First
+      Surname") or `off`.
+    - First names aren't unique, so **a player link naming someone else becomes a space** before
+      the name is matched. It's you only for your full name, alone or with `-` and your own realm
+      (`GetNormalizedRealmName`).
+  - **Your words:** `GlassChatDB.alertWords`, account-wide, at most 20 of 40 bytes. Not sent by
+    settings sync. They are matched on `Copy.Plain`'s text, so they match inside item and player
+    links too.
+  - **Word edges:** bytes >= 0x80 are word bytes. A few non-ASCII separators (no-break space,
+    curly quotes, guillemets, dashes, the ellipsis) are mapped to spaces first. `lower()` is
+    ASCII-only.
+  - **The alert:**
+    - `PlaySound(kit, "Master")`: raid warning 8959, ready check 8960 or tell 3081
+      (`db.alertSound`). A false `willPlay` is reported as "did not play".
+    - `FlashClientIcon()` (`db.alertFlash`), independent of the sound.
+    - Both at most once per `Alerts.EVERY` (5 s), and once per `(event, lineID)`.
+  - **The log and its button** (owner): every matching line goes into a session log
+    (`Alerts.LOG_SIZE`).
+    - A glass button beside the chat, **just above Blizzard's chat-menu bubble**. The bubble is
+      pinned to the column's bottom, while the voice buttons stack from its top and show only
+      while logged in to voice, so the spot never moves.
+    - It's lit gold with a count while alerts wait, and a click lists them (`Copy.Show`).
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
   - **One instance per snapshot kind, on one store** (`AS.insts`, tag → instance): `GlassChat`
