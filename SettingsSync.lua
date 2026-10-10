@@ -159,6 +159,7 @@ function SS.RegisterCore()
         coreKey("urls", "b", "SetUrls", nil, nil, "click-to-copy addresses"),
         coreKey("timestamps", "b", "SetTimestamps"),
         coreKey("levels", "b", "SetLevels", nil, nil, "player levels"),
+        coreKey("tabsCatch", "b", "SetTabsCatch", nil, nil, "tabs catching their addon"),
     }
     local looks = {}
     for k in pairs(GC.Skin.LOOK) do looks[#looks + 1] = k end

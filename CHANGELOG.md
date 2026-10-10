@@ -7,6 +7,10 @@
   window. Select all, then Ctrl+C, to copy them. Right-click the name for the same, as "Show its
   lines", next to the tab choices, or type `/gchat focus from AltStable`. It covers that window's
   recent lines (the newest 1000): for a long session, give the addon its own tab first.
+- **Smart tabs keep catching:** an addon's tab left open from an earlier session now gets that
+  addon's lines again, including the ones it prints while the game loads, instead of sitting
+  empty while they land in the main chat. Close the tab, or choose "Back to the main chat", to
+  stop it. `/gchat tabs catch off` turns it off.
 
 ## v0.1.0-beta
 
