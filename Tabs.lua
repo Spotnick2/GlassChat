@@ -124,10 +124,10 @@ end
 
 -- A tab caught by its name (adopted) counts only while catching is on:
 -- /gchat tabs catch off stops it at once, while a rule the player chose
--- (session, Always) stays (Codex, #82).
+-- (session, Always) stays (Codex, #82). A Never always wins over a caught tab.
 function Tabs.IsRouted(src)
-    local always = rules()
-    return (session[src] or always[src] or (adopted[src] and GC.db.tabsCatch)) and not closed[src]
+    local always, never = rules()
+    return (session[src] or always[src] or (adopted[src] and GC.db.tabsCatch and not never[src])) and not closed[src]
 end
 
 --------------------------------------------------------------------------------
@@ -375,7 +375,7 @@ function Tabs.SetRule(src, kind)
         always[src], closed[src], never[src] = true, nil, nil
         say(src .. " gets its own tab on all your characters (/gchat tabs forget " .. src .. " to stop)")
     elseif kind == "never" then
-        never[src], always[src], session[src] = true, nil, nil
+        never[src], always[src], session[src], adopted[src] = true, nil, nil, nil
         say("ok, " .. src .. " stays in the main chat; GlassChat won't ask again (/gchat tabs forget " .. src .. ")")
     elseif kind == "main" then
         always[src], session[src], adopted[src], released[src] = nil, nil, nil, true
@@ -462,7 +462,7 @@ end
 local function known(name)
     local always, never = rules()
     local l = name:lower()
-    for _, t in ipairs({ always, never, session }) do
+    for _, t in ipairs({ always, never, session, adopted }) do
         for k in pairs(t) do if k:lower() == l then return k end end
     end
     return name
