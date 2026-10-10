@@ -646,6 +646,53 @@ function FCF_GetChatWindowInfo(i)
     if size == 0 then size = 14 end
     return name, size, r, g, b, a, shown, locked, docked, unint
 end
+-- Blizzard's chat alert stack (AlertFrames.lua:327-427, AlertFrameIntrinsic.lua,
+-- ChatAlertFrameMixin.lua): subsystems sorted by priority, the shown ones
+-- anchored upward from the container, LEFT justified (the button side).
+function Mixin(object, ...)
+    for i = 1, select("#", ...) do
+        for k, v in pairs((select(i, ...))) do object[k] = v end
+    end
+    return object
+end
+ContainedAlertFrameMixin = {
+    SetAlertContainer = function(self, c) self.alertContainer = c end,
+    GetAlertContainer = function(self) return self.alertContainer end,
+    OnManagedAlertFrameVisibilityChanged = function(self)
+        if self.alertContainer then self.alertContainer:UpdateAnchors() end
+    end,
+}
+ChatAlertFrame = newWidget("Frame", UIParent, "ChatAlertFrame")
+ChatAlertFrame._systems = {}
+function ChatAlertFrame:AddAutoAnchoredSubSystem(frame)
+    local system = { anchorFrame = frame, anchorPriority = 1000 + #self._systems * 10 }
+    frame:SetAlertContainer(self)
+    self._systems[#self._systems + 1] = system
+    return system
+end
+function ChatAlertFrame:SetSubSystemAnchorPriority(system, priority) system.anchorPriority = priority end
+function ChatAlertFrame:UpdateAnchors()
+    table.sort(self._systems, function(a, b) return a.anchorPriority < b.anchorPriority end)
+    local relative = self
+    for _, system in ipairs(self._systems) do
+        local f = system.anchorFrame
+        if f:IsShown() then
+            f:ClearAllPoints()
+            if relative == self then f:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", 0, 0)
+            else f:SetPoint("BOTTOMLEFT", relative, "TOPLEFT", 0, 0) end
+            relative = f
+        end
+    end
+end
+-- Blizzard's own, below ours: text-to-speech (priority 0, TextToSpeech.lua:14-15).
+TextToSpeechButtonFrame = newWidget("Frame", UIParent, "TextToSpeechButtonFrame")
+Mixin(TextToSpeechButtonFrame, ContainedAlertFrameMixin)
+ChatAlertFrame:SetSubSystemAnchorPriority(ChatAlertFrame:AddAutoAnchoredSubSystem(TextToSpeechButtonFrame), 0)
+-- And a toast that comes and goes (BNet.lua:33-34, priority 1): hidden until shown.
+BNToastFrame = newWidget("Frame", UIParent, "BNToastFrame")
+BNToastFrame._shown = false
+Mixin(BNToastFrame, ContainedAlertFrameMixin)
+ChatAlertFrame:SetSubSystemAnchorPriority(ChatAlertFrame:AddAutoAnchoredSubSystem(BNToastFrame), 1)
 function ScrollingEdit_OnCursorChanged() end
 function ScrollingEdit_OnUpdate() end
 function Methods.SetVerticalScroll(w, v) w._vscroll = v end

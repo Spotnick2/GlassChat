@@ -200,12 +200,22 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
       `symbol[name]` step: the bubble, pressed (1 px down) and disabled (dimmed); or the friends
       symbol, applied once per glass change so a scan never overrides Blizzard's pressed art.
   - Run after every scan through `Chat.AfterScan`.
-  - **Side buttons** (#83, #86): `Buttons.Side(key, opts)` is GlassChat's own button in that
-    column. It's used by the alerts `!` (order 1) and Spam & Ignore's icon (order 2).
-    - **Where:** the shown ones stack upward from Blizzard's chat-menu bubble. The bubble is
-      pinned to the column's bottom (FloatingChatFrame.xml:726), while the voice buttons stack
-      from its top and show only while logged in to voice (VoiceToggleButton.lua:20). So these
-      spots never move.
+  - **Side buttons** (#83, #86): `Buttons.Side(key, opts)` is GlassChat's own button beside the
+    chat. It's used by the alerts `!` (order 1) and Spam & Ignore's icon (order 2).
+    - **Where: Blizzard's own stack above the button column, `ChatAlertFrame`** (owner's pick
+      after Codex, #85). That is where text-to-speech (priority 0, TextToSpeech.lua:14-15) and
+      Blizzard's toasts live: Battle.net 1, session time 2, voice prompts 10-11, voice activity 19+.
+      - Stacked inside the column, they were covered by the voice buttons, which grow down from
+        its top in a short window.
+      - Each is a plain `Button` given `ContainedAlertFrameMixin` (the methods the container calls
+        on it) and added with `AddAutoAnchoredSubSystem` at `SIDE_PRIORITY + order / 100` (0.51,
+        0.52). That puts them right above text-to-speech and below the toasts, so a toast pops
+        above them.
+      - Blizzard lays them out (AlertFrames.lua:417-427). `RefreshSides` calls `UpdateAnchors`
+        after showing or hiding one.
+      - A client without the container stacks them above the chat-menu bubble.
+      - **Unmeasured:** the container's layout code now runs over our frames (taint). Watch for
+        `ADDON_ACTION_BLOCKED` naming GlassChat.
     - **Look:** their neighbours' colours (owner), gold at rest. While something waits
       (`count()`), they turn green with a green glow and a count, as the channel button turns
       into the green headset (ChannelFrameButtonMixin.lua:20-21), and the symbol pulses until
@@ -392,8 +402,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - `FlashClientIcon()` (`db.alertFlash`), independent of the sound.
     - Both at most once per `Alerts.EVERY` (5 s), and once per `(event, lineID)`.
   - **The log and its button** (owner): every matching line goes into a session log
-    (`Alerts.LOG_SIZE`). The `!` is side button 1 (`Buttons.Side`), just above the chat-menu
-    bubble. It's green, pulsing and counting while alerts wait, and a click lists them
+    (`Alerts.LOG_SIZE`). The `!` is side button 1 (`Buttons.Side`), in Blizzard's stack above
+    the button column. It's green, pulsing and counting while alerts wait, and a click lists them
     (`Copy.Show`).
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
@@ -554,7 +564,7 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     `GC.IsDev()` (fails closed); `/gchat spam collect default` clears a saved on/off, and a dev
     build collecting by default says so at login.
   - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** icon beside the
-    chat, side button 2 above the alerts `!` (#86; `/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
+    chat, side button 2, above the alerts `!` (#86; `/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
     unreplaced) and an eye in a release, and the debug log shows the event too.
 - **`Tools/ChatProbe/`**: the throwaway measurement addon (`/cprobe help`). It logs every line to
   `ChatProbeDB.log` in SavedVariables, so after a full client exit the session is on disk at

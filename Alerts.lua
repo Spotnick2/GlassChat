@@ -257,7 +257,7 @@ end
 
 --------------------------------------------------------------------------------
 -- The button: a side button beside the chat (Buttons.Side), just above
--- Blizzard's chat-menu bubble. Gold at rest; green, pulsing, with a count
+-- the button column, in Blizzard's own stack. Gold at rest; green, pulsing, with a count
 -- while alerts wait; a click lists them.
 --------------------------------------------------------------------------------
 

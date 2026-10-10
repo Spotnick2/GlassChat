@@ -183,8 +183,12 @@ GC.failures["alert sound"] = nil
 -- The button: above the chat-menu bubble, lit while alerts wait, a click lists them.
 local b = Alerts._test.button()
 check(b, "a button beside the chat")
+-- In Blizzard's chat alert stack above the column (owner's pick after Codex, #85):
+-- right above text-to-speech, never inside the column where the voice buttons grow.
 local point, rel, relPoint = b:GetPoint(1)
-check(point == "BOTTOM" and rel == ChatFrameMenuButton and relPoint == "TOP", "just above the chat-menu bubble")
+check(point == "BOTTOMLEFT" and rel == TextToSpeechButtonFrame and relPoint == "TOPLEFT",
+    "in Blizzard's stack above the column, right above text-to-speech")
+eq(b:GetAlertContainer(), ChatAlertFrame, "contained by ChatAlertFrame")
 fresh()
 post(SAY, "karuzo one")
 post(SAY, "karuzo two")
@@ -202,6 +206,22 @@ SlashCmdList.GLASSCHAT("alert off")
 check(not b:IsShown(), "no button while alerts are off")
 SlashCmdList.GLASSCHAT("alert on")
 check(b:IsShown(), "back with them")
+
+-- A client without the container: a side button stacks above the chat-menu bubble.
+local realContainer = ChatAlertFrame
+rawset(_G, "ChatAlertFrame", nil)
+GC.Buttons.Side("fallback", { order = 9, text = "?", tooltip = "t", count = function() return 0 end,
+    shown = function() return true end, onClick = function() end })
+GC.Chat.Scan()
+local fb = GC.Buttons._test.side("fallback")
+point, rel, relPoint = fb:GetPoint(1)
+check(point == "BOTTOM" and rel == ChatFrameMenuButton and relPoint == "TOP", "without the container: above the chat-menu bubble")
+GC.Buttons.Side("fallback2", { order = 10, text = "?", tooltip = "t", count = function() return 0 end,
+    shown = function() return true end, onClick = function() end })
+GC.Chat.Scan()
+point, rel = GC.Buttons._test.side("fallback2"):GetPoint(1)
+eq(rel, fb, "and the next one on top of it")
+rawset(_G, "ChatAlertFrame", realContainer)
 
 eq(next(GC.failures), nil, "nothing failed")
 done("test_alerts")

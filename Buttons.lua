@@ -196,23 +196,43 @@ end
 GC.Chat.AfterScan("buttons", Buttons.Refresh)
 
 --------------------------------------------------------------------------------
--- Side buttons (#83, #86): GlassChat's own buttons in the column beside the
--- chat, stacked upward from Blizzard's chat-menu bubble. The bubble is pinned
--- to the column's bottom (FloatingChatFrame.xml:726) and the voice buttons
--- stack from its top, shown only while logged in to voice
--- (VoiceToggleButton.lua:20), so these spots never move.
+-- Side buttons (#83, #86): GlassChat's own buttons beside the chat, in
+-- Blizzard's own stack above the button column, ChatAlertFrame, where the
+-- text-to-speech button (TextToSpeech.lua:14-15) and the friends button
+-- (BNet.lua:33-34, 334-335) live. Blizzard lays the shown ones out upward
+-- (AlertFrames.lua:417-427), so they never overlap the voice buttons, which
+-- grow down from the column's top and covered a stack inside a short column
+-- (Codex, #85; owner's pick). Each is a plain Button given
+-- ContainedAlertFrameMixin, the four methods the container calls on it, and
+-- added with AddAutoAnchoredSubSystem at SIDE_PRIORITY + order / 100: right
+-- above text-to-speech (0) and below the toasts that come and go (Battle.net
+-- 1, session time 2, voice prompts 10-11, voice activity 19+), so a toast
+-- pops above them. Showing or hiding one re-stacks the container. A
+-- client without the container stacks them above the chat-menu bubble.
+-- Unmeasured: the container's layout now runs over our frames (taint): watch
+-- for ADDON_ACTION_BLOCKED naming GlassChat.
 -- Their neighbours' colours (owner): gold at rest, green while something
 -- waits, as the channel button turns into the green headset
 -- (ChannelFrameButtonMixin.lua:20-21). While green, the symbol pulses until
 -- the button is clicked (owner: "flashing ... when the icons are green").
 --
--- Buttons.Side(key, opts): order (1 sits on the bubble, 2 above it...),
+-- Buttons.Side(key, opts): order (1 lowest, 2 above it...),
 -- text or texture or atlas (the symbol), tooltip, count() (what waits),
 -- shown() and onClick(). Built at the next scan; Buttons.PaintSide(key)
 -- repaints one after its count changed.
 --------------------------------------------------------------------------------
 
 Buttons.SIDE_SIZE, Buttons.SIDE_GAP = 24, 2
+Buttons.SIDE_PRIORITY = 0.5   -- between text-to-speech (0) and Blizzard's toasts (1 and up)
+
+-- Blizzard's chat alert stack, when this client has it; nil otherwise.
+local function container()
+    local c = rawget(_G, "ChatAlertFrame")
+    if c and c.AddAutoAnchoredSubSystem and c.SetSubSystemAnchorPriority and c.UpdateAnchors
+        and rawget(_G, "ContainedAlertFrameMixin") and rawget(_G, "Mixin") then
+        return c
+    end
+end
 Buttons.GREEN = { 0.3, 0.9, 0.3 }
 Buttons.GLOW = 0.35
 Buttons.PULSE_PERIOD, Buttons.PULSE_LOW = 0.6, 0.35
@@ -245,9 +265,18 @@ end
 
 local function buildSide(s, menu)
     local o = s.opts
-    local b = CreateFrame("Button", nil, menu:GetParent() or UIParent)
+    local c = container()
+    local b = CreateFrame("Button", nil, c and UIParent or (menu:GetParent() or UIParent))
     b:SetFrameStrata("MEDIUM")
     b:SetSize(Buttons.SIDE_SIZE, Buttons.SIDE_SIZE)
+    if c then
+        -- The methods the container calls on a contained frame (AlertFrameIntrinsic.lua),
+        -- on our own button; then into Blizzard's stack.
+        Mixin(b, ContainedAlertFrameMixin)
+        local system = c:AddAutoAnchoredSubSystem(b)
+        c:SetSubSystemAnchorPriority(system, Buttons.SIDE_PRIORITY + o.order / 100)
+        s.contained = true
+    end
     local pill, g = GC.Skin.NewPanel(b, "small")
     pill:SetAllPoints(b)
     pill:SetFrameLevel(math.max(0, b:GetFrameLevel() - 1))
@@ -313,7 +342,7 @@ function Buttons.RefreshSides()
     local list = {}
     for _, s in pairs(sides) do list[#list + 1] = s end
     table.sort(list, function(a, z) return a.opts.order < z.opts.order end)
-    local below = menu
+    local below = menu   -- the fallback stack, without the container
     for _, s in ipairs(list) do
         local shown = s.opts.shown() and true or false
         if shown and not s.button then buildSide(s, menu) end
@@ -321,7 +350,7 @@ function Buttons.RefreshSides()
         if b then
             b:SetShown(shown)
             b.pill:SetShown(GC.db.glass and true or false)
-            if shown then
+            if shown and not s.contained then
                 b:ClearAllPoints()
                 b:SetPoint("BOTTOM", below, "TOP", 0, Buttons.SIDE_GAP)
                 below = b
@@ -329,6 +358,10 @@ function Buttons.RefreshSides()
             paintSide(s)
         end
     end
+    -- The container re-stacks on its frames' own show and hide; once more for
+    -- a change made while one was already in place.
+    local c = container()
+    if c then c:UpdateAnchors() end
 end
 
 GC.Chat.AfterScan("side buttons", function()
