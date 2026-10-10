@@ -19,9 +19,11 @@ GC.Alerts = Alerts
 Alerts.EVENTS = { "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_EMOTE", "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER",
     "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER", "CHAT_MSG_RAID_WARNING",
     "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER", "CHAT_MSG_CHANNEL" }
--- SOUNDKIT ids (SoundKitConstants.lua:71-85), long-standing UI kits.
-Alerts.SOUNDS = { raid = 8959, ready = 8960, tell = 3081 }   -- RAID_WARNING, READY_CHECK, TELL_MESSAGE
-Alerts.SOUND_NAMES = { "raid", "ready", "tell", "off" }
+-- SOUNDKIT ids (SoundKitConstants.lua:71-85), long-standing UI kits, and
+-- 1210, the one LFG Bulletin Board notifies with (GroupBulletinBoard.lua:17;
+-- no SOUNDKIT name for it), owner's pick to compare.
+Alerts.SOUNDS = { raid = 8959, ready = 8960, tell = 3081, lfg = 1210 }   -- RAID_WARNING, READY_CHECK, TELL_MESSAGE
+Alerts.SOUND_NAMES = { "raid", "ready", "tell", "lfg", "off" }
 Alerts.NAME_MODES = { "first", "full", "off" }
 Alerts.EVERY = 5                         -- seconds between two alerts; a match inside is dropped
 Alerts.MAX_WORDS, Alerts.MAX_WORD = 20, 40   -- words kept, bytes per word
@@ -240,7 +242,7 @@ function Alerts.Command(arg)
         say("/gchat alert on/off - a sound when public, guild or group chat mentions you (not whispers)")
         say("/gchat alert name first/full/off - your first name alone, or First Surname")
         say("/gchat alert add/remove <words> - your own words, on all your characters (not sent by settings send)")
-        say("/gchat alert sound raid/ready/tell/off - which sound, plays a sample")
+        say("/gchat alert sound raid/ready/tell/lfg/off - which sound, plays a sample (lfg: LFG Bulletin Board's)")
         say("/gchat alert flash on/off - blink the game in the taskbar")
         say("accented capitals count as different letters: write a word as people type it")
     end

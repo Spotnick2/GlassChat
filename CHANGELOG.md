@@ -11,7 +11,8 @@
   - **Your own words:** add them with `/gchat alert add <words>` (one list for all your
     characters).
   - **Settings:**
-    - `/gchat alert sound raid|ready|tell|off` picks the sound;
+    - `/gchat alert sound raid|ready|tell|lfg|off` picks the sound (`lfg` is the one LFG
+      Bulletin Board plays);
     - `/gchat alert flash off` stops the blinking;
     - `/gchat alert off` turns it all off.
   - **What doesn't alert:** whispers, which already have their sound, your own lines and hidden

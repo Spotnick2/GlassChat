@@ -375,8 +375,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     curly quotes, guillemets, dashes, the ellipsis) are mapped to spaces first. `lower()` is
     ASCII-only.
   - **The alert:**
-    - `PlaySound(kit, "Master")`: raid warning 8959, ready check 8960 or tell 3081
-      (`db.alertSound`). A false `willPlay` is reported as "did not play".
+    - `PlaySound(kit, "Master")`: raid warning 8959, ready check 8960, tell 3081 or `lfg`
+      1210 (LFG Bulletin Board's, no SOUNDKIT name) (`db.alertSound`). A false `willPlay` is reported as "did not play".
     - `FlashClientIcon()` (`db.alertFlash`), independent of the sound.
     - Both at most once per `Alerts.EVERY` (5 s), and once per `(event, lineID)`.
   - **The log and its button** (owner): every matching line goes into a session log
