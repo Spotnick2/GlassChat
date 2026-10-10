@@ -354,8 +354,8 @@ function UI.Start()
     GC.RegisterSlash("ignores", ignores)
     GC.RegisterSlash("allow", allow)
     GC.RegisterSlash("spam", spam, {
-        "/gchat mute/unmute <phrase>, /gchat mutes - muted phrases in public chat",
-        "/gchat ignore/unignore <First Surname>, /gchat ignores, /gchat ignore import - on all your characters",
+        "/gchat mute <phrase>, /gchat unmute <phrase>, /gchat mutes - muted phrases in public chat",
+        "/gchat ignore <First Surname>, /gchat unignore <First Surname>, /gchat ignores, /gchat ignore import - on all your characters",
         "/gchat ignore mirror on/off - keep Blizzard's ignore list in step (blocks invites and duels too)",
         "/gchat ignore send - copy these lists to your other WoW accounts online; /gchat ignore sync - its status",
         "/gchat allow <First Surname> - never hide their lines",
