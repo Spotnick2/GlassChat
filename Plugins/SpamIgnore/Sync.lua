@@ -239,7 +239,7 @@ function Sync.Send(force)
         skipped > 0 and (skipped .. " entries couldn't be written and weren't sent") or nil)
 end
 
--- /gchat ignore sync [status/on/off]
+-- /gchat ignore sync undo: put back the lists a received copy replaced.
 function Sync.Undo()
     local u = Spam.db.syncUndo
     if type(u) ~= "table" or type(u.ignore) ~= "table" then say("nothing to undo"); return end
@@ -252,6 +252,7 @@ function Sync.Undo()
     say("your lists are back as they were before the last copy from another account")
 end
 
+-- /gchat ignore sync [on/off/undo]
 function Sync.Command(arg)
     if arg == "undo" then Sync.Undo(); return end
     if arg == "on" or arg == "off" then

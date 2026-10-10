@@ -14,6 +14,9 @@ function eq(actual, expected, msg)
 end
 
 function done(name)
+    -- A stray "|" in any line printed during the test (wow_stubs' print).
+    local strays = WoW and WoW.strays or {}
+    eq(#strays, 0, "no stray | in any printed line" .. (strays[1] and (": " .. strays[1]) or ""))
     io.write(string.format("%s: %d passed, %d failed\n", name, passed, failed))
     os.exit(failed == 0 and 0 or 1)
 end

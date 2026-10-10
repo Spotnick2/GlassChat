@@ -301,10 +301,32 @@ function Methods.GetStatusBarTexture(b) return b._fill end
 UIParent = newWidget("Frame", nil, "UIParent")
 UIParent._level = 0
 
+-- A "|" the client would misread (#55, review of #56): it reads "|x" as an
+-- escape and drops it ("off|watch|hide" showed as "offatchide", "|n" is a
+-- newline). Only well-formed escapes are taken out: "||", colour pairs
+-- (|cAARRGGBB or |cn...: up to |r), links (|H...|h...|h), textures,
+-- atlases and |K names. Any "|" left is stray.
+function WoW.StrayPipe(line)
+    local s = line:gsub("||", "")
+    s = s:gsub("|H[^|]*|h(.-)|h", "%1"):gsub("|T[^|]*|t", ""):gsub("|A[^|]*|a", ""):gsub("|K[^|]*|k", "?")
+    local n
+    repeat
+        s, n = s:gsub("|c%x%x%x%x%x%x%x%x([^|]-)|r", "%1")
+        local m
+        s, m = s:gsub("|cn[^:|]*:([^|]-)|r", "%1")
+        n = n + m
+    until n == 0
+    return s:find("|", 1, true) ~= nil
+end
+WoW.strays = {}
+
+-- Every printed line, in every test, is checked for a stray "|" (done() fails on one).
 function print(...)
     local parts = {}
     for i = 1, select("#", ...) do parts[#parts + 1] = tostring((select(i, ...))) end
-    table.insert(WoW.chat, table.concat(parts, " "))
+    local line = table.concat(parts, " ")
+    if WoW.StrayPipe(line) then WoW.strays[#WoW.strays + 1] = line end
+    table.insert(WoW.chat, line)
 end
 
 SlashCmdList = {}
