@@ -249,89 +249,29 @@ function Alerts.Command(arg)
 end
 
 --------------------------------------------------------------------------------
--- The button: just above Blizzard's chat-menu bubble, in the column beside
--- the chat. The bubble sits at the column's bottom (FloatingChatFrame.xml:
--- 726) and the voice buttons stack from its top, shown only while logged in
--- to voice (VoiceToggleButton.lua:20), so this spot never moves.
--- Its neighbours' colours (owner): gold at rest, green while active, as the
--- channel button turns into the green headset (ChannelFrameButtonMixin.lua:
--- 20-21). Green, with a count, while alerts wait; a click lists them.
+-- The button: a side button beside the chat (Buttons.Side), just above
+-- Blizzard's chat-menu bubble. Gold at rest; green, pulsing, with a count
+-- while alerts wait; a click lists them.
 --------------------------------------------------------------------------------
-
-Alerts.SIZE = 24
-Alerts.GLOW = 0.35
-Alerts.GREEN = { 0.3, 0.9, 0.3 }
-local button
-
-local function paint()
-    if not button then return end
-    local n = Alerts.unseen
-    button.count:SetText(n > 0 and tostring(math.min(n, 99)) or "")
-    local c = n > 0 and Alerts.GREEN or GC.Skin.TAB_GOLD
-    button.mark:SetTextColor(c[1], c[2], c[3])
-    button.mark:SetAlpha((n > 0 or button.hovered) and 1 or 0.8)
-    button.glow:SetShown(n > 0)
-end
-Alerts.Lit = paint
 
 function Alerts.Open()
     local status = #log .. " this session, newest last"
     if #log == 0 then status = "nothing has mentioned you this session" end
     GC.Copy.Show("Alerts: chat that mentioned you", table.concat(log, "\n"), status)
     Alerts.unseen = 0
-    paint()
+    Alerts.Lit()
 end
 
-function Alerts.Button()
-    local menu = rawget(_G, "ChatFrameMenuButton")
-    if not menu then return end
-    if not button then
-        local b = CreateFrame("Button", nil, menu:GetParent() or UIParent)
-        b:SetFrameStrata("MEDIUM")
-        b:SetSize(Alerts.SIZE, Alerts.SIZE)
-        b:SetPoint("BOTTOM", menu, "TOP", 0, 2)
-        local pill, g = GC.Skin.NewPanel(b, "small")
-        pill:SetAllPoints(b)
-        pill:SetFrameLevel(math.max(0, b:GetFrameLevel() - 1))
-        g.top:SetFrameLevel(pill:GetFrameLevel())
-        GC.Skin.Tune(g)
-        g.grain:SetAlpha(0)
-        g.shadow:SetAlpha(0)
-        b.pill = pill
-        local glow = b:CreateTexture(nil, "ARTWORK")
-        glow:SetAllPoints(b)
-        glow:SetColorTexture(Alerts.GREEN[1], Alerts.GREEN[2], Alerts.GREEN[3], Alerts.GLOW)
-        glow:SetBlendMode("ADD")
-        glow:Hide()
-        b.glow = glow
-        b.mark = GC.Glass.Font(b, 16, "CENTER")   -- "!": no frameless bell is known on this client
-        b.mark:SetPoint("CENTER", b, "CENTER", 0, 0)
-        b.mark:SetText("!")
-        b.count = GC.Glass.Font(b, 11, "CENTER")
-        b.count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 3, -3)
-        b:SetScript("OnEnter", function(self)
-            self.hovered = true
-            paint()
-            local tip = rawget(_G, "GameTooltip")
-            if tip then
-                tip:SetOwner(self, "ANCHOR_RIGHT")
-                tip:SetText("Alerts: chat that mentioned you")
-                tip:Show()
-            end
-        end)
-        b:SetScript("OnLeave", function(self)
-            self.hovered = false
-            paint()
-            local tip = rawget(_G, "GameTooltip")
-            if tip then tip:Hide() end
-        end)
-        b:SetScript("OnClick", function() Alerts.Open() end)
-        button = b
-    end
-    button.pill:SetShown(GC.db.glass and true or false)
-    button:SetShown(GC.db.alerts and true or false)
-    paint()
-end
+function Alerts.Lit() GC.Buttons.PaintSide("alerts") end
+
+GC.Buttons.Side("alerts", {
+    order = 1,
+    text = "!",   -- no frameless bell is known on this client
+    tooltip = "Alerts: chat that mentioned you",
+    count = function() return Alerts.unseen end,
+    shown = function() return GC.db.alerts end,
+    onClick = function() Alerts.Open() end,
+})
 
 local started = false
 function Alerts.Start()
@@ -347,10 +287,9 @@ function Alerts.Start()
         end
     end)
     API.RegisterEvents(f, { "PLAYER_LOGIN" })
-    GC.Chat.AfterScan("alerts", Alerts.Button)
 end
 
 Alerts._test = {
     reset = function() memo, memoOrder, last, me, log = {}, {}, nil, nil, {}; Alerts.unseen = 0 end,
-    button = function() return button end,
+    button = function() return GC.Buttons._test.side("alerts") end,
 }

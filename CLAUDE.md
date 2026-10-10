@@ -200,6 +200,18 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
       `symbol[name]` step: the bubble, pressed (1 px down) and disabled (dimmed); or the friends
       symbol, applied once per glass change so a scan never overrides Blizzard's pressed art.
   - Run after every scan through `Chat.AfterScan`.
+  - **Side buttons** (#83, #86): `Buttons.Side(key, opts)` is GlassChat's own button in that
+    column. It's used by the alerts `!` (order 1) and Spam & Ignore's icon (order 2).
+    - **Where:** the shown ones stack upward from Blizzard's chat-menu bubble. The bubble is
+      pinned to the column's bottom (FloatingChatFrame.xml:726), while the voice buttons stack
+      from its top and show only while logged in to voice (VoiceToggleButton.lua:20). So these
+      spots never move.
+    - **Look:** their neighbours' colours (owner), gold at rest. While something waits
+      (`count()`), they turn green with a green glow and a count, as the channel button turns
+      into the green headset (ChannelFrameButtonMixin.lua:20-21), and the symbol pulses until
+      clicked.
+    - **Lifecycle:** built at the first scan that shows one, re-stacked every scan.
+      `Buttons.PaintSide(key)` repaints one after its count changed.
 - **`Layout.lua`** (M2, #9): one chat layout for every character. Chat windows are saved per
   character (measured).
   - `/gchat layout save` records each window through `FCF_GetChatWindowInfo`, which maps the
@@ -380,12 +392,9 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     - `FlashClientIcon()` (`db.alertFlash`), independent of the sound.
     - Both at most once per `Alerts.EVERY` (5 s), and once per `(event, lineID)`.
   - **The log and its button** (owner): every matching line goes into a session log
-    (`Alerts.LOG_SIZE`).
-    - A glass button beside the chat, **just above Blizzard's chat-menu bubble**. The bubble is
-      pinned to the column's bottom, while the voice buttons stack from its top and show only
-      while logged in to voice, so the spot never moves.
-    - Its neighbours' colours (owner): a gold `!` at rest, green with a green glow and a count
-      while alerts wait (as the channel button's green headset). A click lists them (`Copy.Show`).
+    (`Alerts.LOG_SIZE`). The `!` is side button 1 (`Buttons.Side`), just above the chat-menu
+    bubble. It's green, pulsing and counting while alerts wait, and a click lists them
+    (`Copy.Show`).
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
   - **One instance per snapshot kind, on one store** (`AS.insts`, tag → instance): `GlassChat`
@@ -458,7 +467,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   client does, and `test_toc` checks the list, the TOC and the `move-folders` line. A plugin uses:
   - `GC.RegisterSlash(sub, fn, help)` for `/gchat <sub>`;
   - `GC.Chat.OnEachFrame` / `Chat.Scan`;
-  - `GC.Skin.Panel(f)`, `Skin.ReserveIcons(n)` and `STRIP_ICON_STEP` for a tab-strip icon;
+  - `GC.Skin.Panel(f)`, `Skin.ReserveIcons(n)` and `STRIP_ICON_STEP` for a tab-strip icon, or
+    `GC.Buttons.Side` for a button beside the chat;
   - `GC.Copy.Show(title, text, status)` for a text window.
 - **`Plugins/SpamIgnore/`** (Spam & Ignore, S1, #19; plan: `docs/PLAN-SPAM.md`):
   - **One filter, two policies.** Explicit GUID ignores apply to every player-chat event, guild
@@ -543,8 +553,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
     household key, so it's never read whole into a session (review of #59). The default comes from
     `GC.IsDev()` (fails closed); `/gchat spam collect default` clears a saved on/off, and a dev
     build collecting by default says so at login.
-  - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** tab-strip icon
-    (`/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
+  - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** icon beside the
+    chat, side button 2 above the alerts `!` (#86; `/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
     unreplaced) and an eye in a release, and the debug log shows the event too.
 - **`Tools/ChatProbe/`**: the throwaway measurement addon (`/cprobe help`). It logs every line to
   `ChatProbeDB.log` in SavedVariables, so after a full client exit the session is on disk at

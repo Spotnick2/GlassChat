@@ -195,4 +195,145 @@ end
 
 GC.Chat.AfterScan("buttons", Buttons.Refresh)
 
-Buttons._test = { pills = pills, bubbles = bubbles }
+--------------------------------------------------------------------------------
+-- Side buttons (#83, #86): GlassChat's own buttons in the column beside the
+-- chat, stacked upward from Blizzard's chat-menu bubble. The bubble is pinned
+-- to the column's bottom (FloatingChatFrame.xml:726) and the voice buttons
+-- stack from its top, shown only while logged in to voice
+-- (VoiceToggleButton.lua:20), so these spots never move.
+-- Their neighbours' colours (owner): gold at rest, green while something
+-- waits, as the channel button turns into the green headset
+-- (ChannelFrameButtonMixin.lua:20-21). While green, the symbol pulses until
+-- the button is clicked (owner: "flashing ... when the icons are green").
+--
+-- Buttons.Side(key, opts): order (1 sits on the bubble, 2 above it...),
+-- text or texture or atlas (the symbol), tooltip, count() (what waits),
+-- shown() and onClick(). Built at the next scan; Buttons.PaintSide(key)
+-- repaints one after its count changed.
+--------------------------------------------------------------------------------
+
+Buttons.SIDE_SIZE, Buttons.SIDE_GAP = 24, 2
+Buttons.GREEN = { 0.3, 0.9, 0.3 }
+Buttons.GLOW = 0.35
+Buttons.PULSE_PERIOD, Buttons.PULSE_LOW = 0.6, 0.35
+local sides = {}   -- key -> { opts, button }
+
+local function sideColor(b, c)
+    if b.isText then b.symbol:SetTextColor(c[1], c[2], c[3])
+    else b.symbol:SetVertexColor(c[1], c[2], c[3]) end
+end
+
+local function paintSide(s)
+    local b = s.button
+    if not b then return end
+    local n = s.opts.count() or 0
+    b.count:SetText(n > 0 and tostring(math.min(n, 99)) or "")
+    sideColor(b, n > 0 and Buttons.GREEN or GC.Skin.TAB_GOLD)
+    b.glow:SetShown(n > 0)
+    if n > 0 then
+        if not b.pulse:IsPlaying() then b.pulse:Play() end
+    else
+        if b.pulse:IsPlaying() then b.pulse:Stop() end
+        b.symbol:SetAlpha(b.hovered and 1 or 0.8)
+    end
+end
+
+function Buttons.PaintSide(key)
+    local s = sides[key]
+    if s then paintSide(s) end
+end
+
+local function buildSide(s, menu)
+    local o = s.opts
+    local b = CreateFrame("Button", nil, menu:GetParent() or UIParent)
+    b:SetFrameStrata("MEDIUM")
+    b:SetSize(Buttons.SIDE_SIZE, Buttons.SIDE_SIZE)
+    local pill, g = GC.Skin.NewPanel(b, "small")
+    pill:SetAllPoints(b)
+    pill:SetFrameLevel(math.max(0, b:GetFrameLevel() - 1))
+    g.top:SetFrameLevel(pill:GetFrameLevel())
+    GC.Skin.Tune(g)
+    g.grain:SetAlpha(0)
+    g.shadow:SetAlpha(0)
+    b.pill = pill
+    local glow = b:CreateTexture(nil, "ARTWORK")
+    glow:SetAllPoints(b)
+    glow:SetColorTexture(Buttons.GREEN[1], Buttons.GREEN[2], Buttons.GREEN[3], Buttons.GLOW)
+    glow:SetBlendMode("ADD")
+    glow:Hide()
+    b.glow = glow
+    if o.text then
+        b.symbol, b.isText = GC.Glass.Font(b, 16, "CENTER"), true
+        b.symbol:SetText(o.text)
+    else
+        b.symbol = b:CreateTexture(nil, "OVERLAY")
+        b.symbol:SetSize(Buttons.SIDE_SIZE - 6, Buttons.SIDE_SIZE - 6)
+        if o.atlas then b.symbol:SetAtlas(o.atlas) else b.symbol:SetTexture(o.texture) end
+        b.symbol:SetDesaturated(true)   -- tinted gold or green by paintSide
+    end
+    b.symbol:SetPoint("CENTER", b, "CENTER", 0, 0)
+    local pulse = b.symbol:CreateAnimationGroup()
+    pulse:SetLooping("BOUNCE")
+    local fade = pulse:CreateAnimation("Alpha")
+    fade:SetFromAlpha(1)
+    fade:SetToAlpha(Buttons.PULSE_LOW)
+    fade:SetDuration(Buttons.PULSE_PERIOD)
+    b.pulse = pulse
+    b.count = GC.Glass.Font(b, 11, "CENTER")
+    b.count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 3, -3)
+    b:SetScript("OnEnter", function(self)
+        self.hovered = true
+        paintSide(s)
+        local tip = rawget(_G, "GameTooltip")
+        if tip then
+            tip:SetOwner(self, "ANCHOR_RIGHT")
+            tip:SetText(type(o.tooltip) == "function" and o.tooltip() or o.tooltip)
+            tip:Show()
+        end
+    end)
+    b:SetScript("OnLeave", function(self)
+        self.hovered = false
+        paintSide(s)
+        local tip = rawget(_G, "GameTooltip")
+        if tip then tip:Hide() end
+    end)
+    b:SetScript("OnClick", function() o.onClick() end)
+    s.button = b
+end
+
+function Buttons.Side(key, opts)
+    sides[key] = { opts = opts }
+end
+
+-- Build, show and stack every side button: each shown one sits on the one
+-- below it, the first on the chat-menu bubble.
+function Buttons.RefreshSides()
+    local menu = rawget(_G, Buttons.MENU)
+    if not menu then return end
+    local list = {}
+    for _, s in pairs(sides) do list[#list + 1] = s end
+    table.sort(list, function(a, z) return a.opts.order < z.opts.order end)
+    local below = menu
+    for _, s in ipairs(list) do
+        local shown = s.opts.shown() and true or false
+        if shown and not s.button then buildSide(s, menu) end
+        local b = s.button
+        if b then
+            b:SetShown(shown)
+            b.pill:SetShown(GC.db.glass and true or false)
+            if shown then
+                b:ClearAllPoints()
+                b:SetPoint("BOTTOM", below, "TOP", 0, Buttons.SIDE_GAP)
+                below = b
+            end
+            paintSide(s)
+        end
+    end
+end
+
+GC.Chat.AfterScan("side buttons", function()
+    local ok, err = pcall(Buttons.RefreshSides)
+    if not ok then GC.API.Fail("side buttons", err) end
+end)
+
+Buttons._test = { pills = pills, bubbles = bubbles, side = function(key) return sides[key] and sides[key].button end }

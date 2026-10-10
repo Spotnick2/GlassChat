@@ -196,27 +196,28 @@ check(say(CH, "spam", "Real Player", "Player-1-RP"), "(while a player's is hidde
 db.mutes = {}
 Spam.RebuildMutes()
 
--- The log, the icon (opt-in, off by default) and the debug wording.
-check(UI._test.buttons[ChatFrame1] == nil, "no tab-strip icon by default")
+-- The log, the icon (opt-in, off by default) and the debug wording. The icon
+-- is a side button beside the chat (#86), just above the alerts button.
+check(UI._test.button() == nil, "no icon by default")
 eq(GC.Skin.DOCK_RESERVE, 82, "and the tabs keep their room")
 SlashCmdList.GLASSCHAT("spam icon on")
-local b = UI._test.buttons[ChatFrame1]
+local b = UI._test.button()
 check(b and b:IsShown(), "/gchat spam icon on adds it")
-eq(GC.Skin.DOCK_RESERVE, 108, "with room for a third icon")
-eq(b.icon._file, UI.BUG, "a bug in a dev build")
+eq(GC.Skin.DOCK_RESERVE, 82, "beside the chat, not on the tab strip: the tabs keep their room")
+local alertsB = GC.Alerts._test.button()
+local point, rel, relPoint = b:GetPoint(1)
+check(point == "BOTTOM" and rel == alertsB and relPoint == "TOP", "just above the alerts button")
+eq(b.symbol._file, UI.BUG, "a bug in a dev build")
 check(b.count:GetText() ~= "", "showing how many lines were hidden")
--- Highlighted while lines wait; gold on hover; a blink for 3 s per block.
+-- Green and pulsing while lines wait (owner), like the alerts button.
 check(b.glow:IsShown(), "highlighted (a glow) while unseen lines wait")
-eq(b.icon._vertex and b.icon._vertex[2] or nil, GC.Skin.TAB_GOLD[2], "in gold")
-WoW.timers = {}
+eq(b.symbol._vertex and b.symbol._vertex[2] or nil, GC.Buttons.GREEN[2], "in green")
+check(b.pulse:IsPlaying(), "and pulsing")
 db.mutes = { { phrase = "blinky" } }
 Spam.RebuildMutes()
 say(CH, "blinky", "Spammy Sam", "Player-1-BL")
-check(b.blink:IsPlaying(), "a new block makes it blink")
-WoW.flushTimers(2)
-check(b.blink:IsPlaying(), "still blinking within 3 s")
-WoW.flushTimers(3)
-check(not b.blink:IsPlaying(), "and stops after 3 s")
+WoW.flushTimers(5)
+check(b.pulse:IsPlaying(), "still pulsing while lines wait, however long")
 db.mutes = {}
 Spam.RebuildMutes()
 b._scripts.OnClick(b)
@@ -225,14 +226,14 @@ check(win:IsShown() and win.title:GetText():find("debug", 1, true), "it opens th
 check(win.edit:GetText():find("[ignored] Future Pest (SAY)", 1, true), "listing each line with its reason, sender and event")
 eq(b.count:GetText(), "", "and the count clears once seen")
 check(not b.glow:IsShown(), "and the highlight goes")
-eq(b.icon._vertex[1], GC.Skin.TAB_GREY[1], "grey at rest")
-b._scripts.OnEnter(b)
-eq(b.icon._vertex[2], GC.Skin.TAB_GOLD[2], "gold on hover, like the copy icon")
-b._scripts.OnLeave(b)
-eq(b.icon._vertex[1], GC.Skin.TAB_GREY[1], "grey again after")
+check(not b.pulse:IsPlaying(), "and the pulse stops")
+eq(b.symbol._vertex[2], GC.Skin.TAB_GOLD[2], "gold at rest, like its neighbours")
+SlashCmdList.GLASSCHAT("alert off")
+point, rel = b:GetPoint(1)
+eq(rel, ChatFrameMenuButton, "with alerts off, it sits on the chat-menu bubble")
+SlashCmdList.GLASSCHAT("alert on")
 SlashCmdList.GLASSCHAT("spam icon off")
 check(not b:IsShown(), "/gchat spam icon off hides it")
-eq(GC.Skin.DOCK_RESERVE, 82, "and gives the tabs their room back")
 WoW.addonVersion = "1.2.0"
 check(not Spam.IsDebug(), "a release isn't a debug build")
 db.debug = true

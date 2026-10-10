@@ -1,9 +1,10 @@
--- UI.lua (Spam & Ignore): the tab-strip icon, the hidden-lines window, and
--- the /gchat subcommands.
+-- UI.lua (Spam & Ignore): the icon, the hidden-lines window, and the /gchat
+-- subcommands.
 --
 -- The icon is OPT-IN (owner: "make it a setting ... disabled by default"):
--- /gchat spam icon on. It sits left of the copy icon on each window's glass
--- panel, with a count of lines hidden since you last looked. In a dev or test build it's
+-- /gchat spam icon on. It's a side button beside the chat (GC.Buttons.Side,
+-- #86), just above the alerts button, with a count of lines hidden since you
+-- last looked: gold at rest, green and pulsing while they wait. In a dev or test build it's
 -- a bug (owner: a window "with blocked messages only, activated via a bug
 -- icon", until the official release); in a release it's an eye. Either
 -- opens the same copy-style window, the debug one with more detail. No line
@@ -19,14 +20,6 @@ GC.SpamUI = UI
 
 UI.BUG = "Interface\\HelpFrame\\HelpIcon-Bug"     -- Blizzard's help frame
 UI.EYE = "socialqueuing-icon-eye"                -- Blizzard's Quick Join
-UI.SIZE = 18
--- The look (owner: "we'll adjust later"): gold on hover, like the copy icon;
--- highlighted (gold, full strength, a soft glow) while unseen lines wait;
--- a BLINK of BLINK_TIME seconds each time a line is blocked.
-UI.BLINK_TIME, UI.BLINK_PERIOD, UI.BLINK_LOW = 3, 0.25, 0.25
-UI.GLOW = 0.35
-
-local buttons = setmetatable({}, { __mode = "k" })   -- chat frame -> button
 
 local function hasAtlas(name)
     local get = C_Texture and C_Texture.GetAtlasInfo
@@ -35,37 +28,10 @@ local function hasAtlas(name)
     return ok and info ~= nil and not API.IsSecret(info)
 end
 
-local function paint(b)
-    local n = Spam.unseen
-    b.count:SetText(n > 0 and tostring(math.min(n, 99)) or "")
-    local lit = n > 0 or b.hovered
-    local c = lit and GC.Skin.TAB_GOLD or GC.Skin.TAB_GREY
-    b.icon:SetVertexColor(c[1], c[2], c[3])
-    b.icon:SetAlpha(lit and 1 or 0.7)
-    b.glow:SetShown(n > 0)
-end
-
-function UI.PaintAll()
-    for _, b in pairs(buttons) do paint(b) end
-end
-
--- A line was just blocked: repaint, and blink every icon for BLINK_TIME s
--- (a new block restarts it).
-local blinkToken
-function UI.Blocked()
-    UI.PaintAll()
-    for _, b in pairs(buttons) do
-        b.blink:Stop()
-        b.blink:Play()
-    end
-    local token = {}
-    blinkToken = token
-    C_Timer.After(UI.BLINK_TIME, function()
-        if blinkToken ~= token then return end
-        for _, b in pairs(buttons) do b.blink:Stop(); b.icon:SetAlpha(1) end
-        UI.PaintAll()
-    end)
-end
+-- A line was just hidden, or the count was cleared: repaint (green and
+-- pulsing while lines wait).
+function UI.PaintAll() GC.Buttons.PaintSide("spam") end
+UI.Blocked = UI.PaintAll
 
 function UI.Open()
     local debug = Spam.IsDebug()
@@ -78,66 +44,22 @@ function UI.Open()
     UI.PaintAll()
 end
 
-function UI.Button(f)
-    if buttons[f] then buttons[f]:SetShown(Spam.db.icon and true or false); return end
-    if not Spam.db.icon then return end
-    local p = GC.Skin.Panel(f)
-    if not p then return end
-    local b = CreateFrame("Button", nil, p.panel)
-    b:SetFrameStrata("MEDIUM")
-    b:SetSize(UI.SIZE + 4, UI.SIZE + 2)
-    b:SetPoint("TOPRIGHT", p.panel, "TOPRIGHT", -14 - GC.Skin.CORE_ICONS * GC.Skin.STRIP_ICON_STEP, -9)
-    local icon = b:CreateTexture(nil, "OVERLAY")
-    icon:SetSize(UI.SIZE, UI.SIZE)
-    icon:SetPoint("CENTER", b, "CENTER", 0, 0)
-    if Spam.IsDebug() then
-        icon:SetTexture(UI.BUG)
-        icon:SetDesaturated(true)
-    elseif hasAtlas(UI.EYE) then
-        icon:SetAtlas(UI.EYE)
-        icon:SetDesaturated(true)
-    else
-        icon:SetColorTexture(1, 1, 1, 0.5)   -- no eye art on this client: a plain square
-    end
-    b.icon = icon
-    -- The highlight: a soft additive glow behind the icon while lines wait.
-    local glow = b:CreateTexture(nil, "ARTWORK")
-    glow:SetPoint("TOPLEFT", b, "TOPLEFT", -2, 2)
-    glow:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 2, -2)
-    glow:SetColorTexture(GC.Skin.TAB_GOLD[1], GC.Skin.TAB_GOLD[2], GC.Skin.TAB_GOLD[3], UI.GLOW)
-    glow:SetBlendMode("ADD")
-    glow:Hide()
-    b.glow = glow
-    -- The blink: the icon's alpha bouncing down and back.
-    local blink = icon:CreateAnimationGroup()
-    blink:SetLooping("BOUNCE")
-    local fade = blink:CreateAnimation("Alpha")
-    fade:SetFromAlpha(1)
-    fade:SetToAlpha(UI.BLINK_LOW)
-    fade:SetDuration(UI.BLINK_PERIOD)
-    b.blink = blink
-    local count = GC.Glass.Font(b, 11, "CENTER")
-    count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 2, -2)
-    b.count = count
-    b:SetScript("OnEnter", function(self)
-        self.hovered = true
-        paint(self)
-        local tip = rawget(_G, "GameTooltip")
-        if tip then
-            tip:SetOwner(self, "ANCHOR_TOP")
-            tip:SetText(Spam.IsDebug() and "Blocked lines (debug)" or "Hidden lines")
-            tip:Show()
-        end
-    end)
-    b:SetScript("OnLeave", function(self)
-        self.hovered = false
-        paint(self)
-        local tip = rawget(_G, "GameTooltip")
-        if tip then tip:Hide() end
-    end)
-    b:SetScript("OnClick", function() UI.Open() end)
-    buttons[f] = b
-    paint(b)
+-- The symbol is chosen once, when the button is first built: a bug in a dev
+-- or debug build, else the eye (a plain square on a client without it).
+local function symbol()
+    if Spam.IsDebug() then return { texture = UI.BUG } end
+    if hasAtlas(UI.EYE) then return { atlas = UI.EYE } end
+    return { texture = "Interface\\Buttons\\WHITE8X8" }
+end
+
+function UI.RegisterIcon()
+    local opts = symbol()
+    opts.order = 2   -- above the alerts button
+    opts.tooltip = function() return Spam.IsDebug() and "Blocked lines (debug)" or "Hidden lines" end
+    opts.count = function() return Spam.unseen end
+    opts.shown = function() return Spam.db.icon end
+    opts.onClick = function() UI.Open() end
+    GC.Buttons.Side("spam", opts)
 end
 
 --------------------------------------------------------------------------------
@@ -240,7 +162,6 @@ UI.Set = {
     repeatWindow = function(seconds) Spam.db.repeatWindow = math.floor(seconds) end,
     icon = function(on)
         Spam.db.icon = on and true or false
-        GC.Skin.ReserveIcons(GC.Skin.CORE_ICONS + (Spam.db.icon and 1 or 0))
         GC.Chat.Scan()
     end,
     mirror = function(on)
@@ -294,7 +215,7 @@ local function spam(arg)
         say("debug log: " .. (Spam.IsDebug() and "on" or "off") .. " (the icon changes after /reload)")
     elseif cmd == "icon" then
         if rest == "on" or rest == "off" then UI.Set.icon(rest == "on") end
-        say("tab-strip icon: " .. (Spam.db.icon and "shown" or "hidden") .. " (/gchat spam icon on/off)")
+        say("icon beside the chat: " .. (Spam.db.icon and "shown" or "hidden") .. " (/gchat spam icon on/off)")
     elseif cmd == "score" then
         local mode = rest:lower()
         if mode == "off" or mode == "watch" or mode == "hide" then
@@ -330,7 +251,7 @@ local function spam(arg)
         say("test: " .. (reason and ("hidden (" .. reason .. ")") or "shown") .. kinds)
     else
         say("/gchat spam log - what was hidden")
-        say("/gchat spam icon on/off - a tab-strip icon that opens it (" .. (Spam.db.icon and "shown" or "hidden") .. ")")
+        say("/gchat spam icon on/off - an icon beside the chat that opens it (" .. (Spam.db.icon and "shown" or "hidden") .. ")")
         say("/gchat spam cjk on/off - CJK posts in public chat (" .. (Spam.db.cjk and "hidden" or "shown") .. ")")
         say(string.format("/gchat spam repeat <minutes> - repeat window (%g)", Spam.db.repeatWindow / 60))
         say("/gchat spam score [off/watch/hide] - the spam score's log, or its mode (" .. Spam.db.score .. ")")
@@ -343,8 +264,7 @@ end
 
 function UI.Start()
     registerSettings()
-    GC.Skin.ReserveIcons(GC.Skin.CORE_ICONS + (Spam.db.icon and 1 or 0))
-    GC.Chat.OnEachFrame("spam icon", UI.Button)
+    UI.RegisterIcon()
     Spam.onHidden = UI.Blocked
     GC.RegisterSlash("mute", mute)
     GC.RegisterSlash("unmute", unmute)
@@ -364,4 +284,4 @@ function UI.Start()
     GC.Chat.Scan()
 end
 
-UI._test = { buttons = buttons }
+UI._test = { button = function() return GC.Buttons._test.side("spam") end }
