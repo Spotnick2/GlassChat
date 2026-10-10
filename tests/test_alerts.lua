@@ -80,6 +80,15 @@ eq(Alerts.Matches("wts |cffa335ee|Hitem:1:2|h[Onyxia Hide Backpack]|h|r"), true,
 eq(Alerts.Matches("ask " .. plink("Onyxia Hide") .. " now"), true, "your words still match inside another player's link")
 SlashCmdList.GLASSCHAT("alert remove ONYXIA hide")
 eq(#GC.db.alertWords, 0, "removed, however typed")
+-- A word with a dash or curly quotes is kept as messages read (Codex, #85).
+SlashCmdList.GLASSCHAT("alert add onyxia\226\128\148hide")
+eq(GC.db.alertWords[1], "onyxia hide", "the dash is kept as a space, as in a message")
+eq(Alerts.Matches("wts onyxia\226\128\148hide now"), true, "so the same text matches")
+SlashCmdList.GLASSCHAT("alert remove onyxia\226\128\148hide")
+eq(#GC.db.alertWords, 0, "and remove finds it the same way")
+SlashCmdList.GLASSCHAT("alert add \226\128\156quoted\226\128\157")
+eq(GC.db.alertWords[1], "quoted", "curly quotes around a word go")
+GC.db.alertWords = {}
 for i = 1, Alerts.MAX_WORDS + 1 do SlashCmdList.GLASSCHAT("alert add word" .. i) end
 eq(#GC.db.alertWords, Alerts.MAX_WORDS, "at most MAX_WORDS")
 GC.db.alertWords = {}

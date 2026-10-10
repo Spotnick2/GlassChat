@@ -64,6 +64,15 @@ local SEPARATORS = { "\194\160", "\226\128\152", "\226\128\153", "\226\128\156",
 -- player links naming someone else become a space first ("[Example Othername]"
 -- isn't you); an escaped pipe ("||") is set aside so it's never read as one.
 local ESC = "\2"
+
+-- The one folding for both sides, a saved word and a message (Codex, #85):
+-- lower-cased, the separators above as spaces, spaces collapsed. A word
+-- typed with "—" or curly quotes is kept as the message will read.
+function Alerts.Fold(s)
+    s = s:lower()
+    for _, sep in ipairs(SEPARATORS) do s = s:gsub(sep, " ") end
+    return (s:gsub("%s+", " "))
+end
 local function visible(msg, forName)
     local s = msg:gsub("||", ESC)
     if forName then
@@ -73,9 +82,7 @@ local function visible(msg, forName)
         end)
     end
     s = GC.Copy.Plain(s) or ""
-    s = s:gsub(ESC, "|"):lower()
-    for _, sep in ipairs(SEPARATORS) do s = s:gsub(sep, " ") end
-    return (s:gsub("%s+", " "))
+    return Alerts.Fold((s:gsub(ESC, "|")))
 end
 
 -- A phrase at word edges. Bytes >= 0x80 are word bytes, so "examplé" never
@@ -200,8 +207,8 @@ local function oneOf(list, v)
 end
 Alerts.OneOf = oneOf
 
--- A word as kept: trimmed, spaces collapsed, lower-cased.
-local function normalize(p) return (p:gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+", " "):lower()) end
+-- A word as kept: folded as messages are, trimmed.
+local function normalize(p) return (Alerts.Fold(p):gsub("^ ", ""):gsub(" $", "")) end
 
 function Alerts.Command(arg)
     local db = GC.db
