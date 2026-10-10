@@ -384,14 +384,10 @@ GC.SpamScore.Record("CHAT_MSG_CHANNEL", "Score Format", GC.SpamScore.Check("see 
 check(GC.SpamScore.LogText():find("\n%[%d%d:%d%d:%d%d%] %[address%] CHANNEL"), "the score log too")
 db.mutes = {}
 Spam.RebuildMutes()
--- No stray "|" in what's printed: the client reads "|x" as an escape and
--- drops it ("off|watch|hide" showed as "offatchide", owner's screenshot). Only
--- the escapes we mean: colours, links, textures, atlases, a newline, "||".
-local function stray(line)
-    local clean = line:gsub("||", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|H.-|h", ""):gsub("|h", "")
-        :gsub("|[TA].-|[ta]", ""):gsub("|n", "")
-    return clean:find("|", 1, true) ~= nil
-end
+-- No stray "|" in what's printed (#55). Every printed line is checked by the
+-- stub's print (WoW.StrayPipe, at done()); this also runs the help and the
+-- status lines of the copy-style windows, which print doesn't see.
+local stray = WoW.StrayPipe
 local shown = {}
 local realShow = GC.Copy.Show
 GC.Copy.Show = function(title, text, status) shown[#shown + 1] = status or "" end
