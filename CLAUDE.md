@@ -245,13 +245,19 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - **A move** copies the line to the tab (`FCF_OpenNewWindow(addon, true)`, or the open window
     of that name), then removes the newest match from where it landed with
     `RemoveMessagesByPredicate` (oldest to newest, so older identical lines stay).
-  - **Right-click an addon's name** (#35):
+  - **Click an addon's name** (#35, #78):
     - For a line that stays, the shared hook rewrites it once (`decorateLine`): the leading
       coloured prefix becomes `|Haddon:GlassChat:src:<Addon>|h...|h` (`Tabs.Linkify`, only for
       the line `Route` just attributed), then the timestamp is added.
     - A right-click (`SetItemRef`'s button) opens a `MenuUtil.CreateContextMenu` menu. The
       offer's links, the menu and `/gchat tabs route <Addon> [always]` all go through
       `Tabs.SetRule`.
+    - **A plain left-click opens focus mode filtered to that addon** (#78). Shift, Ctrl and Alt
+      clicks do nothing. The menu's first item, "Show its lines", does the same.
+    - **The window** is `SetItemRef`'s 4th argument (ChatFrame.lua:19 passes the clicked frame),
+      used only if it's one of `Chat.Frames()` (another addon's message frame isn't), else the
+      window in view. The menu captures it when it opens, not when an item is picked. Without
+      `MenuUtil`, the fallback links include `tabs:show:<Addon>`.
   - **Developer mode** (`GC.IsDev()`: version "dev" or the unreplaced token;
     `GlassChatDB.devMode` overrides it):
     - an addon named `*Probe` gets its tab at its first line, once a session;
@@ -281,13 +287,33 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
 - **`Focus.lua`** (M4): focus mode.
   - **Opening it:** `/gchat focus [text]`, or the magnifier on the tab strip, slot 2 after the
     copy icon. `Skin.CORE_ICONS = 2`, and a plugin's icon comes after them.
+  - **One addon's lines** (#78): click its `[Name]` (Tabs above), or `/gchat focus from <Addon>`.
+    The name is the folder name, resolved in any case through `API.AddOnName`. Only an exact
+    `from` or `from <one word>` is the command; a word that isn't an installed addon falls back
+    to the search it always was (`from Bob`), with a note. Anything else is a search.
+    - **A requested source stays chosen with no lines** (Codex): falling back to "any" would show,
+      copy and export everything. The status then reads "No attributed X lines in this window's
+      newest N messages".
+    - The status names a source with no lines only when the source alone matches nothing: a
+      search or a kind that empties the view is a count. From, from a source with no lines here,
+      goes to the first source present.
+    - It's the window's newest `Copy.MAX` messages of every kind, not a session log. For a long
+      diagnostic session, route the addon to a tab first.
   - **A frozen snapshot of the window** (`Focus.Snapshot`, through `Copy.Read`, the one
     secret-safe reader both windows use). Each line keeps its kind, from the chat event Blizzard
     passed to `AddMessage`. A line with no event is System when it carries a chat-type id
     (Blizzard's system, loot, money and XP lines: ChatFrameOverrides.lua:211-537), else Addons.
-    An addon line also keeps the addon that wrote it: `Tabs.SourceFor`, a two-generation
-    text → source map that `Tabs.Route` fills, re-keyed by `Chat.Restamped` when the line is
-    stamped.
+    **A line with no event also keeps the addon that wrote it**:
+    - first from our own `src` link, **only when it is the line's decorated prefix**: the line
+      starts with Linkify's colour and link, after nothing but a timestamp, the **whole** lead
+      (`Tabs.LinkedSource`, the one reader of the link's grammar). It outlives the map. Text
+      before it (`Forwarded: …`, stamped or not) or a literal `||` makes it a quote, credited to nobody (Codex,
+      #79);
+    - then, **only for a line with no chat-type id**, `Tabs.SourceFor`: a two-generation
+      text → source map that `Tabs.Route` fills, re-keyed by `Chat.Restamped` when the line is
+      stamped. An addon wrapping `AddMessage` is on the stack for Blizzard's own id lines, so
+      the map would credit loot and system lines to it (review of #79).
+    - A line with an id and our link is Addons (Codex, #78).
   - **`Focus.Filter`:**
     - kinds: a set, empty = all;
     - one source;

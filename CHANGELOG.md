@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **One addon's lines, without the chat in between:** click an addon's name at the start of its
+  lines (the coloured `[AltStable]`) to open focus mode with only that addon's lines from that
+  window. Select all, then Ctrl+C, to copy them. Right-click the name for the same, as "Show its
+  lines", next to the tab choices, or type `/gchat focus from AltStable`. It covers that window's
+  recent lines (the newest 1000): for a long session, give the addon its own tab first.
+
 ## v0.1.0-beta
 
 - **Player levels in chat:** a player's level now shows before their name, `[60:Name]`, coloured

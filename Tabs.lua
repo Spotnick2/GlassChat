@@ -272,6 +272,25 @@ local lastMsg, lastSrc
 
 -- The line with its leading coloured prefix ("|cff..[AltStable]|r") made our
 -- link, its colour kept; nil when it has none, or for any other line.
+-- The addon a line names in our link, only when that link IS the line's
+-- decorated prefix, as Linkify writes it: the line starts with its colour
+-- and our link, after nothing but GlassChat's own plain timestamp (Chat.lua's
+-- stampNow: no "|" in it). Any other text before it, a literal "||" included,
+-- is a quote of a decorated line and names nobody (Codex, #79). The whole
+-- lead must be the timestamp: "[12:00:01] Forwarded: " is a quote too. A
+-- format this doesn't know (a localized AM/PM) only loses the link, and the
+-- line falls back to Tabs.SourceFor. The one reader of the link's grammar
+-- (Focus and OnLink use it).
+local STAMP = "^%[?%d%d?:%d%d[:%d]*%s?[AaPp]?[Mm]?%]?%s*$"
+local LEAD = "^([^|]-)|c%x%x%x%x%x%x%x%x|H" .. Tabs.SRC_LINK:gsub("%p", "%%%0") .. "([%w_%-]+)|h"
+function Tabs.LinkedSource(msg)
+    if API.IsSecret(msg) or type(msg) ~= "string" then return nil end
+    local lead, src = msg:match(LEAD)
+    if not src then return nil end
+    if lead ~= "" and not lead:find(STAMP) then return nil end   -- a timestamp alone, or nothing
+    return src
+end
+
 function Tabs.Linkify(msg)
     if msg ~= lastMsg or not lastSrc or not lastSrc:find("^[%w_%-]+$") then return nil end
     local color, inner, rest = msg:match("^(|c%x%x%x%x%x%x%x%x)(.-)|r(.*)$")
@@ -369,32 +388,60 @@ function Tabs.Request(src)
     return false
 end
 
--- Right-click on an addon's name: a menu of the rules for it.
-function Tabs.Menu(src)
+-- Right-click on an addon's name: a menu of the rules for it, and its lines
+-- in focus mode. frame: the window clicked, resolved now, not when an item is
+-- picked (Codex, #78).
+function Tabs.Menu(src, frame)
     local always = rules()
     Tabs.CheckTab(src)                  -- closed since its last line? (Codex review of #36)
     local routed = Tabs.IsRouted(src)   -- a closed tab isn't routed (review of #36)
     if API.ContextMenu(function(root)
         root:CreateTitle(src)
+        root:CreateButton("Show its lines", function() GC.Focus.Open(frame, "", src) end)
         if not routed then root:CreateButton("Own tab for this session", function() Tabs.SetRule(src, "session") end) end
         if not always[src] then root:CreateButton("Own tab, always", function() Tabs.SetRule(src, "always") end) end
         if routed then root:CreateButton("Back to the main chat", function() Tabs.SetRule(src, "main") end) end
     end) then return end
     -- No menu: the same choices as links.
     local function link(kind, text) return "|H" .. Tabs.LINK .. kind .. ":" .. src .. "|h|cff7fd4ff[" .. text .. "]|r|h" end
-    say(src .. ": " .. link("session", "Own tab for this session") .. " " .. link("always", "Always"))
+    say(src .. ": " .. link("show", "Show its lines") .. " " .. link("session", "Own tab for this session") .. " "
+        .. link("always", "Always"))
 end
 
-function Tabs.OnLink(_, link, _, button)
+-- The chat window a link was clicked in: SetItemRef's 4th argument
+-- (ChatFrame.lua:19 passes the clicked frame), if it is one of the chat
+-- windows. Anything else (nil, a secret, another addon's message frame): nil,
+-- so Focus.Open takes the window in view (Codex, #78; review of #79).
+local function clickedWindow(frame)
+    if API.IsSecret(frame) or type(frame) ~= "table" then return nil end
+    for _, f in ipairs(GC.Chat.Frames()) do
+        if f == frame then return frame end
+    end
+    return nil
+end
+
+local function modified()
+    return IsShiftKeyDown() or IsControlKeyDown() or IsAltKeyDown()
+end
+
+-- An addon's name: a plain left-click shows its lines in focus mode (#78;
+-- modified clicks do nothing, as before); a right-click opens its menu.
+function Tabs.OnLink(_, link, _, button, frame)
     if API.IsSecret(link) or type(link) ~= "string" then return end
-    local src = link:match("^addon:GlassChat:src:(.+)$")
+    local src = link:sub(1, #Tabs.SRC_LINK) == Tabs.SRC_LINK and link:sub(#Tabs.SRC_LINK + 1) or nil
     if src then
-        if not API.IsSecret(button) and button == "RightButton" then Tabs.Menu(src) end
+        if API.IsSecret(button) then return end
+        if button == "RightButton" then
+            Tabs.Menu(src, clickedWindow(frame) or GC.Copy.CurrentFrame())   -- captured now
+        elseif button == "LeftButton" and not modified() then
+            GC.Focus.Open(clickedWindow(frame), "", src)
+        end
         return
     end
     local kind
     kind, src = link:match("^addon:GlassChat:tabs:(%a+):(.+)$")
-    if kind then Tabs.SetRule(src, kind) end
+    if kind == "show" then GC.Focus.Open(clickedWindow(frame), "", src)   -- the no-menu fallback's link
+    elseif kind then Tabs.SetRule(src, kind) end
 end
 
 -- An addon's name as its rule spells it (case-insensitive), else as typed.

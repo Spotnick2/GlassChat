@@ -53,7 +53,13 @@ end
 --------------------------------------------------------------------------------
 
 -- The window's lines, oldest first, the newest Copy.MAX of them (Copy.Read):
--- { text, kind, source, hidden }.
+-- { text, kind, source, hidden }. A line with no chat event gets its writer:
+-- - first from our own link on its prefix (Tabs.LinkedSource), which outlives
+--   the text -> source map (#78);
+-- - then from the map, but only for a line with no chat-type id. Blizzard's
+--   system, loot and money lines carry one, and an addon that wraps
+--   AddMessage would be on the stack for all of them (review of #79). An
+--   addon line with an id is still credited through its link (Codex, #78).
 function Focus.Snapshot(f)
     local entries = GC.Copy.Read(f, "focus read")
     for _, e in ipairs(entries) do
@@ -61,7 +67,11 @@ function Focus.Snapshot(f)
             e.kind = "System"
         else
             e.kind = Focus.KindOf(e.event, e.id)
-            if e.kind == "Addons" then e.source = GC.Tabs.SourceFor(e.raw) end
+            if not API.IsSecret(e.event) and e.event == nil then
+                local src = GC.Tabs.LinkedSource(e.raw)
+                if not src and e.kind == "Addons" then src = GC.Tabs.SourceFor(e.raw) end
+                if src then e.kind, e.source = "Addons", src end
+            end
         end
         e.raw, e.id, e.event = nil, nil, nil
     end
@@ -118,7 +128,15 @@ local function render()
     for i, e in ipairs(shown) do texts[i] = e.text end
     win.text = table.concat(texts, "\n")
     win.edit:SetText(win.text)
-    win.status:SetText(#shown .. " of " .. #state.lines .. " lines")
+    -- Only when the source itself has no lines: a search or a kind that empties
+    -- the view isn't "no lines" (review of #79).
+    if state.source and #shown == 0 and #Focus.Filter(state.lines, {}, state.source, "", false) == 0 then
+        -- "attributed": a line whose writer is unknown can't be counted (#78).
+        win.status:SetText("No attributed " .. state.source .. " lines in this window's newest "
+            .. #state.lines .. " messages")
+    else
+        win.status:SetText(#shown .. " of " .. #state.lines .. " lines")
+    end
     for _, kind in ipairs(Focus.KINDS) do
         win.chips[kind]:SetAlpha((not next(state.kinds) or state.kinds[kind]) and 1 or 0.4)
     end
@@ -126,14 +144,11 @@ local function render()
     win.context:SetText(state.context and "With context" or "Matches only")
 end
 
+-- A chosen source stays chosen with no lines in the snapshot: falling back to
+-- "any" would show, copy and export everything (Codex, #78).
 local function snapshot()
     state.lines = Focus.Snapshot(state.frame)
     state.count = GC.Chat.LineCount(state.frame)
-    if state.source then
-        local present = false
-        for _, s in ipairs(sources(state.lines)) do if s == state.source then present = true end end
-        if not present then state.source = nil end
-    end
     win.newer:Hide()
     render()
 end
@@ -165,11 +180,11 @@ local function build()
     win.search = search
     win.from = API.Button(win, "From: any", 160, function()
         local list = sources(state.lines)
-        local nextOne
-        if not state.source then nextOne = list[1] else
-            for i, s in ipairs(list) do if s == state.source then nextOne = list[i + 1] end end
-        end
-        state.source = nextOne
+        local at
+        for i, s in ipairs(list) do if s == state.source then at = i end end
+        -- The next one present; from "any", or from a source with no lines here, the
+        -- first (review of #79). After the last: any.
+        state.source = list[at and at + 1 or 1]
         render()
     end)
     win.from:SetPoint("LEFT", search, "RIGHT", 12, 0)
@@ -246,12 +261,13 @@ local function build()
 end
 
 -- Open focus mode on a chat window (the one in view by default), with an
--- optional search.
-function Focus.Open(f, search)
+-- optional search and an optional source (an addon's folder name: only its
+-- lines, #78).
+function Focus.Open(f, search, source)
     f = f or GC.Copy.CurrentFrame()
     if not f then return end
     if not win then build() end
-    state.frame, state.kinds, state.source, state.context = f, {}, nil, false
+    state.frame, state.kinds, state.source, state.context = f, {}, source, false
     win.title:SetText("Focus: " .. GC.Copy.WindowName(f))
     win:Show()
     win.quiet = true   -- set the search without a render; snapshot renders once

@@ -249,11 +249,12 @@ SlashCmdList.GLASSCHAT("stamps off")
 
 WoW.menu = nil
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:AltStable", "[AltStable]", "LeftButton")
-eq(WoW.menu, nil, "a left-click opens nothing")
+eq(WoW.menu, nil, "a left-click opens no menu (it shows the lines: test_focus)")
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:AltStable", "[AltStable]", "RightButton")
 check(WoW.menu and WoW.menu.title == "AltStable", "a right-click opens its menu")
-eq(#WoW.menu.buttons, 2, "two choices while it has no tab")
-WoW.menu.buttons[1].fn()
+eq(#WoW.menu.buttons, 3, "its lines and two choices while it has no tab")
+eq(WoW.menu.buttons[1].text, "Show its lines", "its lines first")
+WoW.menu.buttons[2].fn()
 check(Tabs.IsRouted("AltStable"), "'Own tab for this session' routes it")
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:AltStable", "[AltStable]", "RightButton")
 eq(WoW.menu.buttons[#WoW.menu.buttons].text, "Back to the main chat", "now it offers the way back")
@@ -327,7 +328,7 @@ for _, e in ipairs(main._lines) do if type(e.m) == "string" and e.m:find("after 
 check(afterClose and afterClose:find("|Haddon:GlassChat:src:AltStable|h", 1, true), "the line that brings the tab-closed notice keeps its link")
 check(not GC.RequestTab("AltStable"), "a request for a closed tab says no")
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:AltStable", "[AltStable]", "RightButton")
-eq(WoW.menu.buttons[1].text, "Own tab for this session", "the menu offers the tab again after it was closed")
+eq(WoW.menu.buttons[2].text, "Own tab for this session", "the menu offers the tab again after it was closed")
 for _, b in ipairs(WoW.menu.buttons) do check(b.text ~= "Back to the main chat", "and not the way back: " .. b.text) end
 -- Codex review of #36, round 2.
 -- A probe with a SAVED rule, forgotten, stays in the main chat.
@@ -348,8 +349,8 @@ Tabs.SetRule("Shut", "always")
 emit(direct("Shut"), "|cffaaaaff[Shut]|r one")
 for i = 4, 10 do if WoW.window(i).name == "Shut" then WoW.window(i).shown, WoW.window(i).docked = false, nil end end
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:src:Shut", "[Shut]", "RightButton")
-eq(WoW.menu.buttons[1].text, "Own tab for this session", "right after closing it, the menu offers the tab again")
-WoW.menu.buttons[1].fn()
+eq(WoW.menu.buttons[2].text, "Own tab for this session", "right after closing it, the menu offers the tab again")
+WoW.menu.buttons[2].fn()
 emit(direct("Shut"), "|cffaaaaff[Shut]|r two")
 local reopened = false
 for i = 4, 10 do if WoW.window(i).name == "Shut" and WoW.window(i).shown then reopened = true end end
