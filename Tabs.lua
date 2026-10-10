@@ -103,6 +103,7 @@ local tabs = {}         -- addon -> chat frame
 local offered = {}      -- addon -> true: asked this session
 local devDone = {}      -- addon -> true: developer mode already routed or released it
 local released = {}     -- addon -> true: sent back to the main chat this session; its open tab doesn't catch it
+local adopted = {}      -- addon -> true: caught by its open tab (#81); routed only while catching is on
 local loading = true    -- the game is still loading (see LOAD_QUIET)
 local quietGen = 0      -- the latest quiet; an older timer never ends a newer one
 local function quietFor(seconds)
@@ -121,9 +122,12 @@ local function rules()
     return db.routes, db.routeNever
 end
 
+-- A tab caught by its name (adopted) counts only while catching is on:
+-- /gchat tabs catch off stops it at once, while a rule the player chose
+-- (session, Always) stays (Codex, #82).
 function Tabs.IsRouted(src)
     local always = rules()
-    return (session[src] or always[src]) and not closed[src]
+    return (session[src] or always[src] or (adopted[src] and GC.db.tabsCatch)) and not closed[src]
 end
 
 --------------------------------------------------------------------------------
@@ -150,7 +154,7 @@ function Tabs.CheckTab(src)
     local ok, wname, _, _, _, _, _, shown, _, docked = pcall(GetChatWindowInfo, f:GetID())
     if ok and not API.IsSecret(wname) and wname == src and (shown or docked) then return end
     tabs[src] = nil
-    if session[src] or rules()[src] then closed[src] = true end
+    if session[src] or adopted[src] or rules()[src] then closed[src] = true end
 end
 
 local function tabFor(src)
@@ -321,7 +325,7 @@ function Tabs.Route(f, msg, r, g, b)
     -- Never or "Back to the main chat" stops it. /gchat tabs catch off: never.
     if GC.db.tabsCatch and not released[src] and not Tabs.IsRouted(src) and not closed[src] then
         local _, never = rules()
-        if not never[src] and openWindow(src) then session[src] = true end
+        if not never[src] and openWindow(src) then adopted[src] = true end
     end
     -- lastMsg/lastSrc are set right before the line's rewrite needs them (the
     -- returns below, the copy into its tab): a notice printed meanwhile goes
@@ -362,7 +366,7 @@ end
 function Tabs.SetRule(src, kind)
     local always, never = rules()
     devDone[src] = true   -- a choice made: developer mode leaves it alone
-    if kind == "session" or kind == "always" then Tabs.CheckTab(src); released[src] = nil end   -- no stale closed frame kept
+    if kind == "session" or kind == "always" then Tabs.CheckTab(src); released[src], adopted[src] = nil, nil end   -- no stale closed frame kept
     if kind == "session" then
         -- This session only: a saved Always goes (Codex review of #36).
         session[src], closed[src], never[src], always[src] = true, nil, nil, nil
@@ -374,7 +378,7 @@ function Tabs.SetRule(src, kind)
         never[src], always[src], session[src] = true, nil, nil
         say("ok, " .. src .. " stays in the main chat; GlassChat won't ask again (/gchat tabs forget " .. src .. ")")
     elseif kind == "main" then
-        always[src], session[src], released[src] = nil, nil, true
+        always[src], session[src], adopted[src], released[src] = nil, nil, nil, true
         say(src .. "'s lines go back to the main chat (its tab stays until you close it"
             .. (GC.db.tabsCatch and ", and catches them again next session" or "") .. ")")
     end
@@ -490,8 +494,8 @@ function Tabs.Command(arg)
     if forget then
         forget = known(forget)
         devDone[forget], released[forget] = true, true   -- a saved rule forgotten stays forgotten (Codex review of #36)
-        local was = always[forget] or never[forget] or session[forget]
-        always[forget], never[forget], session[forget], offered[forget] = nil, nil, nil, nil
+        local was = always[forget] or never[forget] or session[forget] or adopted[forget]
+        always[forget], never[forget], session[forget], adopted[forget], offered[forget] = nil, nil, nil, nil, nil
         say(was and ("forgot " .. forget .. ": its lines stay in the main chat, and it may be offered a tab again")
             or ("no rule for " .. forget))
         return
@@ -499,6 +503,10 @@ function Tabs.Command(arg)
     local any = false
     for src in pairs(always) do any = true; say("own tab, always: " .. src .. (closed[src] and " (closed this session)" or "")) end
     for src in pairs(session) do any = true; say("own tab, this session: " .. src) end
+    for src in pairs(adopted) do
+        any = true
+        say("caught by its open tab: " .. src .. (GC.db.tabsCatch and "" or " (catching is off)"))
+    end
     for src in pairs(never) do any = true; say("never asked: " .. src) end
     if not any then say("no tab rules yet: a chatty addon is offered its own tab") end
     say("/gchat tabs route <Addon> [always] - its own tab (or right-click its name in chat)")
@@ -530,7 +538,9 @@ function Tabs.Start()
 end
 
 Tabs._test = {
-    reset = function() session, closed, tabs, offered, recent, moving, devDone, released = {}, {}, {}, {}, {}, false, {}, {} end,
+    reset = function()
+        session, closed, tabs, offered, recent, moving, devDone, released, adopted = {}, {}, {}, {}, {}, false, {}, {}, {}
+    end,
     loaded = function() loading = false end,
     sources = function() return current, previous end,
 }

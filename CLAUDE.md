@@ -287,7 +287,8 @@ holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIG
   - **An open tab named after an addon keeps catching its lines** (owner, #81; `db.tabsCatch`,
     `/gchat tabs catch on|off`, on by default), while the game loads too. Blizzard saves chat
     windows per character, so a session tab comes back at the next login with no rule behind it
-    and sat empty. It's adopted as a session rule at the addon's first line. A Never, "Back to the
+    and sat empty. It's adopted at the addon's first line (`adopted`, kept apart from session
+    rules so `catch off` stops it at once; Codex, #82). A Never, "Back to the
     main chat" or `forget` (`released`, this session) and a closed tab stop it.
 - **`Focus.lua`** (M4): focus mode.
   - **Opening it:** `/gchat focus [text]`, or the magnifier on the tab strip, slot 2 after the
