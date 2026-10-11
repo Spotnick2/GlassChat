@@ -83,7 +83,7 @@ TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
 The material is **LibGlass-1.0**, an embedded LibStub library (`..\LibGlass`,
 github.com/Spotnick2/LibGlass, public, MIT) that every glass addon embeds. Its repo owns the code,
 the textures, the generator and the write-up (`docs/GLASS-MATERIAL.md`), and its `CLAUDE.md`
-holds the contract. The migration notes are `C:\Projects\References\LIBGLASS-MIGRATION.md`.
+holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS-MIGRATION.md`.
 
 - **Material changes are LibGlass PRs**, never edits here, and never edits to `..\LibGlass` from a
   GlassChat session: a bug or a need found here goes on a LibGlass issue.
@@ -528,16 +528,16 @@ exists here.
 
 ## References: read these before touching an unfamiliar API
 
-- `C:\Projects\References\PORTING-TBC-TO-FOREVER.md` holds the canonical addon-agnostic field
+- `C:\Projects\WoW\References\PORTING-TBC-TO-FOREVER.md` holds the canonical addon-agnostic field
   notes, measured on the live client. Treat them as fact; don't re-derive them. Other sessions
   edit this file, so write new addon-agnostic findings there (it has no chat section yet; the
   probe results belong in one), not into a copy in this repo.
-- `C:\Projects\References\forever-api-1.60.1.70291.md` is the full API dump for the current
+- `C:\Projects\WoW\References\forever-api-1.60.1.70291.md` is the full API dump for the current
   build. It lists documented functions and events, enums, **widget methods** (the only list of
   those) and the `_G` walk. FrameXML tables such as `ChatTypeInfo` aren't in it. It proves a name
   exists, not that it works. **Presence is not a contract.**
 - For a live check in game: `/api search <name>`, `/api system list`, `/api <system> list`.
-- **`C:\Projects\wow-ui-source` is Forever's own FrameXML** (branch `forever`). Read Blizzard code
+- **`C:\Projects\WoW\wow-ui-source` is Forever's own FrameXML** (branch `forever`). Read Blizzard code
   there first: line numbers in in-game error traces match it. For chat:
   - `Blizzard_ChatFrameBase/Shared/ChatFrame.lua`: `OnEvent`, `OnHyperlinkClick` firing
     `EventRegistry`;
@@ -555,7 +555,7 @@ exists here.
 
 ## Reference addon
 
-**`C:\Projects\References\Prat-3.0` is the design reference** for *what* a chat addon does. It is
+**`C:\Projects\WoW\References\Prat-3.0` is the design reference** for *what* a chat addon does. It is
 Forever-aware (`Prat-3.0_Camelot.toc`, `Prat.IsForever`), but its *mechanism* (above) is the one
 we don't use. Worth reading:
 - `modules\UrlCopy.lua`: URL patterns and the TLD list;
