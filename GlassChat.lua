@@ -22,6 +22,7 @@ local DEFAULTS = {
     urls = true,           -- web addresses in chat become click-to-copy links
     timestamps = false,    -- HH:MM:SS on every line, addon output included (owner: off by default)
     levels = true,         -- "[60:Name]": a known player's level before their name (Prat's default)
+    tabsCatch = true,      -- an open tab named after an addon catches its lines (#81)
 }
 GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default
 
@@ -128,6 +129,10 @@ end
 
 function Settings.SetLevels(on)
     GC.db.levels = on and true or false
+end
+
+function Settings.SetTabsCatch(on)
+    GC.db.tabsCatch = on and true or false
 end
 
 function Settings.SetShortChannels(on)

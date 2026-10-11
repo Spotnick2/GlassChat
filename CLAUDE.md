@@ -284,6 +284,12 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
     active one hides the box being typed in, and its `OnHide` clears the draft (Codex, #26).
   - It never offers Blizzard, GlassChat or its plugins, and never moves a secret line. A closed
     tab sends that addon's lines back to the main chat for the session.
+  - **An open tab named after an addon keeps catching its lines** (owner, #81; `db.tabsCatch`,
+    `/gchat tabs catch on|off`, on by default), while the game loads too. Blizzard saves chat
+    windows per character, so a session tab comes back at the next login with no rule behind it
+    and sat empty. It's adopted at the addon's first line (`adopted`, kept apart from session
+    rules so `catch off` stops it at once; Codex, #82). A Never, "Back to the
+    main chat" or `forget` (`released`, this session) and a closed tab stop it.
 - **`Focus.lua`** (M4): focus mode.
   - **Opening it:** `/gchat focus [text]`, or the magnifier on the tab strip, slot 2 after the
     copy icon. `Skin.CORE_ICONS = 2`, and a plugin's icon comes after them.

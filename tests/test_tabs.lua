@@ -286,8 +286,8 @@ newChat()
 check(not GC.RequestTab("OtherTool"), "outside dev mode a request isn't granted")
 check(chatHas("OtherTool asks for its own chat tab") and chatHas("|Haddon:GlassChat:tabs:session:OtherTool|h"),
     "the player is offered the tab instead, saying why")
-emit(direct("GlassProbe"), "not dev")
-check(not Tabs.IsRouted("GlassProbe"), "and probe names aren't special")
+emit(direct("FreshProbe"), "not dev")   -- no tab of its name open (GlassProbe's still is: it catches, #81)
+check(not Tabs.IsRouted("FreshProbe"), "and probe names aren't special")
 
 -- Review of #36. Here print reaches the chat as in the client (Blizzard's
 -- print handler calls DEFAULT_CHAT_FRAME:AddMessage), so GlassChat's own
@@ -427,6 +427,80 @@ check(Tabs.Loading(), "a secret argument is taken as a login")
 WoW.flushTimers(Tabs.LOAD_QUIET)
 check(not Tabs.Loading(), "and its quiet ends on time")
 GC.db.devMode = false
+
+-- #81: a tab left open from an earlier session, named after its addon, keeps
+-- catching its lines, while the game loads too.
+local function catcher(name)
+    for i = 4, 10 do
+        local w = WoW.window(i)
+        if w.name == name then return _G["ChatFrame" .. i] end
+        if w.name == "" or not (w.shown or w.docked) then
+            w.name, w.shown, w.docked = name, true, i
+            WoW.makeChatFrames(i)
+            return _G["ChatFrame" .. i]
+        end
+    end
+end
+Tabs._test.reset()   -- a new session: no session rules
+WoW.fire("PLAYER_ENTERING_WORLD", true, false)
+check(Tabs.Loading(), "a login: the game is loading")
+local kept = catcher("KeptProbe")
+local openedNow = opened
+emit(direct("KeptProbe"), "kept loaded")
+check(has(kept, "kept loaded") and not has(main, "kept loaded"), "its open tab catches its line, while the game loads")
+eq(opened, openedNow, "no new tab for it")
+check(Tabs.IsRouted("KeptProbe"), "it's routed for the session")
+emit(direct("Stranger"), "stranger loaded")
+check(has(main, "stranger loaded"), "an addon with no tab of its name stays in the main chat")
+Tabs.SetRule("KeptProbe", "main")
+check(chatHas("catches them again next session"), "Back to the main chat says the tab catches again next session")
+emit(direct("KeptProbe"), "kept back")
+check(has(main, "kept back") and not has(kept, "kept back"), "Back to the main chat: the open tab no longer catches it")
+Tabs._test.reset()
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:never:KeptProbe")
+emit(direct("KeptProbe"), "kept never")
+check(has(main, "kept never"), "a Never wins over the open tab")
+SlashCmdList.GLASSCHAT("tabs forget KeptProbe")
+Tabs._test.reset()
+SlashCmdList.GLASSCHAT("tabs catch off")
+check(not GC.db.tabsCatch, "/gchat tabs catch off")
+emit(direct("KeptProbe"), "kept off")
+check(has(main, "kept off") and not Tabs.IsRouted("KeptProbe"), "off: the open tab doesn't catch")
+SlashCmdList.GLASSCHAT("tabs catch on")
+check(GC.db.tabsCatch, "/gchat tabs catch on")
+emit(direct("KeptProbe"), "kept on")
+check(has(kept, "kept on"), "on again: it catches")
+-- Off after the tab already caught (Codex, #82): it stops at once.
+SlashCmdList.GLASSCHAT("tabs catch off")
+emit(direct("KeptProbe"), "kept after off")
+check(has(main, "kept after off") and not has(kept, "kept after off"), "catching off stops a tab that already caught")
+check(not Tabs.IsRouted("KeptProbe"), "it's no longer routed")
+SlashCmdList.GLASSCHAT("tabs catch on")
+emit(direct("KeptProbe"), "kept back on")
+check(has(kept, "kept back on"), "and on again, it catches again")
+-- Never after the tab already caught (Codex follow-up, #82): it stops.
+WoW.callbacks.SetItemRef(nil, "addon:GlassChat:tabs:never:KeptProbe")
+emit(direct("KeptProbe"), "kept after never")
+check(has(main, "kept after never") and not has(kept, "kept after never"), "a Never stops a tab that already caught")
+SlashCmdList.GLASSCHAT("tabs forget KeptProbe")
+Tabs._test.reset()
+emit(direct("KeptProbe"), "kept caught again")
+check(has(kept, "kept caught again"), "(caught again after forgetting the Never, in a new session)")
+-- Forget, typed in another case, finds a caught tab (Codex follow-up, #82).
+newChat()
+SlashCmdList.GLASSCHAT("tabs forget keptprobe")
+check(chatHas("forgot KeptProbe"), "forget finds a caught tab's real name, whatever the case")
+emit(direct("KeptProbe"), "kept forgotten")
+check(has(main, "kept forgotten") and not has(kept, "kept forgotten"), "and its lines stay in the main chat")
+Tabs._test.reset()
+emit(direct("KeptProbe"), "kept new session")
+-- A rule the player chose isn't touched by the setting.
+Tabs.SetRule("KeptProbe", "session")
+SlashCmdList.GLASSCHAT("tabs catch off")
+emit(direct("KeptProbe"), "kept chosen")
+check(has(kept, "kept chosen"), "a chosen session rule keeps routing with catching off")
+SlashCmdList.GLASSCHAT("tabs catch on")
+WoW.flushTimers(Tabs.LOAD_QUIET)
 
 eq(next(GC.failures), nil, "nothing failed")
 done("test_tabs")
