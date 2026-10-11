@@ -16,8 +16,8 @@ Everything else Prat does is out unless asked for.
 
 ## How Prat does it, and what that means for us
 
-Research notes on `C:\Projects\References\Prat-3.0` and Forever's own FrameXML
-(`C:\Projects\wow-ui-source`, branch `forever`):
+Research notes on `C:\Projects\WoW\References\Prat-3.0` and Forever's own FrameXML
+(`C:\Projects\WoW\wow-ui-source`, branch `forever`):
 
 - **Prat doesn't replace the chat; it extends the stock frames.** It reuses `ChatFrame1..10` and
   creates no windows of its own. What it does replace is the message pipeline. It assigns its own
