@@ -27,6 +27,10 @@
 - **Spam & Ignore's icon** (`/gchat spam icon on`) moved from the tab strip to beside the chat,
   just above the alerts button, in the same colours: gold at rest, green and pulsing while hidden
   lines wait. The tab strip gets its room back.
+- **Smart tabs keep catching:** an addon's tab left open from an earlier session now gets that
+  addon's lines again, including the ones it prints while the game loads, instead of sitting
+  empty while they land in the main chat. Close the tab, or choose "Back to the main chat", to
+  stop it. `/gchat tabs catch off` turns it off.
 
 ## v0.1.0-beta
 

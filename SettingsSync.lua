@@ -163,6 +163,7 @@ function SS.RegisterCore()
         coreKey("alertName", "e", "SetAlertName", nil, nil, "alert on your name", GC.Alerts.NAME_MODES),
         coreKey("alertSound", "e", "SetAlertSound", nil, nil, "alert sound", GC.Alerts.SOUND_NAMES),
         coreKey("alertFlash", "b", "SetAlertFlash", nil, nil, "alert flash"),
+        coreKey("tabsCatch", "b", "SetTabsCatch", nil, nil, "tabs catching their addon"),
     }
     local looks = {}
     for k in pairs(GC.Skin.LOOK) do looks[#looks + 1] = k end

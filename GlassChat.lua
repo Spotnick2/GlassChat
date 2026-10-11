@@ -26,6 +26,7 @@ local DEFAULTS = {
     alertName = "first",   -- first / full / off: which of your names counts
     alertSound = "lfg",    -- lfg (LFG Bulletin Board's, owner's pick) / raid / ready / tell / off
     alertFlash = true,     -- blink the game in the taskbar on an alert
+    tabsCatch = true,      -- an open tab named after an addon catches its lines (#81)
 }
 GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default
 
@@ -150,6 +151,10 @@ end
 
 function Settings.SetAlertFlash(on)
     GC.db.alertFlash = on and true or false
+end
+
+function Settings.SetTabsCatch(on)
+    GC.db.tabsCatch = on and true or false
 end
 
 function Settings.SetShortChannels(on)

@@ -85,13 +85,13 @@ For GlassChat, good things to hand Codex:
   extending it.
 
 **Always hand it `CLAUDE.md` and `docs/PLAN.md` alongside the diff or plan**, plus
-`C:/Projects/References/PORTING-TBC-TO-FOREVER.md` and any `docs/` probe results. Those findings
+`C:/Projects/WoW/References/PORTING-TBC-TO-FOREVER.md` and any `docs/` probe results. Those findings
 were measured on the live client. Without them, a cold reviewer argues from Classic-era or Retail
 behaviour that doesn't hold here: that chat payloads may be secret, that names carry surnames,
 that secure snippets are broken.
-`C:/Projects/References/forever-api-1.60.1.70291.md` is the full API surface when a question
-turns on whether something exists, and `C:/Projects/wow-ui-source` (branch `forever`) is the
-client's own FrameXML. The design reference is `C:/Projects/References/Prat-3.0`; its
+`C:/Projects/WoW/References/forever-api-1.60.1.70338.md` is the full API surface when a question
+turns on whether something exists, and `C:/Projects/WoW/wow-ui-source` (branch `forever`) is the
+client's own FrameXML. The design reference is `C:/Projects/WoW/References/Prat-3.0`; its
 mechanism (replacing the message handler, RawHooks) is the part we deliberately don't use.
 
 Say what you have already established and ask it not to repeat that work. A clean "no defect found"
