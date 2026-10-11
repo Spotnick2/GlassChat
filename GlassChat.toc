@@ -20,6 +20,7 @@ Tabs.lua
 Focus.lua
 Url.lua
 Levels.lua
+Alerts.lua
 AccountSync.lua
 SettingsSync.lua
 GlassChat.lua

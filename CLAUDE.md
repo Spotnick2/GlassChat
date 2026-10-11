@@ -55,7 +55,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 
 TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
 `Libs\LibAccountSync-1.0\LibAccountSync-1.0.xml` (own-account messaging) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `Levels.lua` →
+`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `Levels.lua` → `Alerts.lua` →
 `AccountSync.lua` → `SettingsSync.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
@@ -200,6 +200,28 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
       `symbol[name]` step: the bubble, pressed (1 px down) and disabled (dimmed); or the friends
       symbol, applied once per glass change so a scan never overrides Blizzard's pressed art.
   - Run after every scan through `Chat.AfterScan`.
+  - **Side buttons** (#83, #86): `Buttons.Side(key, opts)` is GlassChat's own button beside the
+    chat. It's used by the alerts `!` (order 1) and Spam & Ignore's icon (order 2).
+    - **Where: Blizzard's own stack above the button column, `ChatAlertFrame`** (owner's pick
+      after Codex, #85). That is where text-to-speech (priority 0, TextToSpeech.lua:14-15) and
+      Blizzard's toasts live: Battle.net 1, session time 2, voice prompts 10-11, voice activity 19+.
+      - Stacked inside the column, they were covered by the voice buttons, which grow down from
+        its top in a short window.
+      - Each is a plain `Button` given `ContainedAlertFrameMixin` (the methods the container calls
+        on it) and added with `AddAutoAnchoredSubSystem` at `SIDE_PRIORITY + order / 100` (0.51,
+        0.52). That puts them right above text-to-speech and below the toasts, so a toast pops
+        above them.
+      - Blizzard lays them out (AlertFrames.lua:417-427). `RefreshSides` calls `UpdateAnchors`
+        after showing or hiding one.
+      - A client without the container stacks them above the chat-menu bubble.
+      - **Unmeasured:** the container's layout code now runs over our frames (taint). Watch for
+        `ADDON_ACTION_BLOCKED` naming GlassChat.
+    - **Look:** their neighbours' colours (owner), gold at rest. While something waits
+      (`count()`), they turn green with a green glow and a count, as the channel button turns
+      into the green headset (ChannelFrameButtonMixin.lua:20-21), and the symbol pulses until
+      clicked.
+    - **Lifecycle:** built at the first scan that shows one, re-stacked every scan.
+      `Buttons.PaintSide(key)` repaints one after its count changed.
 - **`Layout.lua`** (M2, #9): one chat layout for every character. Chat windows are saved per
   character (measured).
   - `/gchat layout save` records each window through `FCF_GetChatWindowInfo`, which maps the
@@ -361,6 +383,34 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
     Battle.net lines (`CHAT_MSG_BN_*`) name the account, so neither do they. An unknown sender, a
     secret or the setting off returns nil, which keeps the stock name. The level is coloured with
     `GetQuestDifficultyColor`, plain when that fails.
+- **`Alerts.lua`** (#83; plan reviewed by Codex): a sound when chat mentions you or your words
+  (`db.alerts`, on by default; `/gchat alert`).
+  - **One read-only message filter** on public and group chat (`Alerts.EVENTS`). Never whispers,
+    Battle.net lines, `TEXT_EMOTE` or your own lines (sender GUID). It returns plain `false`.
+  - **It goes in at `PLAYER_LOGIN`**, after `Url.AddFilters()` and after the Spam & Ignore filter
+    (added at the plugin's `ADDON_LOADED`). A hiding filter stops the loop, so hidden spam never
+    alerts.
+  - **Your names**, read at login and never saved (`API.PlayerFullName`):
+    - `db.alertName` is `first` (default: the first name as a whole word), `full` ("First
+      Surname") or `off`.
+    - First names aren't unique, so **a player link naming someone else becomes a space** before
+      the name is matched. It's you only for your full name, alone or with `-` and your own realm
+      (`GetNormalizedRealmName`).
+  - **Your words:** `GlassChatDB.alertWords`, account-wide, at most 20 of 40 bytes. Not sent by
+    settings sync. They are matched on `Copy.Plain`'s text, so they match inside item and player
+    links too.
+  - **Word edges:** bytes >= 0x80 are word bytes. A few non-ASCII separators (no-break space,
+    curly quotes, guillemets, dashes, the ellipsis) are mapped to spaces first. `lower()` is
+    ASCII-only.
+  - **The alert:**
+    - `PlaySound(kit, "Master")`: raid warning 8959, ready check 8960, tell 3081 or `lfg`
+      1210 (LFG Bulletin Board's, no SOUNDKIT name; the default, owner's pick) (`db.alertSound`). A false `willPlay` is reported as "did not play".
+    - `FlashClientIcon()` (`db.alertFlash`), independent of the sound.
+    - Both at most once per `Alerts.EVERY` (5 s), and once per `(event, lineID)`.
+  - **The log and its button** (owner): every matching line goes into a session log
+    (`Alerts.LOG_SIZE`). The `!` is side button 1 (`Buttons.Side`), in Blizzard's stack above
+    the button column. It's green, pulsing and counting while alerts wait, and a click lists them
+    (`Copy.Show`).
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
   - **One instance per snapshot kind, on one store** (`AS.insts`, tag → instance): `GlassChat`
@@ -433,7 +483,8 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
   client does, and `test_toc` checks the list, the TOC and the `move-folders` line. A plugin uses:
   - `GC.RegisterSlash(sub, fn, help)` for `/gchat <sub>`;
   - `GC.Chat.OnEachFrame` / `Chat.Scan`;
-  - `GC.Skin.Panel(f)`, `Skin.ReserveIcons(n)` and `STRIP_ICON_STEP` for a tab-strip icon;
+  - `GC.Skin.Panel(f)`, `Skin.ReserveIcons(n)` and `STRIP_ICON_STEP` for a tab-strip icon, or
+    `GC.Buttons.Side` for a button beside the chat;
   - `GC.Copy.Show(title, text, status)` for a text window.
 - **`Plugins/SpamIgnore/`** (Spam & Ignore, S1, #19; plan: `docs/PLAN-SPAM.md`):
   - **One filter, two policies.** Explicit GUID ignores apply to every player-chat event, guild
@@ -518,8 +569,8 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
     household key, so it's never read whole into a session (review of #59). The default comes from
     `GC.IsDev()` (fails closed); `/gchat spam collect default` clears a saved on/off, and a dev
     build collecting by default says so at login.
-  - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** tab-strip icon
-    (`/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
+  - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** icon beside the
+    chat, side button 2, above the alerts `!` (#86; `/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
     unreplaced) and an eye in a release, and the debug log shows the event too.
 - **`Tools/ChatProbe/`**: the throwaway measurement addon (`/cprobe help`). It logs every line to
   `ChatProbeDB.log` in SavedVariables, so after a full client exit the session is on disk at

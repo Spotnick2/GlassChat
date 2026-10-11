@@ -126,9 +126,9 @@ end
 
 -- The core's keys, read and set at call time (GC.db and GC.Settings exist
 -- from GlassChat's ADDON_LOADED on).
-local function coreKey(key, typ, setter, lo, hi, label)
+local function coreKey(key, typ, setter, lo, hi, label, values)
     return {
-        key = key, type = typ, lo = lo, hi = hi, label = label or key,
+        key = key, type = typ, lo = lo, hi = hi, label = label or key, values = values,
         default = function() return GC.DEFAULTS[key] end,
         get = function() return rawget(GC.db, key) end,
         set = function(v) GC.Settings[setter](v) end,
@@ -159,6 +159,10 @@ function SS.RegisterCore()
         coreKey("urls", "b", "SetUrls", nil, nil, "click-to-copy addresses"),
         coreKey("timestamps", "b", "SetTimestamps"),
         coreKey("levels", "b", "SetLevels", nil, nil, "player levels"),
+        coreKey("alerts", "b", "SetAlerts", nil, nil, "alerts"),
+        coreKey("alertName", "e", "SetAlertName", nil, nil, "alert on your name", GC.Alerts.NAME_MODES),
+        coreKey("alertSound", "e", "SetAlertSound", nil, nil, "alert sound", GC.Alerts.SOUND_NAMES),
+        coreKey("alertFlash", "b", "SetAlertFlash", nil, nil, "alert flash"),
         coreKey("tabsCatch", "b", "SetTabsCatch", nil, nil, "tabs catching their addon"),
     }
     local looks = {}

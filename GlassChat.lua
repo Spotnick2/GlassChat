@@ -22,6 +22,10 @@ local DEFAULTS = {
     urls = true,           -- web addresses in chat become click-to-copy links
     timestamps = false,    -- HH:MM:SS on every line, addon output included (owner: off by default)
     levels = true,         -- "[60:Name]": a known player's level before their name (Prat's default)
+    alerts = true,         -- a sound when chat mentions you or your words (#83)
+    alertName = "first",   -- first / full / off: which of your names counts
+    alertSound = "lfg",    -- lfg (LFG Bulletin Board's, owner's pick) / raid / ready / tell / off
+    alertFlash = true,     -- blink the game in the taskbar on an alert
     tabsCatch = true,      -- an open tab named after an addon catches its lines (#81)
 }
 GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default
@@ -131,6 +135,24 @@ function Settings.SetLevels(on)
     GC.db.levels = on and true or false
 end
 
+function Settings.SetAlerts(on)
+    GC.db.alerts = on and true or false
+    GC.Chat.Scan()   -- the button beside the chat
+end
+
+-- The choices are checked here too: settings sync calls the same setters.
+function Settings.SetAlertName(v)
+    if GC.Alerts.OneOf(GC.Alerts.NAME_MODES, v) then GC.db.alertName = v end
+end
+
+function Settings.SetAlertSound(v)
+    if GC.Alerts.OneOf(GC.Alerts.SOUND_NAMES, v) then GC.db.alertSound = v end
+end
+
+function Settings.SetAlertFlash(on)
+    GC.db.alertFlash = on and true or false
+end
+
 function Settings.SetTabsCatch(on)
     GC.db.tabsCatch = on and true or false
 end
@@ -179,6 +201,7 @@ local function help()
     say("/gchat channels on/off - drop the zone from channel names (" .. onOff(db.shortChannels) .. ")")
     say("/gchat urls on/off - click a web address in chat to copy it (" .. onOff(db.urls) .. ")")
     say("/gchat levels on/off - a player's level before their name, once seen (" .. onOff(db.levels) .. ")")
+    say("/gchat alert - a sound when chat mentions your name or your words (" .. onOff(db.alerts) .. ")")
     say("/gchat stamps on/off - a time on every line, addon output too (" .. onOff(db.timestamps) .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
     say("/gchat layout - save this character's chat windows for your other characters")
@@ -262,6 +285,8 @@ local function slash(msg, editBox)
         else
             GC.Focus.Open(f, raw)
         end
+    elseif cmd == "alert" or cmd == "alerts" then
+        GC.Alerts.Command((msg or ""):match("^%s*%S+%s*(.-)%s*$") or "")
     elseif cmd == "tabs" then
         GC.Tabs.Command((msg or ""):match("^%s*%S+%s*(.-)%s*$") or "")   -- addon names keep their case
     elseif cmd == "copy" then
@@ -319,6 +344,8 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         if not ok then API.Fail("start urls", err) end
         ok, err = pcall(GC.Levels.Start)
         if not ok then API.Fail("start levels", err) end
+        ok, err = pcall(GC.Alerts.Start)
+        if not ok then API.Fail("start alerts", err) end
         ok, err = pcall(GC.SettingsSync.Start)
         if not ok then API.Fail("start settings sync", err) end
     elseif event == "PLAYER_ENTERING_WORLD" then

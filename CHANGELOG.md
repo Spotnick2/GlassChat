@@ -2,11 +2,31 @@
 
 ## Unreleased
 
+- **Alerts when chat mentions you:** when someone writes your character's first name in public,
+  guild, party or raid chat, a sound plays (LFG Bulletin Board's notification sound) and the game
+  blinks in the taskbar.
+  - **The alerts button:** a new `!` beside the chat, above the buttons there. It's gold like
+    its neighbours, and turns green and pulses with a count when something mentions you. Click it
+    to see what did.
+  - **Your name:** a player link to another character with your first name doesn't count.
+    `/gchat alert name full` waits for your full name.
+  - **Your own words:** add them with `/gchat alert add <words>` (one list for all your
+    characters).
+  - **Settings:**
+    - `/gchat alert sound raid|ready|tell|lfg|off` picks the sound (`lfg` is the one LFG
+      Bulletin Board plays);
+    - `/gchat alert flash off` stops the blinking;
+    - `/gchat alert off` turns it all off.
+  - **What doesn't alert:** whispers, which already have their sound, your own lines and hidden
+    spam.
 - **One addon's lines, without the chat in between:** click an addon's name at the start of its
   lines (the coloured `[AltStable]`) to open focus mode with only that addon's lines from that
   window. Select all, then Ctrl+C, to copy them. Right-click the name for the same, as "Show its
   lines", next to the tab choices, or type `/gchat focus from AltStable`. It covers that window's
   recent lines (the newest 1000): for a long session, give the addon its own tab first.
+- **Spam & Ignore's icon** (`/gchat spam icon on`) moved from the tab strip to beside the chat,
+  just above the alerts button, in the same colours: gold at rest, green and pulsing while hidden
+  lines wait. The tab strip gets its room back.
 - **Smart tabs keep catching:** an addon's tab left open from an earlier session now gets that
   addon's lines again, including the ones it prints while the game loads, instead of sitting
   empty while they land in the main chat. Close the tab, or choose "Back to the main chat", to
@@ -95,7 +115,7 @@
     or duel you either (`/gchat ignore mirror off` to stop). Removing someone GlassChat added
     from Blizzard's ignore list unignores them everywhere. Names you put on Blizzard's list
     yourself are left alone.
-  - **What was hidden:** `/gchat spam log`, or an optional tab-strip icon (`/gchat spam icon on`).
+  - **What was hidden:** `/gchat spam log`, or an optional icon (`/gchat spam icon on`).
 - **Timestamps** (off by default): `/gchat stamps on` puts [HH:MM:SS] on every line, addon output
   and system lines included. It uses Blizzard's own chat timestamps, and turning it off gives
   back what Blizzard's option was set to.
