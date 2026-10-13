@@ -407,6 +407,20 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
       1210 (LFG Bulletin Board's, no SOUNDKIT name; the default, owner's pick) (`db.alertSound`). A false `willPlay` is reported as "did not play".
     - `FlashClientIcon()` (`db.alertFlash`), independent of the sound.
     - Both at most once per `Alerts.EVERY` (5 s), and once per `(event, lineID)`.
+  - **Whispers** (#92): `Alerts.Whisper`, a second read-only filter on `CHAT_MSG_WHISPER` /
+    `CHAT_MSG_BN_WHISPER` (never `_INFORM`), plays `TELL_MESSAGE` (3081) on every incoming
+    whisper, on the stock call's channel (sound effects), once per `(event, lineID)` and with no
+    throttle (`db.whisperSound`, on by default; `/gchat alert whisper`). It's independent of
+    `db.alerts`, and goes in with the other alert filters, after Spam & Ignore's, so an ignored
+    player stays silent.
+    - **Why:** Blizzard plays the tell sound only after 300 s without a whisper in that window,
+      and every whisper restarts the timer (ChatFrameOverrides.lua:684-687). Prat played it every
+      time by accident: its proxy frame drops `tellTimer` (Prat addon.lua:532-556). The owner was
+      used to that.
+    - **On the first whisper after 300 quiet seconds, Blizzard's plays too**, at the same moment.
+      Its per-window timer can't be mirrored: `FCFManager_ShouldSuppressMessage` runs after the
+      filters (ChatFrameOverrides.lua:363), and `tellTimer` is a private field.
+    - A false `willPlay` (sound effects off) isn't a failure.
   - **The log and its button** (owner): every matching line goes into a session log
     (`Alerts.LOG_SIZE`). The `!` is side button 1 (`Buttons.Side`), in Blizzard's stack above
     the button column. It's green, pulsing and counting while alerts wait, and a click lists them

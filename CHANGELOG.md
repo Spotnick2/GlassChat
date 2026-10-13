@@ -17,8 +17,12 @@
       Bulletin Board plays);
     - `/gchat alert flash off` stops the blinking;
     - `/gchat alert off` turns it all off.
-  - **What doesn't alert:** whispers, which already have their sound, your own lines and hidden
-    spam.
+  - **What doesn't alert:** whispers (they have their own sound, below), your own lines and
+    hidden spam.
+- **The whisper sound on every whisper, as with Prat:** the game plays it only when you haven't
+  had a whisper for 5 minutes, so in a conversation only the first one made a sound. Now every
+  whisper and Battle.net whisper does. An ignored player's whispers stay silent.
+  `/gchat alert whisper off` goes back to the game's way.
 - **One addon's lines, without the chat in between:** click an addon's name at the start of its
   lines (the coloured `[AltStable]`) to open focus mode with only that addon's lines from that
   window. Select all, then Ctrl+C, to copy them. Right-click the name for the same, as "Show its

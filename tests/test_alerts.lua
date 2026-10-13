@@ -180,6 +180,57 @@ check(GC.failures["alert sound"] and GC.failures["alert sound"]:find("did not pl
 WoW.willPlay = nil
 GC.failures["alert sound"] = nil
 
+-- Whispers (#92): the tell sound on every one, as with Prat (Blizzard's waits 300 s).
+local W, BNW = "CHAT_MSG_WHISPER", "CHAT_MSG_BN_WHISPER"
+local function filterAt(event, fn)
+    for i, f in ipairs(WoW.messageFilters[event] or {}) do if f == fn then return i end end
+end
+check(filterAt(W, Alerts.Whisper) and filterAt(BNW, Alerts.Whisper), "on whispers and Battle.net whispers")
+check(filterAt(W, GC.Spam.Filter) < filterAt(W, Alerts.Whisper), "after Spam & Ignore's filter")
+check(not filterAt("CHAT_MSG_WHISPER_INFORM", Alerts.Whisper), "never on the ones you send")
+for _, e in ipairs(Alerts.WHISPERS) do check(WoW.KNOWN_EVENTS[e], "a real event: " .. e) end
+fresh()
+s0, f0 = sounds(), WoW.flashes
+local unseen0 = Alerts.unseen
+for i = 1, 3 do post(W, "hi " .. i, "Some Friend", "Player-1-FRIEND") end
+eq(sounds(), s0 + 3, "every whisper plays, three in a row too: no throttle")
+eq(WoW.sounds[#WoW.sounds].kit, 3081, "Blizzard's tell sound")
+eq(WoW.sounds[#WoW.sounds].channel, nil, "on the stock call's channel (sound effects)")
+eq(WoW.flashes, f0, "no flash of ours: Blizzard flashes for a whisper itself")
+eq(Alerts.unseen, unseen0, "and nothing behind the alerts button")
+post(BNW, "bnet hi", "Some Account", nil)
+eq(sounds(), s0 + 4, "a Battle.net whisper too")
+s0 = sounds()
+for _ = 1, 2 do post(W, "seen in two windows", "Some Friend", "Player-1-FRIEND", 9001) end
+eq(sounds(), s0 + 1, "a whisper shown in two windows plays once")
+Alerts.Whisper(nil, W, "x", "y", "", "", "", "", 0, 0, "", 0, WoW.Secret("lineID"), "Player-1-X")
+eq(sounds(), s0 + 2, "a secret lineID only turns the memo off")
+post(W, "karuzo, a whisper", "Some Friend", "Player-1-FRIEND")
+eq(WoW.sounds[#WoW.sounds].kit, 3081, "your name in a whisper: the whisper sound, not a mention alert")
+-- An ignored player's whisper is hidden first: silent.
+post(W, "hello", "Pest Person", "Player-1-PEST")
+SlashCmdList.GLASSCHAT("ignore Pest Person")
+s0 = sounds()
+eq(post(W, "psst", "Pest Person", "Player-1-PEST"), "hidden", "Spam & Ignore hides an ignored player's whisper")
+eq(sounds(), s0, "and no sound")
+SlashCmdList.GLASSCHAT("unignore Pest Person")
+-- Its own switch: alerts off leaves it, whisper off stops it.
+SlashCmdList.GLASSCHAT("alert off")
+post(W, "still", "Some Friend", "Player-1-FRIEND")
+eq(sounds(), s0 + 1, "mention alerts off: whispers still sound")
+SlashCmdList.GLASSCHAT("alert on")
+SlashCmdList.GLASSCHAT("alert whisper off")
+eq(GC.db.whisperSound, false, "/gchat alert whisper off")
+post(W, "quiet", "Some Friend", "Player-1-FRIEND")
+eq(sounds(), s0 + 1, "off: only Blizzard's own")
+SlashCmdList.GLASSCHAT("alert whisper on")
+eq(rawget(GC.db, "whisperSound"), true, "/gchat alert whisper on")
+-- Sound effects off: PlaySound says it won't play. The player's choice, not a failure.
+WoW.willPlay = false
+post(W, "muted", "Some Friend", "Player-1-FRIEND")
+WoW.willPlay = nil
+eq(GC.failures["whisper sound"], nil, "willPlay false isn't reported")
+
 -- The button: above the chat-menu bubble, lit while alerts wait, a click lists them.
 local b = Alerts._test.button()
 check(b, "a button beside the chat")
