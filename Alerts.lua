@@ -7,8 +7,15 @@
 -- ProcessFilters). It goes in at PLAYER_LOGIN: the Spam & Ignore plugin adds
 -- its filters at its own ADDON_LOADED, before that, and a filter that hides a
 -- line stops the loop, so a hidden spam line never alerts. Never whispers
--- (Blizzard's tell sound plays), Battle.net lines or TEXT_EMOTE (Blizzard
--- builds "waves at you" itself), and never your own lines.
+-- (they have their own sound, below), Battle.net lines or TEXT_EMOTE
+-- (Blizzard builds "waves at you" itself), and never your own lines.
+--
+-- Whispers (#92): the tell sound on every incoming whisper, as with Prat.
+-- Blizzard plays it only after 300 s without one (ChatFrameOverrides.lua:
+-- 684-687, the timer restarted by every whisper), so a conversation is
+-- silent after its first line. Prat played it every time by accident: it
+-- runs Blizzard's handler on a proxy frame reset after each message
+-- (addon.lua:532-556), so tellTimer never sticks.
 
 GlassChat = GlassChat or {}
 local GC = GlassChat
@@ -19,6 +26,7 @@ GC.Alerts = Alerts
 Alerts.EVENTS = { "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_EMOTE", "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER",
     "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER", "CHAT_MSG_RAID_WARNING",
     "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER", "CHAT_MSG_CHANNEL" }
+Alerts.WHISPERS = { "CHAT_MSG_WHISPER", "CHAT_MSG_BN_WHISPER" }   -- incoming only: never _INFORM
 -- SOUNDKIT ids (SoundKitConstants.lua:71-85), long-standing UI kits, and
 -- 1210, the one LFG Bulletin Board notifies with (GroupBulletinBoard.lua:17;
 -- no SOUNDKIT name for it), the default: owner's pick after hearing all four.
@@ -197,6 +205,26 @@ function Alerts.Filter(_, event, msg, ...)
     return false
 end
 
+-- Every incoming whisper: Blizzard's own tell sound, on its own channel (no
+-- channel: sound effects, as the stock call), once per (event, lineID) and
+-- with no throttle, as Prat. On the first whisper after 300 quiet seconds
+-- Blizzard's plays too, at the same moment: its per-window timer can't be
+-- mirrored, since FCFManager_ShouldSuppressMessage runs after the filters
+-- (ChatFrameOverrides.lua:363). Read-only, as Alerts.Filter.
+function Alerts.Whisper(_, event, ...)
+    if not GC.db.whisperSound then return false end
+    if not plain(event) or type(event) ~= "string" then return false end
+    local lineID = select(11, ...)   -- arg11
+    if plain(lineID) and type(lineID) == "number" and lineID > 0 then
+        local key = event .. "#" .. lineID
+        if memo[key] then return false end
+        remember(key)
+    end
+    local ok, err = pcall(PlaySound, Alerts.SOUNDS.tell)   -- willPlay is false with sound effects off: not a failure
+    if not ok then API.Fail("whisper sound", err) end
+    return false
+end
+
 --------------------------------------------------------------------------------
 -- /gchat alert
 --------------------------------------------------------------------------------
@@ -240,10 +268,13 @@ function Alerts.Command(arg)
     elseif sub == "flash" and (rest == "on" or rest == "off") then
         GC.Settings.SetAlertFlash(rest == "on")
         say("taskbar flash " .. rest)
+    elseif sub == "whisper" and (rest == "on" or rest == "off") then
+        GC.Settings.SetWhisperSound(rest == "on")
+        say("a sound on every whisper: " .. rest)
     else
         local onOff = function(v) return v and "on" or "off" end
         say("alerts are " .. onOff(db.alerts) .. "; your name: " .. db.alertName .. "; sound: " .. db.alertSound
-            .. "; taskbar flash: " .. onOff(db.alertFlash))
+            .. "; taskbar flash: " .. onOff(db.alertFlash) .. "; every whisper: " .. onOff(db.whisperSound))
         local list = words()
         say(#list > 0 and ("your words: " .. table.concat(list, ", ")) or "no words of your own yet")
         say("/gchat alert on/off - a sound when public, guild or group chat mentions you (not whispers)")
@@ -251,6 +282,7 @@ function Alerts.Command(arg)
         say("/gchat alert add/remove <words> - your own words, on all your characters (not sent by settings send)")
         say("/gchat alert sound raid/ready/tell/lfg/off - which sound, plays a sample (lfg: LFG Bulletin Board's)")
         say("/gchat alert flash on/off - blink the game in the taskbar")
+        say("/gchat alert whisper on/off - the whisper sound on every whisper (the game's own waits 5 minutes between two)")
         say("accented capitals count as different letters: write a word as people type it")
     end
 end
@@ -291,6 +323,7 @@ function Alerts.Start()
         if GC.Url and GC.Url.AddFilters then GC.Url.AddFilters() end
         if ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter then
             for _, e in ipairs(Alerts.EVENTS) do ChatFrameUtil.AddMessageEventFilter(e, Alerts.Filter) end
+            for _, e in ipairs(Alerts.WHISPERS) do ChatFrameUtil.AddMessageEventFilter(e, Alerts.Whisper) end
         end
     end)
     API.RegisterEvents(f, { "PLAYER_LOGIN" })

@@ -26,6 +26,7 @@ local DEFAULTS = {
     alertName = "first",   -- first / full / off: which of your names counts
     alertSound = "lfg",    -- lfg (LFG Bulletin Board's, owner's pick) / raid / ready / tell / off
     alertFlash = true,     -- blink the game in the taskbar on an alert
+    whisperSound = true,   -- the tell sound on every whisper, as with Prat (stock: 5 min apart; #92)
     tabsCatch = true,      -- an open tab named after an addon catches its lines (#81)
 }
 GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default
@@ -151,6 +152,10 @@ end
 
 function Settings.SetAlertFlash(on)
     GC.db.alertFlash = on and true or false
+end
+
+function Settings.SetWhisperSound(on)
+    GC.db.whisperSound = on and true or false
 end
 
 function Settings.SetTabsCatch(on)
