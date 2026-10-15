@@ -12,7 +12,7 @@ GC.API = API
 
 -- The build the notes in docs/ were measured on. Bump only after re-measuring
 -- in game; tests/test_toc.lua pins the same literal.
-GC.MEASURED_ON_BUILD = "1.60.1.70338"
+GC.MEASURED_ON_BUILD = "1.60.1.70374"
 
 function API.Print(msg)
     print("|cff7fd4ffGlassChat|r " .. msg)
