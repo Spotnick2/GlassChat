@@ -1,27 +1,32 @@
 -- ChatProbe: the throwaway measurement addon for GlassChat, milestone 0.
 -- It answers the questions docs/PLAN.md leaves open before any real chat
--- code is written. Every line it prints also goes to ChatProbeDB.log
--- (SavedVariables), so a full client exit leaves the session on disk for
--- review. It never logs what other players said: only lengths, types and
--- whether a value was secret.
+-- code is written. It is a ForeverProbe module (..\ForeverProbe, its
+-- docs/GUIDE.md): its lines go to the ForeverProbe console (/fp), never to
+-- chat, and to ChatProbeDB.log (SavedVariables), so a full client exit leaves
+-- the session on disk for review. It never logs what other players said: only
+-- lengths, types and whether a value was secret.
+--
+-- Chat is what it measures, so a few commands still write to chat ON PURPOSE:
+-- those lines are the test stimuli (item 4's link, item 8's routed line), not
+-- its diagnostics.
 --
 -- What it measures (the numbers match the plan's probe items):
---   1. the stock chat state: class colours, line limit, filter API  /cprobe state
---   2. CopyToClipboard from addon code                              /cprobe clip
---   3. drag-select copy on a chat frame (SetTextCopyable)           /cprobe copyable
---   4. a clickable addon link (|Haddon:...|h + EventRegistry)        /cprobe link
+--   1. the stock chat state: class colours, line limit, filter API  /fp chat state
+--   2. CopyToClipboard from addon code                              /fp chat clip
+--   3. drag-select copy on a chat frame (SetTextCopyable)           /fp chat copyable
+--   4. a clickable addon link (|Haddon:...|h + EventRegistry)        /fp chat link
 --   5. secrecy of chat event payloads, in and out of combat and
---      instances, and whether addon filters still run               /cprobe watch
---   6. reading the scrollback (GetMessageInfo), secret lines         /cprobe history
---   7. which addons write to chat, through print or AddMessage       /cprobe sources
---   8. routing one addon's print output to its own tab              /cprobe route
---   9. moving one addon's direct AddMessage lines to that tab        /cprobe move
---  10. line identity per chat type (lineID, GUID, collisions)       /cprobe lines
---  11. sender name shapes; server ignore with surnames              /cprobe ignoretest
+--      instances, and whether addon filters still run               /fp chat watch
+--   6. reading the scrollback (GetMessageInfo), secret lines         /fp chat history
+--   7. which addons write to chat, through print or AddMessage       /fp chat sources
+--   8. routing one addon's print output to its own tab              /fp chat route
+--   9. moving one addon's direct AddMessage lines to that tab        /fp chat move
+--  10. line identity per chat type (lineID, GUID, collisions)       /fp chat lines
+--  11. sender name shapes; server ignore with surnames              /fp chat ignoretest
 --  12. ignore-list readiness at login; what the server ignore blocks (automatic)
 --
--- Every client call that may be missing or throw goes through try(), so one
--- refusal cannot stop the rest of the probe.
+-- Every client call that may be missing or throw goes through Probe:Try, so
+-- one refusal cannot stop the rest of the probe.
 
 local ADDON, NS = ...
 local MAX_LOG = 3000
@@ -33,43 +38,31 @@ end
 local P = { watching = false, counts = {}, samples = {}, filterCalls = 0, nameFilterCalls = 0 }
 
 --------------------------------------------------------------------------------
--- Log
+-- Log: the ForeverProbe module. Lines go to the console and, from this
+-- addon's ADDON_LOADED, to ChatProbeDB.log (bound with UseLog).
 --------------------------------------------------------------------------------
 
-local function stamp()
-    local t = GetTime and GetTime() or 0
-    return string.format("%.1f%s", t, InCombatLockdown() and " C" or "")
-end
+local Probe = ForeverProbe:Module("ChatProbe", { api = 1, cmd = "chat" })
 
-local function say(msg)
-    msg = tostring(msg)
-    print("|cff7fd4ffChatProbe|r " .. msg)
-    if type(ChatProbeDB) == "table" and type(ChatProbeDB.log) == "table" then
-        local log = ChatProbeDB.log
-        log[#log + 1] = stamp() .. " " .. msg
-        if #log > MAX_LOG then table.remove(log, 1) end
-    end
-end
+local function say(msg) Probe:Say(msg) end
 
--- Describe a value without ever operating on a secret one.
-local function show(v)
-    if issecretvalue and issecretvalue(v) then return "<secret>" end
-    if v == nil then return "nil" end
-    return tostring(v)
-end
+-- A value as text, never operating on a secret one (strings unquoted, as the
+-- log always had them).
+local function show(v) return Probe.Show(v, true) end
 
--- Describe a string by type and length only (never its content).
-local function shape(v)
-    if issecretvalue and issecretvalue(v) then return "<secret>" end
-    if type(v) == "string" then return "str" .. #v end
-    return type(v)
-end
+-- A string by type and length only (never its content).
+local shape = Probe.Shape
 
-local function try(label, fn, ...)
-    local ok, a, b, c, d = pcall(fn, ...)
-    if not ok then say("|cffff6060FAIL|r " .. label .. ": " .. tostring(a)) end
-    return ok, a, b, c, d
-end
+local function try(label, fn, ...) return Probe:Try(label, fn, ...) end
+
+-- A chat test stimulus: a line this probe writes to chat ON PURPOSE.
+local function stimulus(msg) print("|cff7fd4ffChatProbe|r " .. msg) end
+
+-- The one shared fact (ForeverProbe docs/GUIDE.md "Facts"): whether names
+-- carry surnames here. The setting is the region's and an account is in one
+-- region, so it holds for every character on the account: no inputs.
+ForeverProbe:DefineFact("client.RegionalUniqueNamesEnabled", { owner = "ChatProbe", rev = 1, inputs = {},
+    run = function() return RegionalUniqueNamesEnabled() end })
 
 local function lockdown()
     if not (C_ChatInfo and C_ChatInfo.InChatMessagingLockdown) then return "n/a" end
@@ -86,17 +79,11 @@ end
 -- 1. Stock chat state
 --------------------------------------------------------------------------------
 
-local function present(path)
-    local t = _G
-    for part in path:gmatch("[^.]+") do
-        if type(t) ~= "table" then return false end
-        t = rawget(t, part)   -- rawget: asking must not trip a strict _G
-    end
-    return t ~= nil
-end
+local present = Probe.Present
 
 local function state()
     say("client " .. table.concat({ GetBuildInfo() }, " ", 1, 2) .. ", " .. where())
+    Probe:Fact("client.RegionalUniqueNamesEnabled")
     local okC, override = try("GetCVar", C_CVar.GetCVar, "chatClassColorOverride")
     say("1 CVar chatClassColorOverride = " .. show(okC and override or nil)
         .. " (0 = always colour, 1 = never, else per chat type)")
@@ -175,8 +162,8 @@ local function link()
         end
         linkHooked = true
     end
-    print("|cff7fd4ffChatProbe|r 4 click this: |cff40c0ff|Haddon:chatprobe:hello|h[ChatProbe link]|h|r"
-        .. " (left, right and shift-click; expect a log line for each, no error, no tooltip)")
+    stimulus("4 click this: |cff40c0ff|Haddon:chatprobe:hello|h[ChatProbe link]|h|r"
+        .. " (left, right and shift-click; expect a line for each in /fp, no error, no tooltip)")
 end
 
 --------------------------------------------------------------------------------
@@ -195,11 +182,8 @@ local function bucket(event)
     return event .. (InCombatLockdown() and " C" or "") .. " lockdown=" .. lockdown()
 end
 
+-- ADDON_ACTION_BLOCKED / FORBIDDEN are ForeverProbe's: its baseline logs them.
 watcher:SetScript("OnEvent", function(_, event, text, sender, _, _, _, _, _, _, _, _, lineID, guid)
-    if event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
-        say("|cffff6060" .. event .. "|r " .. show(text) .. " " .. show(sender))
-        return
-    end
     local key = bucket(event)
     P.counts[key] = (P.counts[key] or 0) + 1
     if (P.samples[key] or 0) >= 3 then return end   -- three samples per bucket
@@ -214,13 +198,7 @@ watcher:SetScript("OnEvent", function(_, event, text, sender, _, _, _, _, _, _, 
 end)
 -- RegisterEvent throws on an unknown name and returns false on a refusal:
 -- both are reported, or an item would read "never fired" instead.
-local function register(frame, event)
-    local ok, registered = pcall(frame.RegisterEvent, frame, event)
-    if not ok then say("|cffff6060FAIL|r RegisterEvent " .. event .. ": " .. tostring(registered))
-    elseif registered == false then say("|cffff6060FAIL|r RegisterEvent " .. event .. ": refused") end
-end
-register(watcher, "ADDON_ACTION_BLOCKED")
-register(watcher, "ADDON_ACTION_FORBIDDEN")
+local function register(frame, event) Probe:RegisterEvents(frame, { event }) end
 
 -- The filters can't be removed once added, so they count only while watching,
 -- the same window the event counts cover.
@@ -251,7 +229,7 @@ local function watch()
         filtersAdded = true
     end
     say("5 watching chat payloads = " .. tostring(P.watching)
-        .. (P.watching and ". Chat in say/party/guild, out of combat, in combat and in a dungeon; then /cprobe report." or ""))
+        .. (P.watching and ". Chat in say/party/guild, out of combat, in combat and in a dungeon; then /fp chat report." or ""))
 end
 
 local function report()
@@ -427,7 +405,7 @@ local function sources()
         if not installPrint() then return end
         hookDirect()
         P.tracing = true
-        say("7 tracing addon output: use your addons (run ASProbe etc.), then /cprobe sources again for the counts")
+        say("7 tracing addon output: use your addons (run ASProbe etc.), then /fp chat sources again for the counts")
         return
     end
     P.tracing = false
@@ -474,7 +452,8 @@ local function route()
     say("8 " .. (new and "opened" or "reusing") .. " tab " .. show(frame:GetName()) .. " with " .. show(groups)
         .. " message groups. Routing ChatProbe's lines there.")
     P.routeFrame = frame
-    say("8 this line should be in the 'Probe' tab, not in General. Watch for a blocked-action line; /cprobe route again to stop.")
+    stimulus("8 this line should be in the 'Probe' tab, not in General. Watch /fp for a blocked-action line;"
+        .. " /fp chat route again to stop.")
 end
 
 --------------------------------------------------------------------------------
@@ -494,7 +473,7 @@ local function move(arg)
     hookDirect()
     P.moveTarget, P.moveSource = frame, (arg and arg ~= "") and arg or "AltStableProbe"
     say("9 moving " .. P.moveSource .. "'s AddMessage lines to the 'Probe' tab. Use it, check General has none"
-        .. " of them and Probe has them all, then /cprobe move again for the counts.")
+        .. " of them and Probe has them all, then /fp chat move again for the counts.")
 end
 
 --------------------------------------------------------------------------------
@@ -593,7 +572,7 @@ local function identity()
         S.on, S.stats, S.collisions, S.shapes = true, {}, 0, {}
         P.ids.on, P.ids.seen = true, {}
         say("10 tracing line identity: chat in as many channels as you can (say, trade, guild, party,"
-            .. " a whisper, /e, an emote like /wave, /afk), with chat shown in two tabs, then /cprobe lines again"
+            .. " a whisper, /e, an emote like /wave, /afk), with chat shown in two tabs, then /fp chat lines again"
             .. " (a /reload in between is fine)")
         return
     end
@@ -608,7 +587,7 @@ local function resumeIdentity()
     if S and S.on then
         addIdentityFilters()
         P.ids.on, P.ids.seen = true, {}
-        say("10 line-identity trace resumed after the reload (/cprobe lines to report)")
+        say("10 line-identity trace resumed after the reload (/fp chat lines to report)")
     end
 end
 
@@ -796,49 +775,33 @@ local function atlases()
     atlasRow:SetWidth(math.max(10, x))
     atlasRow:Show()
     say("13 " .. found .. " of " .. #P.ATLAS_CANDIDATES .. " exist; they're shown numbered, in gold, above the middle of the screen. "
-        .. "Tell Claude which number fits the chat menu and which the friends button. /cprobe atlases again hides the row.")
+        .. "Tell Claude which number fits the chat menu and which the friends button. /fp chat atlases again hides the row.")
 end
 
 --------------------------------------------------------------------------------
 -- Command
 --------------------------------------------------------------------------------
 
-local function help()
-    say("/cprobe state    - 1 stock chat settings and APIs")
-    say("/cprobe clip     - 2 copy a test string to the clipboard")
-    say("/cprobe copyable - 3 toggle drag-select copy on the main chat")
-    say("/cprobe link     - 4 print a clickable addon link")
-    say("/cprobe watch    - 5 toggle logging chat payload secrecy (then /cprobe report)")
-    say("/cprobe history  - 6 read the scrollback of every chat frame")
-    say("/cprobe sources  - 7 toggle tracing which addons print to chat, and how")
-    say("/cprobe route    - 8 toggle sending ChatProbe's own lines to a new 'Probe' tab")
-    say("/cprobe move [addon] - 9 toggle moving an addon's direct AddMessage lines (default AltStableProbe) to 'Probe'")
-    say("/cprobe lines    - 10/11 toggle tracing line identity and sender shapes")
-    say("/cprobe ignoretest - 11 server ignore on your TARGET (added, read back, removed)")
-    say("/cprobe atlases  - 13 which chat-menu / friends symbols exist (shown on screen, numbered)")
-    say("/cprobe clear    - empty the saved log")
+for _, c in ipairs({
+    { "state", state, "1 stock chat settings and APIs" },
+    { "clip", clip, "2 copy a test string to the clipboard" },
+    { "copyable", copyable, "3 toggle drag-select copy on the main chat" },
+    { "link", link, "4 print a clickable addon link (a chat stimulus)" },
+    { "watch", watch, "5 toggle logging chat payload secrecy (then report)" },
+    { "report", report, "5 the payload counts" },
+    { "history", history, "6 read the scrollback of every chat frame" },
+    { "sources", sources, "7 toggle tracing which addons print to chat, and how" },
+    { "route", route, "8 toggle sending ChatProbe's chat stimuli to a new 'Probe' tab" },
+    { "move", move, "9 [addon] toggle moving an addon's direct AddMessage lines (default AltStableProbe) to 'Probe'" },
+    { "lines", identity, "10/11 toggle tracing line identity and sender shapes" },
+    { "ignoretest", ignoreTest, "11 server ignore on your TARGET (added, read back, removed)" },
+    { "atlases", atlases, "13 which chat-menu / friends symbols exist (shown on screen, numbered)" },
+}) do
+    local fn = c[2]
+    Probe:Command(c[1], function(arg) fn(arg) end, c[3])
 end
-
-SLASH_CHATPROBE1 = "/cprobe"
-SlashCmdList.CHATPROBE = function(msg)
-    local cmd, arg = (msg or ""):match("^%s*(%S*)%s*(.-)%s*$")
-    cmd = cmd:lower()
-    if cmd == "state" then state()
-    elseif cmd == "clip" then clip()
-    elseif cmd == "copyable" then copyable()
-    elseif cmd == "link" then link()
-    elseif cmd == "watch" then watch()
-    elseif cmd == "report" then report()
-    elseif cmd == "history" then history()
-    elseif cmd == "sources" then sources()
-    elseif cmd == "route" then route()
-    elseif cmd == "move" then move(arg)
-    elseif cmd == "lines" then identity()
-    elseif cmd == "ignoretest" then ignoreTest()
-    elseif cmd == "atlases" then atlases()
-    elseif cmd == "clear" then ChatProbeDB.log = {}; say("log cleared")
-    else help() end
-end
+-- Empties ChatProbeDB.log IN PLACE: the host holds that same table.
+Probe:Command("clear", function() Probe:ClearLog(); say("log cleared") end, "empty the saved log")
 
 local boot = CreateFrame("Frame")
 register(boot, "ADDON_LOADED")
@@ -852,16 +815,20 @@ boot:SetScript("OnEvent", function(_, event, name)
         return
     end
     if name ~= ADDON then return end
+    -- ForeverProbe is a dependency, so it is ready by now; Ready() logs it if
+    -- not (the load order the pilot checks in game).
+    Probe:Ready()
     if type(ChatProbeDB) ~= "table" then ChatProbeDB = {} end
     if type(ChatProbeDB.log) ~= "table" then ChatProbeDB.log = {} end
+    Probe:UseLog(ChatProbeDB.log, MAX_LOG)
     ChatProbeDB.loads = (ChatProbeDB.loads or 0) + 1
-    say("loaded (" .. ChatProbeDB.loads .. " loads). /cprobe help")
+    say("loaded (" .. ChatProbeDB.loads .. " loads). /fp chat for the commands")
     countAt("ADDON_LOADED")
     resumeIdentity()
 end)
 
 -- The test seam lives on the addon namespace, not in _G.
-NS._test = { identity = identity, identityFilter = identityFilter, ignoreTest = ignoreTest,
+NS._test = { Probe = Probe, identity = identity, identityFilter = identityFilter, ignoreTest = ignoreTest,
     ignoreReadBack = ignoreReadBack, blockWatch = blockWatch, P = P, state = state, clip = clip, copyable = copyable, link = link, watch = watch,
     report = report, history = history, watcher = watcher, sources = sources, route = route,
     sourceOf = sourceOf, printHandler = printHandler, move = move }

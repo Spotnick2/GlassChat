@@ -4,6 +4,17 @@ Measured with `Tools/ChatProbe` on **1.60.1.70205** (2026-10-03), open world, Pr
 The raw log is `WTF\Account\<account>\SavedVariables\ChatProbe.lua`. Item numbers match
 `docs/PLAN.md`.
 
+**Running it (since ForeverProbe):** ChatProbe is a ForeverProbe module (`..\ForeverProbe`,
+`docs/GUIDE.md`; the cross-project entry point is `C:\Projects\WoW\References\PROBES.md`).
+`/cprobe` is gone: the commands are `/fp chat <item>` (`/fp chat` lists them).
+1. `pwsh Tools\deploy.ps1 -Probe` deploys ForeverProbe first, then ChatProbe. `/reload`.
+2. `/fp` opens the console **before** an experiment. The diagnostics land there and in
+   `ChatProbeDB.log`, never in chat. Only the chat stimuli (item 4's link, item 8's routed line)
+   are written to chat, on purpose. Blocked actions are ForeverProbe's baseline lines, in the same
+   console.
+3. To hand lines over: **Freeze**, then **Select all** and Ctrl+C. The log survives a `/reload`
+   (chat history doesn't); read the file after a reload or an exit.
+
 | # | Question | Result |
 |---|---|---|
 | 1 | Stock chat state | `chatClassColorOverride = "0"` (always colour by class), so `ShouldColorChatByClass` is true even though every `ChatTypeInfo[t].colorNameByClass` reads false. `MaxLines = 128` on all 10 frames, and General was full. Every `ChatFrameUtil` filter API, `CopyToClipboard`, `C_StringUtil.StripHyperlinks`, `EventRegistry` and `GetPlayerInfoByGUID` are present. `ChatFrame_MessageEventHandler` and `ChatFrame_OnHyperlinkShow` are absent. |
@@ -41,4 +52,4 @@ character that made it (item 8; its `chat-cache.txt` lists `WINDOW 5 / NAME Prob
 | 11 | Server ignore with surnames | **Works with "First Surname".** On the target, `UnitName` = "Zoruka" / "Mortalis", `GetUnitName("target", true)` = **"Zoruka Mortalis"**, and `RegionalUniqueNamesEnabled()` = true. `AddIgnore("Zoruka Mortalis")` returned true, `GetIgnoreName` read back the exact "Zoruka Mortalis", `IsIgnoredByGuid` was true, and `DelIgnore` removed it. `IGNORELIST_UPDATE` fired on each change, twice per change. |
 | 12 | Ignore-list readiness | `GetNumIgnores()` answered **nil at `ADDON_LOADED`** on 3 of 6 loads, and 0 from `PLAYER_LOGIN` on. **Never read the list before `PLAYER_LOGIN`.** |
 | 12 | What the server ignore blocks | The ignorer, Karuzo Elegia, ignored the alt (Zoruka Mortalis, on another account).<br>**Whispers: blocked.** The alt gets `CHAT_MSG_IGNORED` ("... is ignoring you"). The first probe logged that event's text instead of its sender (arg2), so its name format is unmeasured (fixed after Codex's review of #16).<br>**Invites: never reach the ignorer.** The alt sent two invites, the ignorer's probe logged no `PARTY_INVITE_REQUEST` after the ignore, and no group formed (owner). The alt's "Looting set to..." lines were its own pending party.<br>**Duels: blocked** (owner, same layer: no duel arrives, and grouping doesn't work either).<br>**Say: not seen** (owner, same layer as the duel test).<br>Before the ignore, invites and a duel did arrive. `PARTY_INVITE_REQUEST`'s name is "First Surname" (2 words), but **`DUEL_REQUESTED`'s is one word with a dash**, so never match by name there. So the server ignore blocks whispers, say, invites and duels, the last two being what a chat filter can't, which makes S2b (mirroring) worth building later. |
-| 13 | Atlases for the chat-menu bubble and the friends button (#7) | *Pending.* `/cprobe atlases` asks the client which candidate frameless symbols exist (`chatframe-button-icon-*`, `socialqueuing-icon-group`, `groupfinder-icon-friend`, ...) and shows each one found, numbered, in gold, to choose from by eye. |
+| 13 | Atlases for the chat-menu bubble and the friends button (#7) | *Pending.* `/fp chat atlases` asks the client which candidate frameless symbols exist (`chatframe-button-icon-*`, `socialqueuing-icon-group`, `groupfinder-icon-friend`, ...) and shows each one found, numbered, in gold, to choose from by eye. |
