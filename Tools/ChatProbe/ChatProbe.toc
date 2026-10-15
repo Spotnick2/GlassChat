@@ -1,8 +1,9 @@
 ## Interface: 16001
 ## Title: ChatProbe
-## Notes: Throwaway probe for GlassChat: class colours, clipboard, copyable text, links, chat secrets. /cprobe help
+## Notes: Throwaway probe for GlassChat: class colours, clipboard, copyable text, links, chat secrets. A ForeverProbe module: /fp chat
 ## Author: Spotnick
 ## Version: dev
+## Dependencies: ForeverProbe
 ## OptionalDeps: GlassChat
 ## SavedVariables: ChatProbeDB
 

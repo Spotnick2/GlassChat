@@ -93,6 +93,32 @@ function libScripts(line)
 end
 function libGlassScripts() return libScripts(LIBGLASS_XML) end
 
+-- ForeverProbe, the host ChatProbe depends on, from its checkout
+-- ($FOREVERPROBE, else ..\ForeverProbe). It's private and only on the
+-- owner's disk, so CI doesn't have it: with FOREVERPROBE_OPTIONAL=1 (CI) a
+-- missing checkout skips the calling test file; without it (locally) it's an
+-- error, never a silent skip. Loaded into THIS stub environment,
+-- the way the client loads a dependency: its files, then its ADDON_LOADED.
+function loadForeverProbe()
+    local root = (os.getenv("FOREVERPROBE") or "../ForeverProbe"):gsub("\\", "/"):gsub("/$", "")
+    local toc = io.open(root .. "/ForeverProbe.toc", "rb")
+    if not toc then
+        if os.getenv("FOREVERPROBE_OPTIONAL") == "1" then
+            io.write("SKIPPED: ForeverProbe isn't here (private, local only); the probe tests run locally\n")
+            os.exit(0)
+        end
+        error("ForeverProbe checkout not found at " .. root .. ": clone it there or set FOREVERPROBE", 0)
+    end
+    local files = {}
+    for line in toc:read("*a"):gmatch("[^\r\n]+") do
+        if line:match("%.lua$") and not line:match("^#") then files[#files + 1] = root .. "/" .. line end
+    end
+    toc:close()
+    for _, file in ipairs(files) do assert(loadfile(file))("ForeverProbe", {}) end
+    WoW.fire("ADDON_LOADED", "ForeverProbe")
+    return ForeverProbe
+end
+
 -- Load the addon the way the client does: every TOC file with (name, ns),
 -- the library's XML expanded in place, then ADDON_LOADED, PLAYER_LOGIN,
 -- PLAYER_ENTERING_WORLD (initial login).

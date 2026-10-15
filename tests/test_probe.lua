@@ -1,5 +1,7 @@
 -- ChatProbe: every command runs on the stubbed client without throwing, logs
 -- to its saved table, never logs what someone said, and survives secrets.
+-- It is a ForeverProbe module: the host is loaded first, from its checkout
+-- (harness.lua's loadForeverProbe), and its lines never go to chat.
 dofile("tests/wow_stubs.lua")
 dofile("tests/harness.lua")
 
@@ -84,6 +86,8 @@ chatFrame("ChatFrame1", { "hello there", secretLine, "a much longer line of text
 chatFrame("ChatFrame2", {})
 chatFrame("ChatFrame3", {})   -- the tab item 8 "opens"
 
+local FP = loadForeverProbe()
+local function cprobe(s) SlashCmdList.FOREVERPROBE("chat " .. s) end
 ChatProbeDB = nil
 local ns = {}
 assert(loadfile("Tools/ChatProbe/ChatProbe.lua"))("ChatProbe", ns)
@@ -91,6 +95,12 @@ local T = ns._test
 check(rawget(_G, "ChatProbe_test") == nil, "the test seam stays off _G")
 WoW.fire("ADDON_LOADED", "ChatProbe")
 eq(type(ChatProbeDB.log), "table", "the probe keeps its log in saved variables")
+check(T.Probe.log == ChatProbeDB.log, "its ForeverProbe log is ChatProbeDB.log, bound at ADDON_LOADED")
+check(rawget(SlashCmdList, "CHATPROBE") == nil, "no /cprobe any more (it clashed with CastProbe's): /fp chat")
+eq(FP.byCmd.chat, T.Probe, "/fp chat is ChatProbe")
+local early = false
+for _, l in ipairs(FP.lines) do if l.text:find("EARLY", 1, true) then early = true end end
+check(not early, "the host was ready before ChatProbe's ADDON_LOADED")
 eq(ChatProbeDB.loads, 1, "it counts its loads (persistence check)")
 local function logHas0(pattern)
     for _, l in ipairs(ChatProbeDB.log) do if l:find(pattern, 1, true) then return true end end
@@ -103,8 +113,21 @@ local function logHas(pattern)
 end
 
 for _, cmd in ipairs({ "", "state", "clip", "copyable", "link", "watch", "history", "report" }) do
-    SlashCmdList.CHATPROBE(cmd)
+    cprobe(cmd)
 end
+-- Its diagnostics never go to chat: the one chat line is item 4's link, a
+-- stimulus written there on purpose.
+local stimuliOnly = #WoW.chat > 0
+for _, l in ipairs(WoW.chat) do
+    if not l:find("4 click this", 1, true) then stimuliOnly = false; io.write("  chat: " .. l .. "\n") end
+end
+check(stimuliOnly, "only the chat stimulus was printed; every diagnostic went to the console")
+check(logHas0("loaded (1 loads)"), "the load line is in the log, not in chat")
+-- The shared fact: measured by the first state, cached for the next.
+check(logHas0("fact client.RegionalUniqueNamesEnabled = true (measured)"), "state measures the shared fact")
+cprobe("state")
+check(logHas0("fact client.RegionalUniqueNamesEnabled = true (cached: ChatProbe"), "and the next state reads it cached")
+check(ForeverProbeDB.facts["client.RegionalUniqueNamesEnabled"].values[1] == true, "the fact is in ForeverProbeDB")
 check(logHas("chatClassColorOverride = 2"), "1 logs the class-colour CVar")
 check(logHas("ChatTypeInfo.SAY.colorNameByClass = true"), "1 logs per-type class colouring")
 check(clipboard and clipboard:find("GlassChat probe", 1, true), "2 copies its test string")
@@ -130,7 +153,7 @@ check(logHas("text=str15 sender=str14 lineID=number guid=str12 class=MAGE"), "5 
 check(logHas("text=<secret> sender=<secret> lineID=<secret> guid=<secret> class=?"), "5 logs a secret payload without touching it")
 check(not logHas("my secret plans") and not logHas("Karuzo"), "5 never logs what was said or who said it")
 filters.CHAT_MSG_SAY(nil, "CHAT_MSG_SAY", "x")
-SlashCmdList.CHATPROBE("report")
+cprobe("report")
 check(logHas("events=2 messageFilter calls=1"), "5 reports events against filter calls")
 
 -- 7: the print handler names the calling addon from the stack, skipping
@@ -151,7 +174,7 @@ local function via(path) return '[Interface/AddOns/ChatProbe/ChatProbe.lua]:289:
     .. '[C]: in function \'pcall\'\n'
     .. '[Interface/AddOns/Blizzard_PrintHandler/Blizzard_PrintHandler.lua]:90: in function <Interface/AddOns/Blizzard_PrintHandler/Blizzard_PrintHandler.lua:86>\n'
     .. '[Interface/AddOns/' .. path .. ']:12: in function <Interface/AddOns/' .. path .. ':10>\n' end
-SlashCmdList.CHATPROBE("sources")
+cprobe("sources")
 check(handler == T.printHandler, "7 installs its print handler")
 stack = via("ASProbe/ASProbe.lua")
 handler("ASProbe", "line one")
@@ -169,7 +192,7 @@ stack = '[Interface/AddOns/ChatProbe/ChatProbe.lua]:289: in function <Interface/
     .. "[C]: in function 'AddMessage'\n"
     .. '[Interface/AddOns/Blizzard_ChatFrameBase/Mainline/ChatFrameOverrides.lua]:259: in function <Interface/AddOns/Blizzard_ChatFrameBase/Mainline/ChatFrameOverrides.lua:250>\n'
 ChatFrame1:AddMessage("You are now Away", 1, 1, 0, 1)
-SlashCmdList.CHATPROBE("sources")
+cprobe("sources")
 check(logHas("7 AddMessage (no chat event) from Blizzard = 1"), "7 buckets Blizzard's own 5-argument lines")
 check(logHas("7 print from ASProbe = 2"), "7 counts print lines per source addon")
 check(logHas("7 AddMessage (no chat event) from OtherAddon = 1"), "7 counts direct AddMessage lines per addon")
@@ -185,7 +208,7 @@ local function routed() return texts(tab) end
 tab.messageTypeList = {}
 windows[3] = { "", false, false }   -- an unused window slot
 rawset(_G, "FCF_OpenNewWindow", function(name, noDefault) tab._tabName, tab._noDefault = name, noDefault; return tab end)
-SlashCmdList.CHATPROBE("route")
+cprobe("route")
 check(tab._tabName == "Probe" and tab._noDefault == true, "8 opens an empty 'Probe' tab")
 local before = #passedOn
 stack = via("ChatProbe/ChatProbe.lua")
@@ -195,7 +218,7 @@ eq(r[#r], "ChatProbe mine", "8 routes ChatProbe's lines to the tab")
 stack = via("ASProbe/ASProbe.lua")
 handler("ASProbe", "theirs")
 eq(#passedOn, before + 1, "8 leaves other addons' lines in the main chat")
-SlashCmdList.CHATPROBE("route")
+cprobe("route")
 stack = via("ChatProbe/ChatProbe.lua")
 handler("ChatProbe", "back")
 eq(passedOn[#passedOn], "ChatProbe back", "8 routing off returns lines to the main chat")
@@ -207,13 +230,13 @@ eq(passedOn[#passedOn], "ChatProbe back", "8 routing off returns lines to the ma
 local opened = 0
 rawset(_G, "FCF_OpenNewWindow", function() opened = opened + 1; return tab end)
 windows[3] = { "Probe", false, false }
-SlashCmdList.CHATPROBE("move AltStableProbe")
+cprobe("move AltStableProbe")
 eq(opened, 1, "9 doesn't reuse a closed Probe tab")
-SlashCmdList.CHATPROBE("move")
+cprobe("move")
 windows[3] = { "Probe", true, true }
 opened = 0
-SlashCmdList.CHATPROBE("sources")   -- tracing on too: the probe's own copies must not count
-SlashCmdList.CHATPROBE("move AltStableProbe")
+cprobe("sources")   -- tracing on too: the probe's own copies must not count
+cprobe("move AltStableProbe")
 eq(opened, 0, "9 reuses the character's shown Probe tab")
 tab._lines = {}
 ChatFrame1._lines = { { m = "old line", seq = -2 }, { m = "[ASProbe] dup", seq = -1 } }
@@ -226,17 +249,17 @@ eq(table.concat(routed(), ","), "[ASProbe] dup,[ASProbe] two", "9 copies the add
 eq(table.concat(texts(ChatFrame1), ","), "old line,[ASProbe] dup,other line",
     "9 removes one copy per moved line from General and leaves the rest")
 eq(ChatFrame1._lines[2].seq, -1, "9 removes the line just added, not the older identical one")
-SlashCmdList.CHATPROBE("sources")
+cprobe("sources")
 -- The stub's stack is static, so a counted copy would show up as two more
 -- AltStableProbe lines: only the 2 originals may count.
 check(logHas("7 AddMessage (no chat event) from AltStableProbe = 2"), "9 the probe's own copies aren't counted as AddMessage output")
-SlashCmdList.CHATPROBE("move")
+cprobe("move")
 check(logHas("9 moving off: 2 lines moved from AltStableProbe, 0 copied but not removed"), "9 reports the counts")
 stack = via("AltStableProbe/Probe.lua")
 ChatFrame1:AddMessage("[ASProbe] after", 1, 1, 1)
 eq(#routed(), 2, "9 off: lines stay where they were added")
 
-SlashCmdList.CHATPROBE("watch")
+cprobe("watch")
 check(not T.watcher:IsEventRegistered("CHAT_MSG_SAY"), "5 watch toggles off")
 -- 5: filters count only while watching (they can't be removed), and a
 -- refused registration is reported.
@@ -244,18 +267,25 @@ local calls = T.P.filterCalls
 filters.CHAT_MSG_SAY(nil, "CHAT_MSG_SAY", "x")
 check(not T.P.watching and T.P.filterCalls == calls, "5 filters don't count while not watching")
 rawset(T.watcher, "RegisterEvent", function() return false end)
-SlashCmdList.CHATPROBE("watch")
+cprobe("watch")
 check(logHas("RegisterEvent CHAT_MSG_SAY: refused"), "5 a refused registration is reported")
-SlashCmdList.CHATPROBE("watch")
-SlashCmdList.CHATPROBE("clear")
+cprobe("watch")
+local bound = ChatProbeDB.log
+cprobe("clear")
 eq(#ChatProbeDB.log, 1, "clear empties the log (leaving its own line)")
+check(ChatProbeDB.log == bound, "clear empties the bound table in place, never replaces it")
+cprobe("report")
+check(logHas("5 events="), "a line after clearing lands in ChatProbeDB.log")
+local inConsole = false
+for _, l in ipairs(FP.lines) do if l.m == "ChatProbe" and l.text:find("5 events=", 1, true) then inConsole = true end end
+check(inConsole, "and in the console")
 
 
 -- 10: line identity per event. One line seen by two windows is one line with
 -- two filter calls; a reused lineID with different text is a collision; a
 -- missing lineID or a non-player GUID is counted; nothing said is logged.
 local T10 = ns._test
-SlashCmdList.CHATPROBE("lines")
+cprobe("lines")
 local f10 = filters.CHAT_MSG_SAY
 check(f10 == T10.identityFilter, "10 a filter is installed on each traced event")
 local function line(event, text, sender, lineID, guid)
@@ -266,7 +296,7 @@ line("CHAT_MSG_SAY", "hello there", "Kaleid Sumner", 101, "Player-1-AB")   -- th
 line("CHAT_MSG_SAY", "something else", "Kaleid Sumner", 101, "Player-1-AB") -- same id, other text
 line("CHAT_MSG_CHANNEL", "wts kits", "Bob Seller-Doomhowl", 0, "Player-1-CD")
 line("CHAT_MSG_TEXT_EMOTE", "waves", "Kaleid Sumner", 102, "Creature-0-1")
-SlashCmdList.CHATPROBE("lines")
+cprobe("lines")
 check(logHas("10 CHAT_MSG_SAY: 1 lines, 3 filter calls"), "10 a line in two windows counts once, its calls twice")
 check(logHas("10 lineID collisions (same id, different text) = 1"), "10 a reused lineID with other text is a collision")
 check(logHas("10 CHAT_MSG_CHANNEL: 0 lines, 1 filter calls (0.0 per line), badID=1"), "10 a missing lineID is counted")
@@ -276,7 +306,7 @@ check(not logHas("Kaleid") and not logHas("hello") and not logHas("Bob"), "10/11
 
 -- 10 survives a /reload: the trace is in ChatProbeDB, resumes after the
 -- reload, and the report covers lines from both sides of it.
-SlashCmdList.CHATPROBE("lines")
+cprobe("lines")
 line("CHAT_MSG_YELL", "before reload", "Kaleid Sumner", 201, "Player-1-AB")
 check(ChatProbeDB.ids.on, "10 the trace state is saved")
 local ns2 = {}
@@ -285,16 +315,16 @@ WoW.fire("ADDON_LOADED", "ChatProbe")
 check(logHas("10 line-identity trace resumed after the reload"), "10 the trace resumes after a reload")
 T10 = ns2._test
 line("CHAT_MSG_YELL", "after reload", "Kaleid Sumner", 202, "Player-1-AB")
-SlashCmdList.CHATPROBE("lines")
+cprobe("lines")
 check(logHas("10 CHAT_MSG_YELL: 2 lines"), "10 the report counts lines from both sides of the reload")
 check(not ChatProbeDB.ids.on, "10 and the trace is off after the report")
 
 -- 11: the server ignore test on the target: added as "First Surname", read
 -- back, checked by GUID, removed again; only the target's entry is logged.
-SlashCmdList.CHATPROBE("ignoretest")
+cprobe("ignoretest")
 check(logHas("11 target another player first"), "11 needs a target")
 target = { "Kaleid", "Sumner", "Kaleid" }   -- GetUnitName without the surname, as on Forever
-SlashCmdList.CHATPROBE("ignoretest")
+cprobe("ignoretest")
 check(logHas("AddIgnore(Kaleid Sumner) ok=true"), "11 adds the 'First Surname' form")
 T10.blockWatch._scripts.OnEvent(T10.blockWatch, "IGNORELIST_UPDATE")
 check(logHas("exact entry Kaleid Sumner present = true"), "11 reads the entry back")
@@ -307,23 +337,23 @@ check(not logHas("Old Grudge"), "11 the rest of the ignore list is never logged"
 -- at a time (Codex, #16).
 ignoreList = { "Old Grudge", "Kaleid Sumner" }
 ignoredGuids[targetGuid] = true
-SlashCmdList.CHATPROBE("ignoretest")
+cprobe("ignoretest")
 check(logHas("11 your target is already on your ignore list"), "11 an already-ignored target is left alone")
 eq(#ignoreList, 2, "11 and the player's own entry stays")
 ignoreList, ignoredGuids = { "Old Grudge" }, {}
 rawset(_G, "C_FriendList", setmetatable({ AddIgnore = function() return false end }, { __index = C_FriendList }))
-SlashCmdList.CHATPROBE("ignoretest")
+cprobe("ignoretest")
 check(logHas("11 not added, so nothing to clean up"), "11 a refused add schedules no removal")
 check(T10.P.ignoreTest == nil, "11 nothing pending after a refused add")
 rawset(_G, "C_FriendList", getmetatable(C_FriendList).__index)
-SlashCmdList.CHATPROBE("ignoretest")
-SlashCmdList.CHATPROBE("ignoretest")
+cprobe("ignoretest")
+cprobe("ignoretest")
 check(logHas("11 an ignore test is still waiting"), "11 a second test is refused while one is pending")
 T10.blockWatch._scripts.OnEvent(T10.blockWatch, "IGNORELIST_UPDATE")
 eq(#ignoreList, 1, "11 the pending test cleaned up its own entry only")
 -- No other name from the list is logged, not even one sharing the first name.
 ignoreList = { "Kaleid Other" }
-SlashCmdList.CHATPROBE("ignoretest")
+cprobe("ignoretest")
 T10.blockWatch._scripts.OnEvent(T10.blockWatch, "IGNORELIST_UPDATE")
 check(not logHas("Kaleid Other"), "11 a similar name on the list is never logged")
 
@@ -342,12 +372,12 @@ C_Texture.GetAtlasInfo = function(name)
         return { width = 24, height = 24, file = 123 }
     end
 end
-SlashCmdList.CHATPROBE("atlases")
+cprobe("atlases")
 check(logHas("13 #1 FOUND socialqueuing-icon-group  24x24"), "13 a found atlas is logged with its size, numbered")
 check(logHas("13 #2 FOUND chatframe-button-icon-voicechat"), "13 numbered in order")
 check(logHas("13 missing chatframe-button-icon-chat"), "13 a missing one is logged")
 check(logHas("13 2 of "), "13 with the count")
-SlashCmdList.CHATPROBE("atlases")
+cprobe("atlases")
 check(logHas("13 atlas row hidden"), "13 again hides the row")
 C_Texture.GetAtlasInfo = realAtlas
 

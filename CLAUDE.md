@@ -586,11 +586,21 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
   - The hidden-lines log is session memory: `/gchat spam log`, or the **opt-in** icon beside the
     chat, side button 2, above the alerts `!` (#86; `/gchat spam icon on`, off by default). The icon is a bug in a dev build (`Version` "dev" or
     unreplaced) and an eye in a release, and the debug log shows the event too.
-- **`Tools/ChatProbe/`**: the throwaway measurement addon (`/cprobe help`). It logs every line to
-  `ChatProbeDB.log` in SavedVariables, so after a full client exit the session is on disk at
-  `WTF\Account\<account>\SavedVariables\ChatProbe.lua` for review. **It never logs what anyone
-  said**, only the type and length of each value and whether it was secret (`test_probe` pins
-  this).
+- **`Tools/ChatProbe/`**: the throwaway measurement addon, a **ForeverProbe module**
+  (`## Dependencies: ForeverProbe`; see `C:\Projects\WoW\References\PROBES.md` and
+  `..\ForeverProbe\docs\GUIDE.md`). Commands are `/fp chat <item>`.
+  - Its lines go to the ForeverProbe console (`/fp`) and to `ChatProbeDB.log`, **never to chat**.
+    The exception is the chat test stimuli it writes there on purpose: item 4's link and item 8's
+    routed line.
+  - After a `/reload` or an exit, the log is on disk at
+    `WTF\Account\<account>\SavedVariables\ChatProbe.lua`.
+  - **It never logs what anyone said**, only the type and length of each value and whether it was
+    secret (`test_probe` pins this).
+  - `Tools\deploy.ps1 -Probe` / `-ProbeOnly` deploy the host first (`$env:FOREVERPROBE`, else
+    `..\ForeverProbe`). The tests load the host from the same checkout. ForeverProbe is private,
+    so CI skips `test_probe` (`FOREVERPROBE_OPTIONAL=1`): run `tests\run.ps1` locally before a
+    PR that touches the probe.
+  - Clear the log only with `Probe:ClearLog()`: the host holds `ChatProbeDB.log` by reference.
 
 Forever is **Vanilla content running on Blizzard's Retail (Mainline) codebase**: assume Vanilla
 content and the Retail API. Advice that cites a TBC or Classic chat API (`ChatFrame_OnEvent`,
@@ -652,9 +662,9 @@ not a newer Lua that may be first on `PATH`.
 
 ```powershell
 & 'C:\Program Files (x86)\Lua\5.1\luac.exe' -p File.lua             # syntax check; silent on success
-pwsh tests\run.ps1                                                   # luac -p on our files + probe + every tests\test_*.lua (needs ..\LibGlass or $env:LIBGLASS)
+pwsh tests\run.ps1                                                   # luac -p on our files + probe + every tests\test_*.lua (needs ..\LibGlass, ..\LibAccountSync and ..\ForeverProbe, or their env vars)
 & 'C:\Program Files (x86)\Lua\5.1\lua.exe' tests\test_boot.lua      # one test, run from the repo root
-pwsh Tools\deploy.ps1 -Probe                                         # copy the addon (+ ChatProbe) into AddOns
+pwsh Tools\deploy.ps1 -Probe                                         # copy the addon (+ ForeverProbe, then ChatProbe) into AddOns
 ```
 
 - **Default AddOns path:** `C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns`.
