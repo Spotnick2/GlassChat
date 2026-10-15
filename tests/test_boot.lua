@@ -34,7 +34,7 @@ local lines = newChat()
 check(lines[1] and lines[1]:find("no failures"), "/gchat failures reports none")
 SlashCmdList.GLASSCHAT("version")
 lines = newChat()
-check(lines[1] and lines[1]:find("1.60.1.70338", 1, true), "/gchat version names the measured build")
+check(lines[1] and lines[1]:find("1.60.1.70374", 1, true), "/gchat version names the measured build")
 
 -- A failure recorded anywhere shows up in /gchat failures.
 GC.API.Fail("demo", "boom")

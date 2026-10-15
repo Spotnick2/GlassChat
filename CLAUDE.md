@@ -613,7 +613,7 @@ exists here.
   notes, measured on the live client. Treat them as fact; don't re-derive them. Other sessions
   edit this file, so write new addon-agnostic findings there (it has no chat section yet; the
   probe results belong in one), not into a copy in this repo.
-- `C:\Projects\WoW\References\forever-api-1.60.1.70338.md` is the full API dump for the current
+- `C:\Projects\WoW\References\forever-api-1.60.1.70374.md` is the full API dump for the current
   build. It lists documented functions and events, enums, **widget methods** (the only list of
   those) and the `_G` walk. FrameXML tables such as `ChatTypeInfo` aren't in it. It proves a name
   exists, not that it works. **Presence is not a contract.**
@@ -650,7 +650,7 @@ we don't use. Worth reading:
 Prat is **GPL-3.0, like this repo**, so lifting code is allowed with attribution in the file
 header. Prefer our own code anyway: Prat's is written for its Ace3 pipeline.
 
-Keep a `MEASURED_ON_BUILD` constant in the source, matching the dump's build (`1.60.1.70338`),
+Keep a `MEASURED_ON_BUILD` constant in the source, matching the dump's build (`1.60.1.70374`),
 and warn at login when `GetBuildInfo()` differs, in a dev build only (owner: a player can't act on
 it; `/gchat version` shows both). Bump it only after re-measuring in game.
 
@@ -729,7 +729,7 @@ The `tests\` harness follows the siblings': plain Lua 5.1 scripts with no depend
 `tests\wow_stubs.lua` API mock driven through an exported `WoW` table, `tests\harness.lua`
 (`check` / `eq` / `loadAddon` / `newChat` / `chatHas`), and `tests\run.ps1` to run them all. The
 stub does three more things:
-- It validates event names against the API dump, or against `tests\events-70338.txt` when the
+- It validates event names against the API dump, or against `tests\events-70374.txt` when the
   dump is absent (CI). `test_toc` fails if the two drift.
 - It models `FontString:SetFormattedText` taking secrets without formatting them in Lua.
 - It records every widget method called. `test_methods.lua` checks each one exists in the dump.

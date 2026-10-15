@@ -1,4 +1,4 @@
-# Event names documented in the 1.60.1.70338 API dump (forever-api-1.60.1.70338.md,
+# Event names documented in the 1.60.1.70374 API dump (forever-api-1.60.1.70374.md,
 # section "Documented events"). Generated; the stub validates RegisterEvent against it
 # when the dump itself is absent (CI). test_toc fails if it drifts from the dump.
 ACCOUNT_CHARACTER_CURRENCY_DATA_RECEIVED
