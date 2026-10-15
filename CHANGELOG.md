@@ -35,6 +35,8 @@
   addon's lines again, including the ones it prints while the game loads, instead of sitting
   empty while they land in the main chat. Close the tab, or choose "Back to the main chat", to
   stop it. `/gchat tabs catch off` turns it off.
+- **A clearer chat window:** the white haze over the top of the chat window and the edit box is
+  gone. It was meant to be off from the start, but the game ignored the setting.
 
 ## v0.1.0-beta
 

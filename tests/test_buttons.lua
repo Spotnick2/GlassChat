@@ -18,7 +18,11 @@ for _, b in ipairs({ ChatFrameChannelButton, TextToSpeechButton }) do
         eq(b._normal._alpha, 0, name .. ": the metal frame (normal art) is invisible")
         eq(b._pushed._alpha, 0, name .. ": and the pushed art")
         eq(b._highlight._alpha, GC.Buttons.HIGHLIGHT, name .. ": the hover highlight is softened, not gone")
-        eq(p.g.tint._color[4], GC.db.alpha, name .. ": the pill uses the panel's darkness")
+        eq(p.g.tint._color[4], GC.db.alpha, name .. ": the pill uses the panel's darkness")
+        eq(p.pill.glassPill, p.g, name .. ": built by LibGlass's Pill (#80)")
+        eq(p.g.grain._alpha, 0, name .. ": no grain on a 24 px pill, after Tune")
+        eq(p.g.rim._alpha, GC.Skin.RIM_IDLE, name .. ": the panel's rim")
+        check(p.g.wash:IsShown(), name .. ": the pill keeps the wash, like Pill's other users (AltStable)")
     end
 end
 eq(TextToSpeechButton.Background._alpha, 0, "TTS's black Background square is gone too")

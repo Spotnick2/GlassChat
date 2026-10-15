@@ -130,6 +130,9 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
     is applied to its children.
   - It covers `ChatFrameNBackground`'s rectangle plus `PAD_X/PAD_Y`, and reaches `TAB_STRIP` px
     up over the tabs, with a separator line.
+  - **No wash** on the window and edit box panels: `Glass.SetWash(g, 0)` (r7). The wash is a
+    gradient, which ignores `SetAlpha` on Forever, so the `SetAlpha(0)` shipped before never
+    removed it (#95). The button pills keep it, like every other `Glass.Pill`.
   - Blizzard's `CHAT_FRAME_TEXTURES` are **hidden**, not faded: the hover fade skips hidden
     textures (FloatingChatFrame.lua:1336-1340; measured, nothing comes back on hover).
   - **Edit box:** its panel is a child of the box (`DIALOG` strata). Its border and focus art go
@@ -182,9 +185,10 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
   - **Voice-style buttons** (`VoiceToggleButtonTemplate`: channel, TTS, deafen, mute): the metal
     frame is the button's normal and pushed art, set to alpha 0. TTS's own black `Background`
     square goes too.
-  - Behind them, a small glass pill from `Skin.NewPanel` / `Skin.Tune`, our own child one level
-    under. Its `g.top` (the rims) is lowered with it, since `Glass.Apply` puts it at +10, over the
-    gold `Icon`. The level re-syncs every scan.
+  - Behind them, LibGlass's `Glass.Pill` (r5, #80), our own child one level under, its `g.top`
+    (the rims) lowered with it, since `Glass.Apply` puts it at +10, over the gold `Icon`. Then
+    `Skin.Tune` (the panel's tint and grain), the grain back to 0 and the panel's idle rim.
+    `Glass.RelevelPill` re-syncs the level every scan. The side buttons are pills too.
   - The highlight is softened, and softened again after Blizzard's `UpdateHighlight`.
   - A button never styled (glass off from login) is never touched.
   - Parent keys and mixin methods are read with `rawget`: they are plain fields on the frame.
