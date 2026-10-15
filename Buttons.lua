@@ -149,22 +149,18 @@ function Buttons.Style(b)
     local p = pills[b]
     if not (on or p) then return end   -- never styled: the stock button is left alone
     if on and not p then
-        -- The panel recipe and tuning from Skin, then only what a 24 px
-        -- pill needs differently.
-        local pill, g = GC.Skin.NewPanel(b, "small")
-        pill:SetSize(Buttons.SIZE, Buttons.SIZE)
-        pill:SetPoint("CENTER", b, "CENTER", 0, 0)
+        -- LibGlass's pill (r5, lifted from this recipe, #80): one level under
+        -- the button, its rims too, no grain or shadow. Then the panel's rim.
+        local pill, g = GC.Glass.Pill(b, { side = Buttons.SIZE, highlight = Buttons.HIGHLIGHT })
+        g.rim:SetAlpha(GC.Skin.RIM_IDLE)
         p = { pill = pill, g = g }
         pills[b] = p
     end
-    -- Re-synced every time: the button's level may have moved. Glass.Apply
-    -- puts its rims on g.top at +10 (LibGlass.lua, lib.impl.Apply), which would draw them
-    -- over the gold Icon; down with the pill instead.
-    p.pill:SetFrameLevel(math.max(0, b:GetFrameLevel() - 1))
-    p.g.top:SetFrameLevel(p.pill:GetFrameLevel())
+    -- Re-synced every time: the button's level may have moved, and the
+    -- rims would then draw over the gold Icon.
+    GC.Glass.RelevelPill(p.pill)
     GC.Skin.Tune(p.g)
-    p.g.grain:SetAlpha(0)
-    p.g.shadow:SetAlpha(0)
+    p.g.grain:SetAlpha(0)   -- Tune sets the panel's grain
     p.pill:SetShown(on)
     art(b, on)
     local own = symbol[b:GetName()]
@@ -277,13 +273,11 @@ local function buildSide(s, menu)
         c:SetSubSystemAnchorPriority(system, Buttons.SIDE_PRIORITY + o.order / 100)
         s.contained = true
     end
-    local pill, g = GC.Skin.NewPanel(b, "small")
-    pill:SetAllPoints(b)
-    pill:SetFrameLevel(math.max(0, b:GetFrameLevel() - 1))
-    g.top:SetFrameLevel(pill:GetFrameLevel())
+    -- No highlight texture to soften: hover is paintSide's.
+    local pill, g = GC.Glass.Pill(b, { highlight = false })
+    g.rim:SetAlpha(GC.Skin.RIM_IDLE)
     GC.Skin.Tune(g)
-    g.grain:SetAlpha(0)
-    g.shadow:SetAlpha(0)
+    g.grain:SetAlpha(0)   -- Tune sets the panel's grain
     b.pill = pill
     local glow = b:CreateTexture(nil, "ARTWORK")
     glow:SetAllPoints(b)

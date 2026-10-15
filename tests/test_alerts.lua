@@ -240,6 +240,8 @@ local point, rel, relPoint = b:GetPoint(1)
 check(point == "BOTTOMLEFT" and rel == TextToSpeechButtonFrame and relPoint == "TOPLEFT",
     "in Blizzard's stack above the column, right above text-to-speech")
 eq(b:GetAlertContainer(), ChatAlertFrame, "contained by ChatAlertFrame")
+check(b.pill.glassPill and b.pill:GetFrameLevel() < b:GetFrameLevel(), "on LibGlass's Pill, under the button (#80)")
+eq(b.pill.glassPill.grain._alpha, 0, "no grain on the pill, after Tune")
 fresh()
 post(SAY, "karuzo one")
 post(SAY, "karuzo two")

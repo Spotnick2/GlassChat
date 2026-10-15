@@ -34,6 +34,9 @@ local EDIT_TEXTURES = { "Left", "Right", "Mid", "FocusLeft", "FocusRight", "Focu
 -- one along the bottom. All of it on the regions Glass.Apply returns; the
 -- material (the embedded LibGlass-1.0) is never edited from here.
 Skin.TINT = { 0.05, 0.05, 0.06 }
+-- The wash is a gradient, which ignores SetAlpha on Forever (porting guide
+-- §3, LibGlass#47): it goes through Glass.SetWash, on the window and edit
+-- box panels only (#95). Until r7 it was set with SetAlpha and never left.
 Skin.GRAIN, Skin.WASH = 0.12, 0
 Skin.RIM_IDLE, Skin.RIM_FOCUS = 0.45, 0.9
 
@@ -95,7 +98,6 @@ end
 local function tune(g)
     g.tint:SetColorTexture(Skin.TINT[1], Skin.TINT[2], Skin.TINT[3], GC.db.alpha)
     g.grain:SetAlpha(Skin.GRAIN)
-    g.wash:SetAlpha(Skin.WASH)
 end
 
 -- The chat window's panel reaches up behind the tabs, so it must sit under
@@ -115,6 +117,7 @@ local function newPanel(parent, size, strata)
     end
     local g = Glass.Apply(panel, size)
     g.rim:SetAlpha(Skin.RIM_IDLE)
+    Glass.SetWash(g, Skin.WASH)
     tune(g)
     return panel, g
 end
@@ -429,8 +432,7 @@ function Skin.HookTabs()
     end
 end
 
--- The panel recipe and its tuning, for other modules' glass (Buttons.lua).
-Skin.NewPanel = newPanel
+-- The panel's tint and grain, for other modules' glass (Buttons.lua's pills).
 Skin.Tune = tune
 
 Skin._test = { panels = panels, tabFont = tabFont, tabLit = tabLit, applyTabAlpha = applyTabAlpha, liftTab = liftTab }

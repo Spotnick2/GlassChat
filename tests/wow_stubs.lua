@@ -158,7 +158,10 @@ function Methods.SetWidth(w, x) w._width = x end
 function Methods.SetHeight(w, y) w._height = y end
 function Methods.GetWidth(w) return w._width end
 function Methods.GetHeight(w) return w._height end
-function Methods.SetAlpha(w, a) w._alpha = a end
+-- A texture painted with SetGradient ignores a later SetAlpha (measured on
+-- 70374, porting guide §3, #95): GetAlpha still reads what it read before.
+-- Modelled, so a test of a gradient's alpha can't pass against that bug.
+function Methods.SetAlpha(w, a) if not w._gradient then w._alpha = a end end
 function Methods.GetAlpha(w) return w._alpha or 1 end
 function Methods.GetParent(w) return w._parent end
 function Methods.SetParent(w, p) w._parent = p end
