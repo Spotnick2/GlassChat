@@ -17,7 +17,7 @@
 --   texture and set again after Blizzard's OnMouseDown/Up (QuickJoinToast
 --   .lua:344-351 swap it to the framed -down/-up art); its friend count stays;
 -- - chat menu: no frameless bubble exists (communities-icon-chat sits on a
---   black square), so a small gold bubble is drawn from fills, like the copy
+--   black square), so an ice-blue bubble is drawn from fills, like the copy
 --   icon, and the button's file art goes to alpha 0.
 -- The queue toast (QueueButton, shown only while a group is advertised) is
 -- left as it is.
@@ -57,7 +57,7 @@ local function art(b, on)
     if h then h:SetAlpha(on and Buttons.HIGHLIGHT or 1) end
 end
 
--- The chat menu's bubble: two overlapping gold fills (a rounded body) and
+-- The chat menu's bubble: two overlapping accent fills (a rounded body) and
 -- a small tail at the bottom left, on a holder over the pill. Pressed, the
 -- holder moves 1 px down; disabled, the bubble dims, as PropertyButton does
 -- for the voice symbols (review of #38).
@@ -69,12 +69,12 @@ local function bubble(b)
     local h = parts.holder
     h:SetSize(16, 14)
     h:SetPoint("CENTER", b, "CENTER", 0, 1)
-    local gold = GC.Skin.TAB_GOLD
+    local accent = GC.Skin.ACCENT
     local function fill(w, hh, point, rel, relPoint, x, y)
         local t = h:CreateTexture(nil, "OVERLAY")
         t:SetSize(w, hh)
         t:SetPoint(point, rel, relPoint, x, y)
-        t:SetColorTexture(gold[1], gold[2], gold[3], 1)
+        t:SetColorTexture(accent[1], accent[2], accent[3], 1)
         parts[#parts + 1] = t
         return t
     end
@@ -159,8 +159,7 @@ function Buttons.Style(b)
     -- Re-synced every time: the button's level may have moved, and the
     -- rims would then draw over the gold Icon.
     GC.Glass.RelevelPill(p.pill)
-    GC.Skin.Tune(p.g)
-    p.g.grain:SetAlpha(0)   -- Tune sets the panel's grain
+    GC.Skin.PillLook(p.g)
     p.pill:SetShown(on)
     art(b, on)
     local own = symbol[b:GetName()]
@@ -276,8 +275,7 @@ local function buildSide(s, menu)
     -- No highlight texture to soften: hover is paintSide's.
     local pill, g = GC.Glass.Pill(b, { highlight = false })
     g.rim:SetAlpha(GC.Skin.RIM_IDLE)
-    GC.Skin.Tune(g)
-    g.grain:SetAlpha(0)   -- Tune sets the panel's grain
+    GC.Skin.PillLook(g)
     b.pill = pill
     local glow = b:CreateTexture(nil, "ARTWORK")
     glow:SetAllPoints(b)
@@ -342,6 +340,8 @@ function Buttons.RefreshSides()
         if shown and not s.button then buildSide(s, menu) end
         local b = s.button
         if b then
+            GC.Glass.RelevelPill(b.pill)
+            GC.Skin.PillLook(b.pill.glassPill)
             b:SetShown(shown)
             b.pill:SetShown(GC.db.glass and true or false)
             if shown and not s.contained then

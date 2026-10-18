@@ -210,10 +210,10 @@ function Copy.Button(f)
     fill:SetColorTexture(GC.Skin.TINT[1], GC.Skin.TINT[2], GC.Skin.TINT[3], 1)
     icon.fill = fill
     page(b, left + o, top - o, icon.lines, 3)
-    local grey, gold = GC.Skin.TAB_GREY, GC.Skin.TAB_GOLD
+    local grey, accent = GC.Skin.TAB_GREY, GC.Skin.ACCENT
     paintIcon(icon, grey)
     b:SetScript("OnEnter", function(self)
-        paintIcon(icon, gold)
+        paintIcon(icon, accent)
         local tip = rawget(_G, "GameTooltip")
         if tip then
             tip:SetOwner(self, "ANCHOR_TOP")
