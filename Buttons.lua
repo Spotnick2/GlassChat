@@ -97,17 +97,26 @@ end
 -- The friends button's symbol: ours with glass, Blizzard's without. Raised
 -- and a little smaller, so the friend count (BOTTOM, y 4) sits under it,
 -- not over it (review of #38).
+-- With glass, symbol and count move onto the column's line with the pill
+-- (Buttons.ColumnOffset); without, the count goes back to its own place
+-- (BOTTOM, y 4: QuickJoinToast.xml:45-48).
 local function friendsArt(b, on)
     local t = rawget(b, "FriendsButton")   -- a parentKey: a plain field
     if not t then return end
+    local dx = on and Buttons.ColumnOffset(b) or 0
     t:ClearAllPoints()
     if on then
         t:SetAtlas(Buttons.FRIENDS_ICON)
         t:SetSize(18, 16)
-        t:SetPoint("CENTER", b, "CENTER", 0, 6)
+        t:SetPoint("CENTER", b, "CENTER", dx, 6)
     else
         t:SetAtlas(Buttons.FRIENDS_STOCK)
         t:SetAllPoints(b)
+    end
+    local count = rawget(b, "FriendCount")
+    if count then
+        count:ClearAllPoints()
+        count:SetPoint("BOTTOM", b, "BOTTOM", dx, 4)
     end
 end
 
@@ -129,9 +138,17 @@ symbol[Buttons.MENU] = function(b, on)
     end
 end
 symbol[Buttons.FRIENDS] = function(b, on)
+    -- Its pill on the column's line, not on the button's own centre.
+    local p = pills[b]
+    if p and on then
+        p.pill:ClearAllPoints()
+        p.pill:SetPoint("CENTER", b, "CENTER", Buttons.ColumnOffset(b), 0)
+    end
     -- Once per change: with glass off, a scan must not re-set the stock art
     -- over Blizzard's pressed state (review of #38).
-    if applied[b] ~= on then
+    -- With glass, every scan: the stack's justification may have moved
+    -- (ChatAlertFrameMixin:SetChatButtonSide), and the symbol is ours anyway.
+    if on or applied[b] ~= on then
         applied[b] = on
         friendsArt(b, on)
     end
@@ -228,6 +245,26 @@ local function container()
         return c
     end
 end
+
+-- Every pill on one vertical line, the button column's centre (owner: they
+-- were "not horizontally aligned at all"). The voice buttons and the chat
+-- menu are centred in ChatFrame1ButtonFrame (FloatingChatFrameVoiceChat.xml:6,
+-- FloatingChatFrame.xml:726). ChatAlertFrame is as wide as that column and
+-- sits on it (ChatAlertFrameMixin.lua:5-7), but lines its frames up by one
+-- edge (AlertFrames.lua:447-452): the 32-wide friends button was 1.5 off the
+-- line, and 24-wide side buttons 2.5 the other way. So a side button takes
+-- the container's width, and the friends pill, symbol and count move by this:
+-- how far b's centre is from the container's. 0 without the container, or
+-- with a centred stack.
+function Buttons.ColumnOffset(b)
+    local c = container()
+    if not (c and rawget(c, "GetJustification")) then return 0 end   -- a mixin method: a plain field
+    local d = (c:GetWidth() - b:GetWidth()) / 2
+    local j = c:GetJustification()
+    if j == "LEFT" then return d elseif j == "RIGHT" then return -d end
+    return 0
+end
+
 Buttons.GREEN = { 0.3, 0.9, 0.3 }
 Buttons.GLOW = 0.35
 Buttons.PULSE_PERIOD, Buttons.PULSE_LOW = 0.6, 0.35
@@ -263,7 +300,9 @@ local function buildSide(s, menu)
     local c = container()
     local b = CreateFrame("Button", nil, c and UIParent or (menu:GetParent() or UIParent))
     b:SetFrameStrata("MEDIUM")
-    b:SetSize(Buttons.SIDE_SIZE, Buttons.SIDE_SIZE)
+    -- In the container, as wide as it: centred on the column whichever edge it
+    -- lines up by (Buttons.ColumnOffset). The pill keeps SIDE_SIZE.
+    b:SetSize(c and c:GetWidth() or Buttons.SIDE_SIZE, Buttons.SIDE_SIZE)
     if c then
         -- The methods the container calls on a contained frame (AlertFrameIntrinsic.lua),
         -- on our own button; then into Blizzard's stack.
@@ -273,12 +312,12 @@ local function buildSide(s, menu)
         s.contained = true
     end
     -- No highlight texture to soften: hover is paintSide's.
-    local pill, g = GC.Glass.Pill(b, { highlight = false })
+    local pill, g = GC.Glass.Pill(b, { side = Buttons.SIDE_SIZE, highlight = false })
     g.rim:SetAlpha(GC.Skin.RIM_IDLE)
     GC.Skin.PillLook(g)
     b.pill = pill
     local glow = b:CreateTexture(nil, "ARTWORK")
-    glow:SetAllPoints(b)
+    glow:SetAllPoints(pill)
     glow:SetColorTexture(Buttons.GREEN[1], Buttons.GREEN[2], Buttons.GREEN[3], Buttons.GLOW)
     glow:SetBlendMode("ADD")
     glow:Hide()
@@ -301,7 +340,7 @@ local function buildSide(s, menu)
     fade:SetDuration(Buttons.PULSE_PERIOD)
     b.pulse = pulse
     b.count = GC.Glass.Font(b, 11, "CENTER")
-    b.count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 3, -3)
+    b.count:SetPoint("BOTTOMRIGHT", pill, "BOTTOMRIGHT", 3, -3)
     b:SetScript("OnEnter", function(self)
         self.hovered = true
         paintSide(s)

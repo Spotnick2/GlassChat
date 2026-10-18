@@ -78,7 +78,23 @@ F._scripts.OnMouseDown(F)
 eq(F.FriendsButton._atlas, "socialqueuing-icon-group", "and keeps it when pressed (Blizzard's framed -down art replaced after)")
 F._scripts.OnMouseUp(F)
 eq(F.FriendsButton._atlas, "socialqueuing-icon-group", "and released")
+-- One vertical line (owner, the Pearl pass): ChatAlertFrame lines the
+-- 32-wide friends button up by its left edge on the 29-wide column, so its
+-- pill, symbol and count move 1.5 left, onto the column's centre.
+local pp = pills[F].pill._points[1]
+check(pp[1] == "CENTER" and pp[2] == F and pp[4] == -1.5 and pp[5] == 0, "the friends pill sits on the column's centre line")
+eq(F.FriendsButton._points[1][4], -1.5, "  its symbol with it")
+eq(F.FriendCount._points[1][4], -1.5, "  and its friend count")
+eq(F.FriendCount._points[1][5], 4, "  still at the count's own height")
+ChatAlertFrame._justification = "RIGHT"   -- chat buttons on the right (ChatAlertFrameMixin:SetChatButtonSide)
+GC.Chat.Scan()
+eq(pills[F].pill._points[1][4], 1.5, "right-justified, the pill moves the other way")
+eq(F.FriendsButton._points[1][4], 1.5, "  and so does its symbol")
+ChatAlertFrame._justification = "LEFT"
+GC.Chat.Scan()
+eq(pills[F].pill._points[1][4], -1.5, "(back on the left)")
 GC.Settings.SetGlass(false)
+eq(F.FriendCount._points[1][4], 0, "glass off: the friend count goes back to its own place")
 eq(M._normal._alpha, 1, "glass off: the chat menu's art comes back")
 check(not parts.holder:IsShown(), "and the drawn bubble goes")
 eq(F.FriendsButton._atlas, "quickjoin-button-friendslist-up", "the friends button's stock art comes back")

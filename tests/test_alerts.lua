@@ -242,6 +242,13 @@ check(point == "BOTTOMLEFT" and rel == TextToSpeechButtonFrame and relPoint == "
 eq(b:GetAlertContainer(), ChatAlertFrame, "contained by ChatAlertFrame")
 check(b.pill.glassPill and b.pill:GetFrameLevel() < b:GetFrameLevel(), "on LibGlass's Pill, under the button (#80)")
 eq(b.pill.glassPill.grain._alpha, 0, "no grain on the pill, after Tune")
+-- As wide as the stack, so its pill is on the column's centre line, with the
+-- voice buttons' (owner, the Pearl pass): the stack lines frames up by one edge.
+eq(b:GetWidth(), ChatAlertFrame:GetWidth(), "as wide as Blizzard's stack, over the 29-wide column")
+eq(b.pill:GetWidth(), GC.Buttons.SIDE_SIZE, "its pill keeps the button size")
+local pp = b.pill._points[1]
+check(pp and pp[1] == "CENTER" and pp[2] == b and pp[4] == 0 and pp[5] == 0, "centred on the button, so on the column")
+eq(b.glow._points[1][2], b.pill, "the green glow covers the pill, not the wider button")
 fresh()
 post(SAY, "karuzo one")
 post(SAY, "karuzo two")
