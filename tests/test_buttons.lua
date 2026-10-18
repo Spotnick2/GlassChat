@@ -18,7 +18,7 @@ for _, b in ipairs({ ChatFrameChannelButton, TextToSpeechButton }) do
         eq(b._normal._alpha, 0, name .. ": the metal frame (normal art) is invisible")
         eq(b._pushed._alpha, 0, name .. ": and the pushed art")
         eq(b._highlight._alpha, GC.Buttons.HIGHLIGHT, name .. ": the hover highlight is softened, not gone")
-        eq(p.g.tint._color[4], GC.db.alpha, name .. ": the pill uses the panel's darkness")
+        eq(p.g.tint._color[4], GC.db.shellAlpha, name .. ": the pill uses the shell darkness")
         eq(p.pill.glassPill, p.g, name .. ": built by LibGlass's Pill (#80)")
         eq(p.g.grain._alpha, 0, name .. ": no grain on a 24 px pill, after Tune")
         eq(p.g.rim._alpha, GC.Skin.RIM_IDLE, name .. ": the panel's rim")
@@ -37,7 +37,9 @@ GC.Chat.Scan()
 eq(pills[ChatFrameChannelButton].pill:GetFrameLevel(), 19, "the pill re-syncs under a moved button")
 
 GC.Settings.SetAlpha(0.8)
-eq(pills[ChatFrameChannelButton].g.tint._color[4], 0.8, "the pill follows the darkness setting")
+eq(pills[ChatFrameChannelButton].g.tint._color[4], GC.db.shellAlpha, "reading opacity leaves the pill alone")
+GC.Settings.SetShellAlpha(0.8)
+eq(pills[ChatFrameChannelButton].g.tint._color[4], 0.8, "the pill follows shell opacity")
 GC.Settings.SetGlass(false)
 check(not pills[TextToSpeechButton].pill:IsShown(), "glass off hides the pill")
 eq(TextToSpeechButton._normal._alpha, 1, "and gives the frame back")
@@ -55,7 +57,7 @@ eq(M._disabled._alpha, 0, "the disabled art too")
 local parts = GC.Buttons._test.bubbles[M]
 check(parts and #parts == 4, "a drawn bubble instead")
 check(parts.holder:IsShown(), "shown")
-for _, t in ipairs(parts) do check(t._color[2] == GC.Skin.TAB_GOLD[2], "in gold") end
+for _, t in ipairs(parts) do check(t._color[2] == GC.Skin.ACCENT[2], "in the navigation accent") end
 -- Pressed it moves down a pixel; disabled it dims (review of #38).
 M._scripts.OnMouseDown(M)
 eq(parts.holder._points[1][5], 0, "pressed: the bubble moves down")

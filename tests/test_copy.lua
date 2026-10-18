@@ -58,7 +58,7 @@ check(rear._layer == fill._layer and fill._layer == front._layer, "the icon's pa
 check(rear._sublevel < fill._sublevel and fill._sublevel < front._sublevel, "back outline, then the front fill, then the front outline")
 eq(b.icon.lines[1]._color[1], GC.Skin.TAB_GREY[1], "grey at rest, like the tab names")
 b._scripts.OnEnter(b)
-eq(b.icon.lines[1]._color[2], GC.Skin.TAB_GOLD[2], "gold on hover")
+eq(b.icon.lines[1]._color[2], GC.Skin.ACCENT[2], "navigation accent on hover")
 eq(GameTooltip._text, "Copy this window", "with a tooltip saying what it does")
 b._scripts.OnLeave(b)
 eq(b.icon.lines[1]._color[1], GC.Skin.TAB_GREY[1], "grey again after")

@@ -332,10 +332,10 @@ function Focus.Button(f)
     if get then okA, info = pcall(get, Focus.ICON) end
     if okA and info and not API.IsSecret(info) then icon:SetAtlas(Focus.ICON) else icon:SetColorTexture(1, 1, 1, 0.5) end
     icon:SetDesaturated(true)
-    local grey, gold = GC.Skin.TAB_GREY, GC.Skin.TAB_GOLD
+    local grey, accent = GC.Skin.TAB_GREY, GC.Skin.ACCENT
     icon:SetVertexColor(grey[1], grey[2], grey[3])
     b:SetScript("OnEnter", function(self)
-        icon:SetVertexColor(gold[1], gold[2], gold[3])
+        icon:SetVertexColor(accent[1], accent[2], accent[3])
         local tip = rawget(_G, "GameTooltip")
         if tip then
             tip:SetOwner(self, "ANCHOR_TOP")

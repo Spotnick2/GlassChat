@@ -2,11 +2,18 @@
 
 ## Unreleased
 
+- **Pearl chat styling:** thin pale rims and soft ice-blue selected tabs, menu bubble and
+  copy/search hover icons, using LibGlass r11's shared Pearl preset.
+- **Readability and glass depth separately:** chat and the edit box default to a darker backing
+  (`/gchat alpha 0.82`), while the tab strip and all side pills use `/gchat shellalpha 0.68`.
+  Both settings accept 0–1. Existing saved opacity and edge tuning remain in effect.
+- **All side pills update together:** the alerts and Spam & Ignore pills now refresh their
+  glass darkness with the other buttons. Their counts, gold idle symbols and green alerts remain.
 - **Alerts when chat mentions you:** when someone writes your character's first name in public,
   guild, party or raid chat, a sound plays (LFG Bulletin Board's notification sound) and the game
   blinks in the taskbar.
-  - **The alerts button:** a new `!` beside the chat, above the buttons there. It's gold like
-    its neighbours, and turns green and pulses with a count when something mentions you. Click it
+  - **The alerts button:** a new `!` beside the chat, above the buttons there. It's gold at rest,
+    and turns green and pulses with a count when something mentions you. Click it
     to see what did.
   - **Your name:** a player link to another character with your first name doesn't count.
     `/gchat alert name full` waits for your full name.

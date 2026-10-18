@@ -72,7 +72,8 @@ TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
   It is a subset of GlassRaidFrames' `Compat.lua`; lift more from there when needed rather than
   rewriting.
 - **`Glass.lua`**: GlassChat's instance of the material,
-  `GlassChat.Glass = LibStub("LibGlass-1.0"):New()` (see "The glass material" below). Chat-specific
+  `LibStub("LibGlass-1.0"):New({ preset = "pearl" })` with r11+, falling back to `New()` only
+  for older dev installs (see "The glass material" below). Chat-specific
   tuning (darker tint, less grain and wash) is applied **on the regions `Glass.Apply` returns**, in
   `Skin.lua`: the library never repaints existing regions. The window's directional edge is the
   material's own optional edge (`g.edge`), set per window with `Glass.SetEdge` from `/gchat
@@ -130,6 +131,12 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
     is applied to its children.
   - It covers `ChatFrameNBackground`'s rectangle plus `PAD_X/PAD_Y`, and reaches `TAB_STRIP` px
     up over the tabs, with a separator line.
+  - **Pearl surfaces:** two adjacent fills share `g.mask`: `g.tint` covers the reading area,
+    and `p.header` covers the tab strip down to the separator. Never stack a full-panel tint
+    under the header: that would compound the opacity. `alpha` (default 0.82) controls reading
+    and input; `shellAlpha` (0.68) controls the header and every pill. Both use `GC.Settings`,
+    refresh live and participate in settings sync. Saved opacity and `look` overrides win.
+    The rim is Pearl-tinted, grain is off, and the edge stays subdued. See `docs/PEARL-HANDOFF.md`.
   - **No wash** on the window and edit box panels: `Glass.SetWash(g, 0)` (r7). The wash is a
     gradient, which ignores `SetAlpha` on Forever, so the `SetAlpha(0)` shipped before never
     removed it (#95). The button pills keep it, like every other `Glass.Pill`.
@@ -145,7 +152,7 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
     - The name is 14 pt with a shadow, set at `ADDON_LOADED`, before Blizzard names and sizes
       the tabs. The text box is grown from its 8 px.
     - The stock art (background, selected and highlight pieces) is at alpha 0.
-    - The selected tab gets a faint fill and a gold underline: textures created on the tab, under
+    - The selected tab gets an ice-blue name, faint fill and underline (`Skin.ACCENT`): textures on the tab, under
       the name, repainted after `FCFTab_UpdateColors`. The other names are grey.
     - Resting opacity goes through `ChatFrameUtil.SetTabAlphas` after `FCFTab_UpdateAlpha`. Never
       write the `CHAT_FRAME_TAB_*_ALPHA` globals (that taints).
@@ -187,8 +194,10 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
     square goes too.
   - Behind them, LibGlass's `Glass.Pill` (r5, #80), our own child one level under, its `g.top`
     (the rims) lowered with it, since `Glass.Apply` puts it at +10, over the gold `Icon`. Then
-    `Skin.Tune` (the panel's tint and grain), the grain back to 0 and the panel's idle rim.
-    `Glass.RelevelPill` re-syncs the level every scan. The side buttons are pills too.
+    `Skin.PillLook` applies the shell opacity, Pearl rim and wash, with no grain or shadow.
+    `Glass.RelevelPill` and `Skin.PillLook` run every scan, including for existing custom side
+    buttons. Native voice symbols retain their state colours. `Skin.TAB_GOLD` remains for
+    the idle alert/plugin symbols; navigation uses `Skin.ACCENT`.
   - The highlight is softened, and softened again after Blizzard's `UpdateHighlight`.
   - A button never styled (glass off from login) is never touched.
   - Parent keys and mixin methods are read with `rawget`: they are plain fields on the frame.
@@ -197,7 +206,7 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\LIBGLASS
     - **friends:** `socialqueuing-icon-group` (owner's pick) is set on the button's own
       `FriendsButton` texture, and set again after Blizzard's `OnMouseDown` / `OnMouseUp` (which
       swap in the framed art). The friend count stays.
-    - **chat menu:** no frameless bubble exists, so a small gold bubble is drawn from fills, like
+    - **chat menu:** no frameless bubble exists, so a small ice-blue bubble is drawn from fills, like
       the copy icon. The file art (normal, pushed, disabled) goes to alpha 0.
     - The queue toast (`QueueButton`) is left as it is.
     - **Every button runs the shared steps** (pill, frame art, softened highlight), then its own

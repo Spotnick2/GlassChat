@@ -27,35 +27,30 @@ local FRAME_TEXTURES = CHAT_FRAME_TEXTURES or {
 }
 local EDIT_TEXTURES = { "Left", "Right", "Mid", "FocusLeft", "FocusRight", "FocusMid" }
 
--- The look: the material, made darker and flatter for text. Second pass
--- (owner + outside critique): a neutral charcoal tint, no milky wash, less
--- grain, and on the window panel a thinner, directional edge: the
--- material's rim much dimmer, a fine bright line along the top, a darker
--- one along the bottom. All of it on the regions Glass.Apply returns; the
--- material (the embedded LibGlass-1.0) is never edited from here.
+-- Pearl, tuned for text: charcoal reading surface, a quieter tab strip,
+-- thin pale rims and no wash over the words. Consumer tuning stays on the
+-- regions Glass.Apply returns; the embedded material is not edited here.
 Skin.TINT = { 0.05, 0.05, 0.06 }
 -- The wash is a gradient, which ignores SetAlpha on Forever (porting guide
 -- §3, LibGlass#47): it goes through Glass.SetWash, on the window and edit
 -- box panels only (#95). Until r7 it was set with SetAlpha and never left.
-Skin.GRAIN, Skin.WASH = 0.12, 0
-Skin.RIM_IDLE, Skin.RIM_FOCUS = 0.45, 0.9
+Skin.GRAIN, Skin.WASH = 0, 0
+Skin.RIM_IDLE, Skin.RIM_FOCUS = 0.38, 0.70
+Skin.PEARL = { 0.86, 0.90, 0.94 }
 
 -- The window panel's surface, live-tunable (/gchat tune <key> <value>) and
 -- saved account-wide in GlassChatDB.look; these are the shipped values.
--- Second critique: the grey band on the right and bottom is the material's
--- drop shadow (shadowPad reaches 22-26 px out) and its dark rim, so both are
--- turned well down; the header's sheen is a short glow, strongest at the top.
--- Shipped values: the owner's in-game pick (2026-10-03) after the
--- critique rounds; the edge lines below it unchanged.
+-- The header's sheen stays short and subdued. Existing saved /gchat tune
+-- values take precedence; reset them only when comparing the Pearl defaults.
 Skin.LOOK = {
     shadow = 0,     -- the material's drop shadow
-    rim = 0.1,      -- the material's bright rim
-    dark = 0.1,     -- the material's dark rim
+    rim = 0.38,     -- Pearl's thin rim, quiet around the reading surface
+    dark = 0.20,    -- restrained lower definition
     grain = 0,      -- frost over the body
-    top = 0.45,     -- the fine bright line along the top edge
-    glow = 0.12,    -- the sheen under it, at its brightest
-    glowh = 4,      -- and how far down it fades (px)
-    bottom = 0.35,  -- the dark line along the bottom edge
+    top = 0.32,     -- the fine bright line along the top edge
+    glow = 0.06,    -- the sheen under it, at its brightest
+    glowh = 3,      -- confined to the header (px)
+    bottom = 0.18,  -- the dark line along the bottom edge
 }
 Skin.LOOK_MAX = { glowh = 20 }   -- the others are opacities, 0..1
 
@@ -88,16 +83,31 @@ local panels = setmetatable({}, { __mode = "k" })   -- Blizzard frame -> { panel
 -- grain for every panel).
 function Skin.WindowLook(p)
     local L, g = Skin.Look, p.g
+    g.rim:SetVertexColor(Skin.PEARL[1], Skin.PEARL[2], Skin.PEARL[3])
     g.shadow:SetAlpha(L("shadow"))
     g.rim:SetAlpha(L("rim"))
     g.dark:SetAlpha(L("dark"))
     g.grain:SetAlpha(L("grain"))
     Glass.SetEdge(g, L("top"), L("glow"), L("bottom"), L("glowh"))
+    p.header:SetColorTexture(Skin.TINT[1], Skin.TINT[2], Skin.TINT[3], GC.db.shellAlpha)
 end
 
 local function tune(g)
     g.tint:SetColorTexture(Skin.TINT[1], Skin.TINT[2], Skin.TINT[3], GC.db.alpha)
     g.grain:SetAlpha(Skin.GRAIN)
+end
+
+-- A shell surface keeps its own opacity: making chat easier to read must
+-- not turn all five side pills opaque. Called on every scan, including the
+-- alert/plugin pills, so settings changes reach already-created buttons.
+function Skin.PillLook(g)
+    g.tint:SetColorTexture(Skin.TINT[1], Skin.TINT[2], Skin.TINT[3], GC.db.shellAlpha)
+    g.grain:SetAlpha(0)
+    g.shadow:SetAlpha(0)
+    g.dark:SetAlpha(0.20)
+    g.rim:SetVertexColor(Skin.PEARL[1], Skin.PEARL[2], Skin.PEARL[3])
+    g.rim:SetAlpha(Skin.RIM_IDLE)
+    Glass.SetWash(g, Glass.STYLE.wash)
 end
 
 -- The chat window's panel reaches up behind the tabs, so it must sit under
@@ -116,7 +126,10 @@ local function newPanel(parent, size, strata)
         panel:SetFrameLevel(math.max(0, parent:GetFrameLevel() - 1))
     end
     local g = Glass.Apply(panel, size)
+    g.rim:SetVertexColor(Skin.PEARL[1], Skin.PEARL[2], Skin.PEARL[3])
     g.rim:SetAlpha(Skin.RIM_IDLE)
+    g.dark:SetAlpha(0.20)
+    g.shadow:SetAlpha(0)
     Glass.SetWash(g, Skin.WASH)
     tune(g)
     return panel, g
@@ -149,14 +162,26 @@ function Skin.Frame(f)
         local sep = panel:CreateTexture(nil, "ARTWORK")
         sep:SetColorTexture(Skin.SEPARATOR[1], Skin.SEPARATOR[2], Skin.SEPARATOR[3], Skin.SEPARATOR[4])
         -- At the tabs' bottom edge (the strip is TAB_GAP up, LiftDock /
-        -- liftTab), under the selected tab's gold underline: PAD_Y higher, it
+        -- liftTab), under the selected tab's accent underline: PAD_Y higher, it
         -- crossed the tab names and the strip's icons (owner's screenshot).
         sep:SetPoint("TOPLEFT", bg, "TOPLEFT", 0, Skin.TAB_GAP)
         sep:SetPoint("TOPRIGHT", bg, "TOPRIGHT", 0, Skin.TAB_GAP)
         sep:SetHeight(1)
+        -- Two adjacent masked fills, never stacked: /gchat alpha stays the
+        -- actual reading opacity even when shellalpha is higher or lower.
+        -- The seam is exactly under the existing separator. Both textures
+        -- belong to panel, the owner of g.mask, and follow its resize.
+        local headerHeight = Skin.PAD_Y + Skin.TAB_STRIP
+        g.tint:ClearAllPoints()
+        g.tint:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -headerHeight)
+        g.tint:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 0, 0)
+        local header = panel:CreateTexture(nil, "BACKGROUND", nil, -6)
+        header:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
+        header:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, -headerHeight)
+        header:AddMaskTexture(g.mask)
         -- The directional edge is the material's own (g.edge, GlassUnitFrames
         -- #60), set to this window's values in Skin.WindowLook.
-        p = { panel = panel, g = g, separator = sep, edge = g.edge }
+        p = { panel = panel, g = g, header = header, separator = sep, edge = g.edge }
         panels[f] = p
         -- The panel follows the chat frame's size: refit the lines then.
         panel:SetScript("OnSizeChanged", function() Skin.FitLines(f) end)
@@ -258,6 +283,8 @@ Skin.TAB_REST = { selected = 1, other = 0.9 }
 Skin.TAB_HOVER = 1
 Skin.TAB_PAD_X, Skin.TAB_PAD_Y = 10, 5
 Skin.TAB_GOLD = { 1, 0.82, 0 }
+-- Gold remains the alert resting colour; navigation uses Pearl's ice blue.
+Skin.ACCENT = { 0.65, 0.835, 0.905 }
 Skin.TAB_GREY = { 0.8, 0.8, 0.8 }
 Skin.TAB_FILL = 0.08
 local TAB_ART = { "Left", "Middle", "Right", "ActiveLeft", "ActiveMiddle", "ActiveRight",
@@ -311,7 +338,7 @@ local function paintTab(tab, selected)
     lit.fill:SetShown(on and selected)
     lit.line:SetShown(on and selected)
     if on then
-        local c = selected and Skin.TAB_GOLD or Skin.TAB_GREY
+        local c = selected and Skin.ACCENT or Skin.TAB_GREY
         tab:GetFontString():SetTextColor(c[1], c[2], c[3])
     end
 end
@@ -338,11 +365,11 @@ function Skin.Tab(f)
 
     if not tabLit[tab] then
         local fill = tab:CreateTexture(nil, "BACKGROUND")
-        fill:SetColorTexture(1, 1, 1, Skin.TAB_FILL)
+        fill:SetColorTexture(Skin.ACCENT[1], Skin.ACCENT[2], Skin.ACCENT[3], Skin.TAB_FILL)
         fill:SetPoint("TOPLEFT", text, "TOPLEFT", -Skin.TAB_PAD_X, Skin.TAB_PAD_Y)
         fill:SetPoint("BOTTOMRIGHT", text, "BOTTOMRIGHT", Skin.TAB_PAD_X, -Skin.TAB_PAD_Y)
         local line = tab:CreateTexture(nil, "BORDER")
-        line:SetColorTexture(Skin.TAB_GOLD[1], Skin.TAB_GOLD[2], Skin.TAB_GOLD[3], 1)
+        line:SetColorTexture(Skin.ACCENT[1], Skin.ACCENT[2], Skin.ACCENT[3], 1)
         line:SetPoint("BOTTOMLEFT", fill, "BOTTOMLEFT", 0, 0)
         line:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT", 0, 0)
         line:SetHeight(2)

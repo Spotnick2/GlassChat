@@ -110,7 +110,7 @@ end
 --------------------------------------------------------------------------------
 local secs = SS._test.sections
 check(secs.core and secs.spam, "two sections: core, and the plugin's spam")
-for _, k in ipairs({ "glass", "alpha", "lines", "classColors", "plainArrows", "history", "tabSize",
+for _, k in ipairs({ "glass", "alpha", "shellAlpha", "lines", "classColors", "plainArrows", "history", "tabSize",
                      "shortChannels", "urls", "timestamps", "look.rim", "look.glowh" }) do
     check(secs.core.byKey[k], "core key " .. k)
 end
