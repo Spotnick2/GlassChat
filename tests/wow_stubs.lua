@@ -211,12 +211,15 @@ function Methods.IsEventRegistered(w, e) return w._events[e] == true end
 function Methods.CreateTexture(w, name, layer, template, sublevel)
     local t = newWidget("Texture", w)
     t._layer, t._sublevel = layer, sublevel
+    w._created = w._created or {}   -- in creation order, for tests
+    table.insert(w._created, t)
     return t
 end
 function Methods.CreateMaskTexture(w) return newWidget("MaskTexture", w) end
 function Methods.CreateFontString(w) return newWidget("FontString", w) end
-function Methods.SetTexture(t, file) t._file = file; return true end
-function Methods.SetColorTexture(t, r, g, b, a) t._color = { r, g, b, a } end
+function Methods.SetTexture(t, file) t._file = file; t._color = nil; return true end
+function Methods.SetBlendMode(t, mode) t._blend = mode end
+function Methods.SetColorTexture(t, r, g, b, a) t._color = { r, g, b, a }; t._file = nil end
 function Methods.SetVertexColor(t, r, g, b, a) t._vertex = { r, g, b, a } end
 function Methods.AddMaskTexture(t, m) t._masks = t._masks or {}; table.insert(t._masks, m) end
 function Methods.SetGradient(t, orientation, c1, c2) t._gradient = { orientation, c1, c2 } end
@@ -463,6 +466,15 @@ function FCFTab_UpdateColors(tab, selected) end
 GeneralDockManager = newWidget("Frame", UIParent, "GeneralDockManager")
 GENERAL_CHAT_DOCK = GeneralDockManager
 GeneralDockManager._docked = {}
+-- Its overflow button (FloatingChatFrame.xml:154-190): 16x16, the framed
+-- arrow as normal art, a highlight (ADD) carrying the alert pulse.
+GeneralDockManager.overflowButton = newWidget("Button", GeneralDockManager)
+GeneralDockManager.overflowButton._width, GeneralDockManager.overflowButton._height = 16, 16
+GeneralDockManager.overflowButton._normal = newWidget("Texture", GeneralDockManager.overflowButton)
+GeneralDockManager.overflowButton._normal._file = [[Interface\ChatFrame\chat-tab-arrow]]
+GeneralDockManager.overflowButton._highlight = newWidget("Texture", GeneralDockManager.overflowButton)
+GeneralDockManager.overflowButton._highlight._file = [[Interface\ChatFrame\chat-tab-arrow-on]]
+GeneralDockManager.overflowButton._highlight._blend = "ADD"
 function FCFDock_SetPrimary(dock, chatFrame)
     dock.primary = chatFrame
     dock:SetPoint("BOTTOMLEFT", chatFrame.Background, "TOPLEFT")
