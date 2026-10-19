@@ -130,8 +130,9 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     frame through `HookScript("OnShow"/"OnHide")`. As a child of the chat frame it drew over the
     `MEDIUM`-strata tabs, even with its own strata set (measured): the chat frame's strata change
     is applied to its children.
-  - It covers `ChatFrameNBackground`'s rectangle plus `PAD_X/PAD_Y`, and reaches `TAB_STRIP` px
-    up over the tabs, with a separator line.
+  - It covers `ChatFrameNBackground`'s rectangle plus `PAD_X/PAD_Y` (`PAD_BOTTOM` 0 at the
+    bottom, where the edit box starts), and reaches `TAB_STRIP` px up over the tabs, with a
+    separator line.
   - **Pearl surfaces:** two adjacent fills share `g.mask`: `g.tint` covers the reading area,
     and `p.header` covers the tab strip down to the separator. Never stack a full-panel tint
     under the header: that would compound the opacity. `alpha` (default 0.82) controls reading
@@ -155,6 +156,9 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     textures (FloatingChatFrame.lua:1336-1340; measured, nothing comes back on hover).
   - **Edit box:** its panel is a child of the box (`DIALOG` strata). Its border and focus art go
     to **alpha 0**, because focus toggles them with `SetShown`. Focus shows as a brighter rim.
+    The panel sits **flush under the window's**, with its left and right edges (#114), as Blizzard
+    places the box: the `Background` ends 6 px below the frame and the box's visible art starts
+    there. Padded at the bottom, the window panel ran 5 px under it and lost its bottom corners.
   - **The tab strip is raised `TAB_GAP` px** to leave space above the first line: chat lines are
     clipped to the chat frame, which Edit Mode owns. `GeneralDockManager` is re-anchored after
     `FCFDock_SetPrimary`, and a floating window's tab after `FCF_SetTabPosition`. Docked tabs

@@ -63,6 +63,12 @@ end
 -- px the panel reaches past Blizzard's background (owner: "a little more
 -- padding" than the 2 px first shipped).
 Skin.PAD_X, Skin.PAD_Y = 8, 5
+-- None at the bottom: the edit box starts there. Blizzard puts it flush under
+-- the window: Background ends 6 px below the frame (FloatingChatFrame.xml:10),
+-- the box starts 2 px below it (line 558) with EDIT_INSET of empty art, so
+-- its visible top is at -6 too. Padded, the panel ran 5 px under the box,
+-- which cut off its bottom corners (owner's screenshots, #114).
+Skin.PAD_BOTTOM = 0
 -- The panel reaches up over the tab strip, so tabs and text share one glass
 -- container (owner's mockup). Tabs sit on Background's TOPLEFT
 -- (FCF_SetTabPosition, FloatingChatFrame.lua:1835), their name ~11 px up.
@@ -198,7 +204,7 @@ function Skin.Frame(f)
         local bg = rawget(_G, name .. "Background") or f
         local panel, g = newPanel(f, "large", "BACKGROUND")
         panel:SetPoint("TOPLEFT", bg, "TOPLEFT", -Skin.PAD_X, Skin.PAD_Y + Skin.TAB_STRIP + Skin.TAB_GAP)
-        panel:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", Skin.PAD_X, -Skin.PAD_Y)
+        panel:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", Skin.PAD_X, -Skin.PAD_BOTTOM)
         local sep = panel:CreateTexture(nil, "ARTWORK")
         sep:SetColorTexture(Skin.SEPARATOR[1], Skin.SEPARATOR[2], Skin.SEPARATOR[3], Skin.SEPARATOR[4])
         -- At the tabs' bottom edge (the strip is TAB_GAP up, LiftDock /
@@ -242,8 +248,12 @@ function Skin.Frame(f)
     local e = panels[edit]
     if on and not e then
         local panel, g = newPanel(edit, "small")
-        panel:SetPoint("TOPLEFT", edit, "TOPLEFT", 0, -Skin.EDIT_INSET)
-        panel:SetPoint("BOTTOMRIGHT", edit, "BOTTOMRIGHT", 0, Skin.EDIT_INSET)
+        -- Under the window panel, flush, with its left and right edges (#114);
+        -- its bottom is the box's own, past the empty art.
+        -- (p exists: with glass on, the window's panel is built above.)
+        panel:SetPoint("TOPLEFT", p.panel, "BOTTOMLEFT", 0, 0)
+        panel:SetPoint("TOPRIGHT", p.panel, "BOTTOMRIGHT", 0, 0)
+        panel:SetPoint("BOTTOM", edit, "BOTTOM", 0, Skin.EDIT_INSET)
         e = { panel = panel, g = g }
         panels[edit] = e
         -- Focus shows on the rim, since the focus art is hidden.
