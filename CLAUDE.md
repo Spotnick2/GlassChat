@@ -66,7 +66,8 @@ TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
   - `Fail(key, err)`, the **one** failure recorder (`GlassChat.failures`, read by
     `/gchat failures`);
   - `MEASURED_ON_BUILD`;
-  - the dialog helpers lifted from GlassPanel's Compat (`Window`, `Button`, `AutoHideScrollBar`).
+  - the dialog helpers lifted from GlassPanel's Compat (`Window`, `Button`, `AutoHideScrollBar`),
+    and `ShowWindow`, which opens a window in front of the others (they share one strata, #106).
     They use `GlassChat.Glass` at call time, never at load.
 
   It is a subset of GlassRaidFrames' `Compat.lua`; lift more from there when needed rather than

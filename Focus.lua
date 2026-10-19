@@ -269,7 +269,7 @@ function Focus.Open(f, search, source)
     if not win then build() end
     state.frame, state.kinds, state.source, state.context = f, {}, source, false
     win.title:SetText("Focus: " .. GC.Copy.WindowName(f))
-    win:Show()
+    API.ShowWindow(win)
     win.quiet = true   -- set the search without a render; snapshot renders once
     win.search:SetText(search or "")
     win.quiet = false
