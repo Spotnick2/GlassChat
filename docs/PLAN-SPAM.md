@@ -4,7 +4,7 @@ Status: **revised after Codex's adversarial review** (2026-10-03). It found no P
 all taken; see "Review" at the end. Nothing is built yet.
 
 Sources:
-- `C:\Projects\WoW\References\BadBoy-v12.0.3` and `GlobalIgnoreList_12.0.0` (GIL);
+- `C:\Projects\WoW\References\Addons\ChatCommunication\BadBoy` and `GlobalIgnoreList_12.0.0` (GIL);
 - AltStable's and GlassPanel's plugin patterns;
 - Forever's FrameXML and the 70205 API dump.
 
@@ -286,7 +286,7 @@ which a chat filter can't. `Plugins/SpamIgnore/Mirror.lua`, on by default
   (Spotnick2/LibAccountSync), a new embedded library seeded from AltStable's own-account channel.
   GlassChat is its pilot consumer. The owner turned down an AltStable API (AltStable#190, closed)
   because the code is shared, and an embedded library both addons can use is the way to share it
-  (`C:\Projects\WoW\References\EMBEDDED-LIBRARIES.md`). The plan starts in Spotnick2/LibAccountSync#1.
+  (`C:\Projects\WoW\References\Docs\EMBEDDED-LIBRARIES.md`). The plan starts in Spotnick2/LibAccountSync#1.
 
 **The design:**
 
