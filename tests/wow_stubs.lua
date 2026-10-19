@@ -11,12 +11,12 @@
 --   string.format on one throw. Lua 5.1 cannot make a truth test or == throw,
 --   so those two misuses are NOT caught here (only in game / in review).
 -- - EVENT names: RegisterEvent throws on a name the API dump does not declare
---   (tests/events-70374.txt when the dump is absent, as on CI).
+--   (tests/events-70450.txt when the dump is absent, as on CI).
 -- - METHOD calls: every widget method called is recorded (WoW.methodsCalled)
 --   so test_methods.lua can check each against the dump's widget methods.
 
 WoW = {}
-local DUMP = os.getenv("GLASSCHAT_API_DUMP") or "C:/Projects/WoW/References/Forever/api/forever-api-1.60.1.70374.md"
+local DUMP = os.getenv("GLASSCHAT_API_DUMP") or "C:/Projects/WoW/References/Forever/api/forever-api-1.60.1.70450.md"
 WoW.DUMP = DUMP
 
 --------------------------------------------------------------------------------
@@ -68,8 +68,8 @@ do
     if not WoW.dumpAvailable then
         -- No dump (CI): the list generated from it, so validation stays
         -- exactly as strict. test_toc fails if the two ever drift.
-        local fixture = io.open("tests/events-70374.txt", "r")
-        assert(fixture, "tests/events-70374.txt missing: event validation needs the dump or the fixture")
+        local fixture = io.open("tests/events-70450.txt", "r")
+        assert(fixture, "tests/events-70450.txt missing: event validation needs the dump or the fixture")
         for line in fixture:lines() do
             local name = line:match("^([A-Z][A-Z0-9_]+)%s*$")
             if name then WoW.KNOWN_EVENTS[name] = true end
@@ -836,7 +836,7 @@ C_ClassColor = { GetClassColor = function(classFile)
     if c then return { r = c[1], g = c[2], b = c[3] } end
 end }
 
-function GetBuildInfo() return "1.60.1", "70374", "Oct 12 2026", 16001 end
+function GetBuildInfo() return "1.60.1", "70450", "Oct 15 2026", 16001 end
 function InCombatLockdown() return WoW.combat == true end
 
 function hooksecurefunc(t, name, fn)
