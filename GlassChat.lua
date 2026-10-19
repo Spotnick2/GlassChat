@@ -14,6 +14,7 @@ local DEFAULTS = {
     glass = true,          -- the glass panels (off: Blizzard's own background)
     alpha = 0.82,          -- reading area and edit box; saved user values still win
     shellAlpha = 0.68,     -- tab strip and pills, independently of reading opacity
+    idleAlpha = 0.2,       -- the window's fills with nothing to read, near the material's own glass (#108)
     lines = 1000,          -- scrollback per chat window (stock: 128)
     classColors = true,    -- keep chatClassColorOverride at "0"
     plainArrows = true,    -- Up/Down cycle what you sent (stock: Alt+Up/Down)
@@ -77,6 +78,11 @@ end
 
 function Settings.SetShellAlpha(a)
     GC.db.shellAlpha = clamp(a, 0, 1)
+    GC.Skin.Refresh()
+end
+
+function Settings.SetIdleAlpha(a)
+    GC.db.idleAlpha = clamp(a, 0, 1)
     GC.Skin.Refresh()
 end
 
@@ -206,6 +212,7 @@ local function help()
     say("/gchat glass on/off - the glass panels (" .. onOff(db.glass) .. ")")
     say("/gchat alpha 0-1 - reading area and input darkness (" .. db.alpha .. ")")
     say("/gchat shellalpha 0-1 - tab strip and pills darkness (" .. db.shellAlpha .. ")")
+    say("/gchat idle 0-1 - darkness with nothing to read, 1 = never fades (" .. db.idleAlpha .. ")")
     say("/gchat lines N - lines kept per chat window (" .. db.lines .. ")")
     say("/gchat colors on/off - class-coloured names (" .. onOff(db.classColors) .. ")")
     say("/gchat arrows on/off - Up/Down recall what you sent (" .. onOff(db.plainArrows) .. ")")
@@ -235,7 +242,7 @@ end
 local TOGGLES = { glass = Settings.SetGlass, colors = Settings.SetClassColors, arrows = Settings.SetPlainArrows,
     channels = Settings.SetShortChannels, stamps = Settings.SetTimestamps, urls = Settings.SetUrls,
     levels = Settings.SetLevels }
-local NUMBERS = { alpha = Settings.SetAlpha, shellalpha = Settings.SetShellAlpha, lines = Settings.SetLines, history = Settings.SetHistory,
+local NUMBERS = { alpha = Settings.SetAlpha, shellalpha = Settings.SetShellAlpha, idle = Settings.SetIdleAlpha, lines = Settings.SetLines, history = Settings.SetHistory,
     tabsize = Settings.SetTabSize }
 
 local LOOK_ORDER = { "shadow", "rim", "dark", "grain", "top", "glow", "glowh", "bottom" }
@@ -319,7 +326,8 @@ local function slash(msg, editBox)
         -- v ~= v: the client's tonumber accepts "nan", which no clamp catches.
         if not v or v ~= v then say("/gchat " .. cmd .. " <number>"); return end
         NUMBERS[cmd](v)
-        local key = cmd == "tabsize" and "tabSize" or cmd == "shellalpha" and "shellAlpha" or cmd
+        local key = cmd == "tabsize" and "tabSize" or cmd == "shellalpha" and "shellAlpha"
+            or cmd == "idle" and "idleAlpha" or cmd
         say(cmd .. " " .. tostring(GC.db[key]))
     else
         help()

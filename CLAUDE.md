@@ -138,6 +138,16 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     and input; `shellAlpha` (0.68) controls the header and every pill. Both use `GC.Settings`,
     refresh live and participate in settings sync. Saved opacity and `look` overrides win.
     The rim is Pearl-tinted, grain is off, and the edge stays subdued. See `docs/PEARL-HANDOFF.md`.
+  - **Idle** (owner, #108): with nothing to read, the three fills fade to `idleAlpha` (default
+    0.2, `/gchat idle`, synced; 1 = never) over `SLEEP_TIME` (2 s), and back over `WAKE_TIME`
+    (0.25 s). The rim and edge stay. A window is awake while a line is still readable (each fades
+    `GetTimeVisible()` + `GetFadeDuration()` after it was added, or after a scroll:
+    `hooksecurefunc(f, "ResetAllFadeTimes")`), while the mouse is over it (between Blizzard's
+    `FCF_FadeInChatFrame` / `FCF_FadeOutChatFrame`), when it's scrolled up, while its edit box has
+    focus, or when its lines never fade. New lines are seen through `Chat.LineCount`, on hidden
+    windows too (a tab picked from the dock's overflow list is shown with no fade reset). One
+    `OnUpdate` driver checks every `IDLE_EVERY` (0.2 s); a failure leaves every window awake and
+    stops it.
   - **No wash** on the window and edit box panels: `Glass.SetWash(g, 0)` (r7). The wash is a
     gradient, which ignores `SetAlpha` on Forever, so the `SetAlpha(0)` shipped before never
     removed it (#95). The button pills keep it, like every other `Glass.Pill`.

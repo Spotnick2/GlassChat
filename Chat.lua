@@ -302,5 +302,6 @@ function Chat.Start()
         end
     end)
     step("tab hooks", GC.Skin.HookTabs)
+    step("idle", GC.Skin.StartIdle)
     step("scan", Chat.Scan)
 end
