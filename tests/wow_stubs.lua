@@ -273,6 +273,15 @@ end
 function Methods.GetID(w) return w._id or 0 end
 function Methods.SetFocus(e) e._focused = true end
 function Methods.ClearFocus(e) e._focused = false end
+function Methods.HasFocus(e) return e._focused == true end
+-- ScrollingMessageFrame's line fade: on, 120 s visible (ChatFrameOverrides.lua:2)
+-- and the mixin's 3 s fade (ScrollingMessageFrame.lua:340); _atBottom false
+-- when scrolled up.
+function Methods.GetFading(f) return f._fading ~= false end
+function Methods.GetTimeVisible(f) return f._timeVisible or 120 end
+function Methods.GetFadeDuration(f) return f._fadeDuration or 3 end
+function Methods.AtBottom(f) return f._atBottom ~= false end
+function Methods.ResetAllFadeTimes(f) end
 function Methods.HighlightText(e) e._highlighted = true end
 function Methods.GetVerticalScrollRange(w) return w._yrange or 0 end
 -- ScrollingMessageFrame: the line limit (stock 128, ChatFrameOverrides.lua:3).
@@ -773,6 +782,9 @@ end
 -- Blizzard's chat window functions the addon hooks (both in the dump).
 function FCF_OpenNewWindow(name) WoW.newWindows = (WoW.newWindows or 0) + 1 end
 function FCF_OpenTemporaryWindow() end
+-- The hover fade (FloatingChatFrame.lua:1237, 1270), driven by FCF_OnUpdate.
+function FCF_FadeInChatFrame(chatFrame) end
+function FCF_FadeOutChatFrame(chatFrame) end
 
 -- Chat messaging lockdown (Retail 12.x; never seen on Forever so far).
 C_ChatInfo = { InChatMessagingLockdown = function() return WoW.chatLockdown == true end }

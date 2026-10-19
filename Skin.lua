@@ -135,6 +135,46 @@ local function newPanel(parent, size, strata)
     return panel, g
 end
 
+-- Idle (owner, #108): with nothing to read, the window goes clear. Blizzard
+-- fades each line GetTimeVisible() + GetFadeDuration() s after it was added
+-- or the window was scrolled (ResetAllFadeTimes, ScrollingMessageFrame.lua:
+-- 131-161), and the tabs and buttons once the mouse leaves
+-- (FCF_FadeInChatFrame / FCF_FadeOutChatFrame, FloatingChatFrame.lua:
+-- 1237-1301), but the dark panel stayed over nothing (owner's screenshot).
+-- Idle, the reading, tab strip and edit box fills fade to db.idleAlpha; the
+-- rim and edge stay, so the glass is still there. Driven by Skin.StartIdle.
+Skin.WAKE_TIME, Skin.SLEEP_TIME = 0.25, 2.0   -- s; Blizzard's tabs take 0.15 and 2.0
+Skin.IDLE_EVERY = 0.2                         -- s between checks
+
+local wake = setmetatable({}, { __mode = "k" })      -- chat frame -> 0 (idle) .. 1 (awake)
+local target = setmetatable({}, { __mode = "k" })    -- chat frame -> 0 or 1, from the last check
+local active = setmetatable({}, { __mode = "k" })    -- chat frame -> GetTime() of its last line or scroll
+local counted = setmetatable({}, { __mode = "k" })   -- chat frame -> Chat.LineCount at the last check
+local hovered = setmetatable({}, { __mode = "k" })   -- between Blizzard's fade in and fade out
+local sinceCheck = 0
+local function poke() sinceCheck = Skin.IDLE_EVERY end   -- check on the next frame
+
+local function editOf(f) return rawget(_G, f:GetName() .. "EditBox") end
+
+-- The fills at wake[f], between the idle opacity (0) and the reading ones
+-- (1). An idle opacity above a reading one never darkens it.
+local function paintIdle(f)
+    local k, T = wake[f] or 1, Skin.TINT
+    local function mix(full)
+        if k >= 1 then return full end   -- awake: exactly the saved opacity
+        local idle = math.min(GC.db.idleAlpha, full)
+        return idle + (full - idle) * k
+    end
+    local p = panels[f]
+    if p then
+        p.g.tint:SetColorTexture(T[1], T[2], T[3], mix(GC.db.alpha))
+        p.header:SetColorTexture(T[1], T[2], T[3], mix(GC.db.shellAlpha))
+    end
+    local edit = editOf(f)
+    local e = edit and panels[edit]
+    if e then e.g.tint:SetColorTexture(T[1], T[2], T[3], mix(GC.db.alpha)) end
+end
+
 local function setTextures(prefix, names, shown)
     for _, n in ipairs(names) do
         local t = rawget(_G, prefix .. n)
@@ -197,8 +237,8 @@ function Skin.Frame(f)
     setTextures(name, FRAME_TEXTURES, not on)
     Skin.FitLines(f)
 
-    local edit = rawget(_G, name .. "EditBox")
-    if not edit then return end
+    local edit = editOf(f)
+    if not edit then paintIdle(f); return end
     local e = panels[edit]
     if on and not e then
         local panel, g = newPanel(edit, "small")
@@ -207,11 +247,12 @@ function Skin.Frame(f)
         e = { panel = panel, g = g }
         panels[edit] = e
         -- Focus shows on the rim, since the focus art is hidden.
-        edit:HookScript("OnEditFocusGained", function() e.g.rim:SetAlpha(Skin.RIM_FOCUS) end)
-        edit:HookScript("OnEditFocusLost", function() e.g.rim:SetAlpha(Skin.RIM_IDLE) end)
+        edit:HookScript("OnEditFocusGained", function() e.g.rim:SetAlpha(Skin.RIM_FOCUS); poke() end)
+        edit:HookScript("OnEditFocusLost", function() e.g.rim:SetAlpha(Skin.RIM_IDLE); poke() end)
     end
     if e then e.panel:SetShown(on); tune(e.g) end
     setEditArt(edit:GetName(), on and 0 or 1)
+    paintIdle(f)   -- after tune and WindowLook, which paint the reading opacities
 end
 
 -- Whole lines only under the header (critique: "the first visible line is
@@ -459,7 +500,66 @@ function Skin.HookTabs()
     end
 end
 
+-- Idle: awake while a line is still readable (its own fade timer, restarted
+-- by a scroll), the mouse is over the window, it's scrolled up, its edit
+-- box has focus, or its lines never fade.
+local function awake(f, now)
+    local n = GC.Chat.LineCount(f)
+    if counted[f] ~= n then counted[f], active[f] = n, now end   -- a new line, or the first check
+    if hovered[f] then return true end
+    local edit = editOf(f)
+    if edit and edit:HasFocus() then return true end
+    if not f:GetFading() or not f:AtBottom() then return true end
+    return now - active[f] < (f:GetTimeVisible() or 0) + (f:GetFadeDuration() or 0)
+end
+
+local function idleStep(elapsed)
+    if not GC.db.glass then return end
+    sinceCheck = sinceCheck + elapsed
+    local check = sinceCheck >= Skin.IDLE_EVERY
+    if check then sinceCheck = 0 end
+    local now = GetTime()
+    for _, f in ipairs(GC.Chat.Frames()) do
+        if panels[f] and f:IsShown() then   -- a hidden window is checked once shown
+            if check then target[f] = awake(f, now) and 1 or 0 end
+            local k, t = wake[f] or 1, target[f] or 1
+            if k ~= t then
+                local d = elapsed / (t > k and Skin.WAKE_TIME or Skin.SLEEP_TIME)
+                wake[f] = t > k and math.min(t, k + d) or math.max(t, k - d)
+                paintIdle(f)
+            end
+        end
+    end
+end
+
+local fadeHooked = setmetatable({}, { __mode = "k" })
+GC.Chat.OnEachFrame("idle", function(f)
+    if fadeHooked[f] or not f.ResetAllFadeTimes then return end
+    fadeHooked[f] = true
+    hooksecurefunc(f, "ResetAllFadeTimes", function() active[f] = GetTime(); poke() end)
+end)
+
+local idleDriver
+function Skin.StartIdle()
+    if idleDriver then return end
+    idleDriver = CreateFrame("Frame")
+    idleDriver:SetScript("OnUpdate", function(self, elapsed)
+        local ok, err = pcall(idleStep, elapsed)
+        if ok then return end
+        -- Readability first: a failure leaves every window awake, for good.
+        GC.API.Fail("idle", err)
+        self:SetScript("OnUpdate", nil)
+        for f in pairs(wake) do wake[f] = 1; pcall(paintIdle, f) end
+    end)
+    for name, over in pairs({ FCF_FadeInChatFrame = true, FCF_FadeOutChatFrame = false }) do
+        if rawget(_G, name) then
+            hooksecurefunc(name, function(f) if f then hovered[f] = over or nil; poke() end end)
+        end
+    end
+end
+
 -- The panel's tint and grain, for other modules' glass (Buttons.lua's pills).
 Skin.Tune = tune
 
-Skin._test = { panels = panels, tabFont = tabFont, tabLit = tabLit, applyTabAlpha = applyTabAlpha, liftTab = liftTab }
+Skin._test = { panels = panels, tabFont = tabFont, tabLit = tabLit, applyTabAlpha = applyTabAlpha, liftTab = liftTab,
+    wake = wake, hovered = hovered }

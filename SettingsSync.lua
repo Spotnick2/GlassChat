@@ -151,6 +151,7 @@ function SS.RegisterCore()
         coreKey("glass", "b", "SetGlass"),
         coreKey("alpha", "n", "SetAlpha", 0, 1, "darkness"),
         coreKey("shellAlpha", "n", "SetShellAlpha", 0, 1, "tab strip and pills darkness"),
+        coreKey("idleAlpha", "n", "SetIdleAlpha", 0, 1, "darkness with nothing to read"),
         coreKey("lines", "i", "SetLines", function() return GC.Chat.MIN_LINES end, function() return GC.Chat.MAX_LINES end, "scrollback"),
         coreKey("classColors", "b", "SetClassColors", nil, nil, "class colours"),
         coreKey("plainArrows", "b", "SetPlainArrows", nil, nil, "arrow recall"),
