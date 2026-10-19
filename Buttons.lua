@@ -265,6 +265,12 @@ function Buttons.ColumnOffset(b)
     return 0
 end
 
+-- Glass off (owner, #118): Blizzard's chat-button frame, the one the voice
+-- buttons and the chat menu wear (VoiceToggleButton.xml, set as PropertyButton.lua:
+-- 22-27 and 86 does, 27 x 26), so the symbol isn't left bare in the stock column.
+-- With glass on, at alpha 0.
+Buttons.STOCK_FRAME = { "chatframe-button-up", "chatframe-button-down", "chatframe-button-highlight" }
+Buttons.STOCK_W, Buttons.STOCK_H = 27, 26
 Buttons.GREEN = { 0.3, 0.9, 0.3 }
 Buttons.GLOW = 0.35
 Buttons.PULSE_PERIOD, Buttons.PULSE_LOW = 0.6, 0.35
@@ -311,7 +317,19 @@ local function buildSide(s, menu)
         c:SetSubSystemAnchorPriority(system, Buttons.SIDE_PRIORITY + o.order / 100)
         s.contained = true
     end
-    -- No highlight texture to soften: hover is paintSide's.
+    -- The stock frame, for glass off (Buttons.STOCK_FRAME), centred like the pill.
+    b:SetNormalAtlas(Buttons.STOCK_FRAME[1])
+    b:SetPushedAtlas(Buttons.STOCK_FRAME[2])
+    b:SetHighlightAtlas(Buttons.STOCK_FRAME[3], "ADD")
+    for _, get in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetHighlightTexture" }) do
+        local t = b[get](b)
+        if t then
+            t:ClearAllPoints()
+            t:SetPoint("CENTER", b, "CENTER", 0, 0)
+            t:SetSize(Buttons.STOCK_W, Buttons.STOCK_H)
+        end
+    end
+    -- With glass, no highlight texture to soften: hover is paintSide's.
     local pill, g = GC.Glass.Pill(b, { side = Buttons.SIDE_SIZE, highlight = false })
     g.rim:SetAlpha(GC.Skin.RIM_IDLE)
     GC.Skin.PillLook(g)
@@ -383,6 +401,10 @@ function Buttons.RefreshSides()
             GC.Skin.PillLook(b.pill.glassPill)
             b:SetShown(shown)
             b.pill:SetShown(GC.db.glass and true or false)
+            for _, get in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetHighlightTexture" }) do
+                local t = b[get](b)
+                if t then t:SetAlpha(GC.db.glass and 0 or 1) end
+            end
             if shown and not s.contained then
                 b:ClearAllPoints()
                 b:SetPoint("BOTTOM", below, "TOP", 0, Buttons.SIDE_GAP)
