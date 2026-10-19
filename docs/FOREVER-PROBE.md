@@ -5,7 +5,7 @@ The raw log is `WTF\Account\<account>\SavedVariables\ChatProbe.lua`. Item number
 `docs/PLAN.md`.
 
 **Running it (since ForeverProbe):** ChatProbe is a ForeverProbe module (`..\ForeverProbe`,
-`docs/GUIDE.md`; the cross-project entry point is `C:\Projects\WoW\References\PROBES.md`).
+`docs/GUIDE.md`; the cross-project entry point is `C:\Projects\WoW\References\Docs\PROBES.md`).
 `/cprobe` is gone: the commands are `/fp chat <item>` (`/fp chat` lists them).
 1. `pwsh Tools\deploy.ps1 -Probe` deploys ForeverProbe first, then ChatProbe. `/reload`.
 2. `/fp` opens the console **before** an experiment. The diagnostics land there and in
