@@ -172,6 +172,13 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
       hover), like the strip icons. Its highlight texture is repainted as a soft accent glow, never
       replaced: its `FlashAnim` is the pulse for an alerting tab scrolled out of view. Glass off
       restores both; never styled, never touched.
+  - **The scroll bar** (#112; the `ScrollBar` / `ScrollToBottomButton` parentKeys): every atlas
+    (track, thumb, steppers, the jump button's four states) at alpha 0, since the state handlers
+    only `SetAtlas` (MinimalScrollBar.lua). Over them, fills: grey arrows (`arrowShape`, shared with
+    the overflow arrow), a 1 px track, a `THUMB_W` thumb and the jump arrow over a bar, accent on
+    hover. Blizzard's "lines below" flash is hidden by its **vertex** alpha (`StartFlash` /
+    `StopFlash` reset its alpha), and hooks on those two turn the jump arrow accent while lines
+    wait below. Blizzard's hover fade of the bar is kept. Never styled, never touched.
   - `Skin.Refresh()` applies setting changes, and glass off restores the stock look.
   - No Lua field or global is ever written on a Blizzard frame: state lives in weak-keyed tables.
     Creating regions on a tab and calling widget methods is fine.

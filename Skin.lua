@@ -493,11 +493,30 @@ GC.Chat.AfterScan("dock", function() Skin.LiftDock() end)
 -- button never styled (glass off from login) is never touched.
 Skin.OVERFLOW_HIGHLIGHT = "Interface\\ChatFrame\\chat-tab-arrow-on"
 Skin.OVERFLOW_GLOW = 0.25
-Skin.OVERFLOW_ROWS = { 9, 7, 5, 3, 1 }   -- px, top to bottom: the arrow
+Skin.OVERFLOW_ROWS = { 9, 7, 5, 3, 1 }   -- px, widest first: the arrow
 local arrow, arrowOn
 
-local function paintArrow(c)
-    for _, t in ipairs(arrow) do t:SetColorTexture(c[1], c[2], c[3], 1) end
+-- A small arrow of 1 px rows on parent, centred on its CENTER (+x, +y):
+-- rows are widths, the widest first; up puts the widest at the bottom.
+-- The overflow and scroll bar arrows (#110, #112).
+local function arrowShape(parent, rows, up, x, y)
+    local list, n = {}, #rows
+    for i, w in ipairs(rows) do
+        local t = parent:CreateTexture(nil, "OVERLAY")
+        t:SetSize(w, 1)
+        local row = up and (n + 1 - i) or i
+        t:SetPoint("TOP", parent, "CENTER", x or 0, (y or 0) + math.floor(n / 2) + 1 - row)
+        list[i] = t
+    end
+    return list
+end
+
+local function paint(list, c, a)
+    for _, t in ipairs(list) do t:SetColorTexture(c[1], c[2], c[3], a or 1) end
+end
+
+local function showAll(list, on)
+    for _, t in ipairs(list) do t:SetShown(on) end
 end
 
 function Skin.Overflow()
@@ -507,21 +526,14 @@ function Skin.Overflow()
     local on = GC.db.glass
     if not arrow then
         if not on then return end
-        arrow = {}
-        local rows = Skin.OVERFLOW_ROWS
-        for i, w in ipairs(rows) do
-            local t = b:CreateTexture(nil, "OVERLAY")
-            t:SetSize(w, 1)
-            t:SetPoint("TOP", b, "CENTER", 0, math.floor(#rows / 2) + 1 - i)
-            arrow[i] = t
-        end
-        paintArrow(Skin.TAB_GREY)
-        b:HookScript("OnEnter", function() if GC.db.glass then paintArrow(Skin.ACCENT) end end)
-        b:HookScript("OnLeave", function() paintArrow(Skin.TAB_GREY) end)
+        arrow = arrowShape(b, Skin.OVERFLOW_ROWS)
+        paint(arrow, Skin.TAB_GREY)
+        b:HookScript("OnEnter", function() if GC.db.glass then paint(arrow, Skin.ACCENT) end end)
+        b:HookScript("OnLeave", function() paint(arrow, Skin.TAB_GREY) end)
     end
     if arrowOn == on then return end
     arrowOn = on
-    for _, t in ipairs(arrow) do t:SetShown(on) end
+    showAll(arrow, on)
     local normal, glow = b:GetNormalTexture(), b:GetHighlightTexture()
     if normal then normal:SetAlpha(on and 0 or 1) end
     if glow then
@@ -534,6 +546,111 @@ function Skin.Overflow()
     end
 end
 GC.Chat.AfterScan("overflow", Skin.Overflow)
+
+-- The scroll bar (owner, #112): Blizzard's MinimalScrollBar (ChatFrame.xml:5,
+-- MinimalScrollBar.xml) and the jump-to-bottom button (FloatingChatFrame.xml:
+-- 523-551), in brown atlas art. With glass, every atlas goes to alpha 0: the
+-- state handlers only call SetAtlas (MinimalScrollBar.lua), which keeps it.
+-- Over them, fills: grey arrows, a faint 1 px track, a slim thumb, and the
+-- jump button's arrow over a bar, accent on hover. Blizzard's "lines below"
+-- flash is re-shown at alpha 1 by StartFlash / StopFlash (ChatFrameUtil.lua:
+-- 32-45), so it's hidden by its vertex alpha, and those two calls turn the
+-- jump arrow accent instead. Blizzard's hover fade of the bar stays.
+Skin.SCROLL_ROWS = { 7, 5, 3, 1 }
+Skin.TRACK_ALPHA = 0.12
+Skin.THUMB_W = 4
+local scrollArt = setmetatable({}, { __mode = "k" })   -- chat frame -> our parts and the stock ones
+local flashOf = setmetatable({}, { __mode = "k" })     -- the jump button's Flash -> its chat frame
+
+local function jumpRest(s) return s.waiting and Skin.ACCENT or Skin.TAB_GREY end
+
+local function hover(btn, list, rest)
+    btn:HookScript("OnEnter", function() if GC.db.glass then paint(list, Skin.ACCENT) end end)
+    btn:HookScript("OnLeave", function() paint(list, rest()) end)
+end
+
+local function onFlash(waiting)
+    return function(region)
+        local f = region and flashOf[region]
+        local s = f and scrollArt[f]
+        if not s then return end
+        s.waiting = waiting
+        paint(s.jump, jumpRest(s))
+    end
+end
+
+local flashHooked = false
+local function hookFlash()
+    if flashHooked then return end
+    flashHooked = true
+    local util = rawget(_G, "ChatFrameUtil")
+    if not util then return end
+    if util.StartFlash then hooksecurefunc(util, "StartFlash", onFlash(true)) end
+    if util.StopFlash then hooksecurefunc(util, "StopFlash", onFlash(false)) end
+end
+
+local function buildScroll(f, bar, track, thumb, back, fwd, jump)
+    local s = { stock = {} }
+    for _, owner in ipairs({ track, thumb }) do
+        for _, k in ipairs({ "Begin", "Middle", "End" }) do s.stock[#s.stock + 1] = rawget(owner, k) end
+    end
+    s.stock[#s.stock + 1] = rawget(back, "Texture")
+    s.stock[#s.stock + 1] = rawget(fwd, "Texture")
+    for _, get in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetHighlightTexture", "GetDisabledTexture" }) do
+        s.stock[#s.stock + 1] = jump[get](jump)
+    end
+    s.flash = rawget(jump, "Flash")
+    if s.flash then flashOf[s.flash] = f end
+
+    s.back = arrowShape(back, Skin.SCROLL_ROWS, true)
+    s.fwd = arrowShape(fwd, Skin.SCROLL_ROWS, false)
+    s.jump = arrowShape(jump, Skin.SCROLL_ROWS, false, 0, 1)
+    local base = jump:CreateTexture(nil, "OVERLAY")
+    base:SetSize(Skin.SCROLL_ROWS[1], 1)
+    base:SetPoint("TOP", jump, "CENTER", 0, -2)
+    s.jump[#s.jump + 1] = base
+    s.track = track:CreateTexture(nil, "ARTWORK")
+    s.track:SetWidth(1)
+    s.track:SetPoint("TOP", track, "TOP", 0, 0)
+    s.track:SetPoint("BOTTOM", track, "BOTTOM", 0, 0)
+    s.track:SetColorTexture(1, 1, 1, Skin.TRACK_ALPHA)
+    s.thumb = { thumb:CreateTexture(nil, "OVERLAY") }
+    s.thumb[1]:SetWidth(Skin.THUMB_W)
+    s.thumb[1]:SetPoint("TOP", thumb, "TOP", 0, 0)
+    s.thumb[1]:SetPoint("BOTTOM", thumb, "BOTTOM", 0, 0)
+
+    local grey = function() return Skin.TAB_GREY end
+    paint(s.back, Skin.TAB_GREY); paint(s.fwd, Skin.TAB_GREY); paint(s.thumb, Skin.TAB_GREY)
+    paint(s.jump, jumpRest(s))
+    hover(back, s.back, grey)
+    hover(fwd, s.fwd, grey)
+    hover(thumb, s.thumb, grey)
+    hover(jump, s.jump, function() return jumpRest(s) end)
+    hookFlash()
+    return s
+end
+
+function Skin.ScrollBar(f)
+    local bar, jump = rawget(f, "ScrollBar"), rawget(f, "ScrollToBottomButton")   -- parentKeys
+    local track = bar and rawget(bar, "Track")
+    local thumb = track and rawget(track, "Thumb")
+    local back, fwd = bar and rawget(bar, "Back"), bar and rawget(bar, "Forward")
+    if not (jump and thumb and back and fwd) then return end
+    local on = GC.db.glass
+    local s = scrollArt[f]
+    if not s then
+        if not on then return end   -- never styled: never touched
+        s = buildScroll(f, bar, track, thumb, back, fwd, jump)
+        scrollArt[f] = s
+    end
+    if s.on == on then return end
+    s.on = on
+    for _, t in ipairs(s.stock) do t:SetAlpha(on and 0 or 1) end
+    showAll(s.back, on); showAll(s.fwd, on); showAll(s.jump, on); showAll(s.thumb, on)
+    s.track:SetShown(on)
+    if s.flash then s.flash:SetVertexColor(1, 1, 1, on and 0 or 1) end
+end
+GC.Chat.OnEachFrame("scrollbar", Skin.ScrollBar)
 
 -- After Blizzard's own tab updates (selection, docking, alerts).
 function Skin.HookTabs()
@@ -621,4 +738,4 @@ end
 Skin.Tune = tune
 
 Skin._test = { panels = panels, tabFont = tabFont, tabLit = tabLit, applyTabAlpha = applyTabAlpha, liftTab = liftTab,
-    wake = wake, hovered = hovered }
+    wake = wake, hovered = hovered, scrollArt = scrollArt }

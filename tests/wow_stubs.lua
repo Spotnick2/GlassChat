@@ -413,6 +413,25 @@ function WoW.makeChatFrames(n)
             for _, t in ipairs({ "Left", "Right", "Mid", "FocusLeft", "FocusRight", "FocusMid" }) do
                 rawset(_G, name .. "EditBox" .. t, Methods.CreateTexture(e))
             end
+            -- The scroll bar (ChatFrame.xml:5, MinimalScrollBar.xml): a track
+            -- with a thumb, each in three atlas pieces, and two steppers with
+            -- one Texture; the jump-to-bottom button (FloatingChatFrame.xml:
+            -- 523-551) with its four state textures and its Flash.
+            local bar = newWidget("Frame", f)
+            bar.Track = newWidget("Frame", bar)
+            bar.Track.Thumb = newWidget("Button", bar.Track)
+            for _, owner in ipairs({ bar.Track, bar.Track.Thumb }) do
+                for _, k in ipairs({ "Begin", "Middle", "End" }) do owner[k] = newWidget("Texture", owner) end
+            end
+            for _, k in ipairs({ "Back", "Forward" }) do
+                bar[k] = newWidget("Button", bar)
+                bar[k].Texture = newWidget("Texture", bar[k])
+            end
+            f.ScrollBar = bar
+            local jump = newWidget("Button", f)
+            for _, k in ipairs({ "_normal", "_pushed", "_highlight", "_disabled" }) do jump[k] = newWidget("Texture", jump) end
+            jump.Flash = newWidget("Texture", jump)
+            f.ScrollToBottomButton = jump
         end
     end
 end
@@ -449,6 +468,10 @@ ChatFrameUtil = {
         table.insert(WoW.messageFilters[event], fn)
     end,
     SetTabAlphas = function(tab, over, rest) WoW.tabAlphas[tab] = { over, rest } end,
+    -- ChatFrameUtil.lua:32-45: play or stop a flash; StopFlash leaves the
+    -- region at alpha 1, shown only when asked.
+    StartFlash = function(region, animGroup) region:SetShown(true); region:SetAlpha(0) end,
+    StopFlash = function(region, animGroup, showWhenDone) region:SetAlpha(1); region:SetShown(showWhenDone == true) end,
     GetTabAlphas = function(tab)
         local a = WoW.tabAlphas[tab]
         if a then return a[1], a[2] end
