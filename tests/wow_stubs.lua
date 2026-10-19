@@ -16,7 +16,7 @@
 --   so test_methods.lua can check each against the dump's widget methods.
 
 WoW = {}
-local DUMP = os.getenv("GLASSCHAT_API_DUMP") or "C:/Projects/WoW/References/forever-api-1.60.1.70374.md"
+local DUMP = os.getenv("GLASSCHAT_API_DUMP") or "C:/Projects/WoW/References/Forever/api/forever-api-1.60.1.70374.md"
 WoW.DUMP = DUMP
 
 --------------------------------------------------------------------------------
@@ -667,6 +667,12 @@ ContainedAlertFrameMixin = {
 }
 ChatAlertFrame = newWidget("Frame", UIParent, "ChatAlertFrame")
 ChatAlertFrame._systems = {}
+-- As wide as the button column it sits on (ChatAlertFrameMixin.lua:5-7:
+-- ChatFrame1ButtonFrame, FloatingChatFrame.xml:504), LEFT justified; a test
+-- may set _justification. GetJustification is AlertContainerMixin's (AlertFrames.lua:436).
+ChatAlertFrame._width = 29
+ChatAlertFrame._justification = "LEFT"
+function ChatAlertFrame:GetJustification() return self._justification end
 function ChatAlertFrame:AddAutoAnchoredSubSystem(frame)
     local system = { anchorFrame = frame, anchorPriority = 1000 + #self._systems * 10 }
     frame:SetAlertContainer(self)
@@ -727,6 +733,10 @@ for _, k in ipairs({ "_normal", "_pushed", "_disabled", "_highlight" }) do ChatF
 -- Blizzard's press handlers swapping the framed -down/-up art (QuickJoinToast.lua:344-351).
 QuickJoinToastButton = newWidget("Button", UIParent, "QuickJoinToastButton")
 QuickJoinToastButton._level = 4
+QuickJoinToastButton._width, QuickJoinToastButton._height = 32, 32
+-- Its friend count, under the symbol (QuickJoinToast.xml:45-48).
+QuickJoinToastButton.FriendCount = newWidget("FontString", QuickJoinToastButton)
+QuickJoinToastButton.FriendCount._points = { { "BOTTOM", QuickJoinToastButton, "BOTTOM", 0, 4 } }
 for _, k in ipairs({ "_highlight" }) do QuickJoinToastButton[k] = newWidget("Texture", QuickJoinToastButton) end
 QuickJoinToastButton.FriendsButton = newWidget("Texture", QuickJoinToastButton)
 QuickJoinToastButton.FriendsButton._atlas = "quickjoin-button-friendslist-up"

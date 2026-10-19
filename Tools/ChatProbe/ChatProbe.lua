@@ -24,6 +24,7 @@
 --  10. line identity per chat type (lineID, GUID, collisions)       /fp chat lines
 --  11. sender name shapes; server ignore with surnames              /fp chat ignoretest
 --  12. ignore-list readiness at login; what the server ignore blocks (automatic)
+--  14. the Pearl look's in-game checks, as a procedure              /fp steps chat pearl
 --
 -- Every client call that may be missing or throw goes through Probe:Try, so
 -- one refusal cannot stop the rest of the probe.
@@ -779,6 +780,275 @@ local function atlases()
 end
 
 --------------------------------------------------------------------------------
+-- 14. The Pearl look (GlassChat #101): the in-game acceptance pass
+--------------------------------------------------------------------------------
+
+-- docs/PEARL-HANDOFF.md's checks as a procedure: /fp steps chat pearl. It
+-- sets the comparison values through GlassChat.Settings, writes sample lines
+-- (chat stimuli), screenshots each state and puts the owner's values back at
+-- the end (/fp chat pearlrestore after a stopped run). Their values are kept
+-- in ChatProbeDB.pearl, so a /reload in between loses nothing.
+
+local function glassChat()
+    local G = rawget(_G, "GlassChat")
+    if type(G) == "table" and G.Settings and G.db then return G end
+end
+
+local function failureKeys()
+    local G, keys = glassChat(), {}
+    for k in pairs(G and G.failures or {}) do keys[#keys + 1] = tostring(k) end
+    table.sort(keys)
+    return keys
+end
+
+local function pearlState()
+    local G = glassChat()
+    if not G then return nil end
+    local _, minor = LibStub:GetLibrary("LibGlass-1.0", true)
+    local look = {}
+    for k, v in pairs(type(G.db.look) == "table" and G.db.look or {}) do look[#look + 1] = k .. "=" .. tostring(v) end
+    table.sort(look)
+    local icon
+    if G.Spam and G.Spam.db then icon = G.Spam.db.icon == true end
+    return { minor = minor, preset = G.Glass and G.Glass.preset, glass = G.db.glass, alpha = G.db.alpha,
+        shellAlpha = G.db.shellAlpha, look = table.concat(look, " "), icon = icon, failures = #failureKeys(),
+        alerts = G.Alerts and G.Alerts.unseen, spam = G.Spam and G.Spam.unseen }
+end
+
+local function describePearl(s)
+    if not s then return "GlassChat isn't loaded" end
+    return string.format("LibGlass %s, preset %s, glass %s, alpha %s, shellalpha %s, tune {%s}, spam icon %s,"
+        .. " waiting alerts %s spam %s, failures %d", show(s.minor), show(s.preset), show(s.glass), show(s.alpha),
+        show(s.shellAlpha), s.look, show(s.icon), show(s.alerts), show(s.spam), s.failures)
+end
+
+-- The owner's values, kept once: a second run after a stopped one keeps the
+-- first run's, never the comparison values it left.
+local function keepPearl()
+    local G = glassChat()
+    if not G or type(ChatProbeDB) ~= "table" or type(ChatProbeDB.pearl) == "table" then return end
+    local look = {}
+    for k, v in pairs(type(G.db.look) == "table" and G.db.look or {}) do look[k] = v end
+    local s = pearlState()
+    ChatProbeDB.pearl = { glass = G.db.glass, alpha = G.db.alpha, shellAlpha = G.db.shellAlpha, look = look,
+        icon = s.icon, failures = s.failures }
+end
+
+local function restorePearl()
+    local G, was = glassChat(), type(ChatProbeDB) == "table" and ChatProbeDB.pearl
+    if not (G and type(was) == "table") then say("14 nothing to put back"); return false end
+    G.Settings.SetGlass(was.glass)
+    G.Settings.SetAlpha(was.alpha)
+    G.Settings.SetShellAlpha(was.shellAlpha)
+    G.Settings.ResetLook()
+    for k, v in pairs(was.look or {}) do G.Settings.SetLook(k, v) end
+    if was.icon ~= nil and G.SpamUI and G.SpamUI.Set then G.SpamUI.Set.icon(was.icon) end
+    ChatProbeDB.pearl = nil
+    say("14 your values are back: " .. describePearl(pearlState()))
+    return true
+end
+
+-- A check on GlassChat's saved values: each key of want must hold.
+local function pearlIs(want)
+    return function()
+        local s = pearlState()
+        if not s then return false, "GlassChat isn't loaded" end
+        for k, v in pairs(want) do
+            if s[k] ~= v then return false, k .. " is " .. show(s[k]) .. ", not " .. show(v) .. ": " .. describePearl(s) end
+        end
+        return true, describePearl(s)
+    end
+end
+
+local function setPearl(alpha, shellAlpha)
+    local G = glassChat()
+    if not G then error("GlassChat isn't loaded", 0) end
+    if alpha then G.Settings.SetAlpha(alpha) end
+    if shellAlpha then G.Settings.SetShellAlpha(shellAlpha) end
+    return describePearl(pearlState())
+end
+
+local function spamIcon(on)
+    local G = glassChat()
+    if not (G and G.SpamUI and G.SpamUI.Set) then error("the Spam & Ignore plugin isn't loaded", 0) end
+    G.SpamUI.Set.icon(on)
+end
+
+-- The ! and the spam icon as if n lines were waiting: green, pulsing, a count.
+-- Opening each list clears it, as it does for real lines.
+local function lightPills(n)
+    local G = glassChat()
+    if G.Alerts then G.Alerts.unseen = (G.Alerts.unseen or 0) + n; G.Alerts.Lit() end
+    if G.Spam and G.SpamUI then G.Spam.unseen = (G.Spam.unseen or 0) + n; G.SpamUI.PaintAll() end
+    return describePearl(pearlState())
+end
+
+-- Sample lines in General, one per chat colour, with class-coloured names and
+-- the player's own item links. A chat stimulus, written ON PURPOSE: only the
+-- player sees them. Each carries its chat event, as Blizzard's lines do, so
+-- GlassChat's smart tabs leave them in General (Chat.lua routes only lines
+-- with no event) and focus mode files them under their kind.
+local SAMPLE_NAMES = { { "Aldren", "WARRIOR" }, { "Brisa", "MAGE" }, { "Corwin", "PRIEST" }, { "Dara", "HUNTER" },
+    { "Esk", "ROGUE" }, { "Fenna", "DRUID" } }
+local function sampleName(i)
+    local name, class = SAMPLE_NAMES[i][1], SAMPLE_NAMES[i][2]
+    local ok, c = pcall(C_ClassColor.GetClassColor, class)
+    if not (ok and c) then return "[" .. name .. "]" end
+    return string.format("[|cff%02x%02x%02x%s|r]", c.r * 255, c.g * 255, c.b * 255, name)
+end
+
+local function itemLinks()
+    local links = {}
+    for _, slot in ipairs({ 16, 5, 1, 7, 17, 3 }) do
+        local ok, l = pcall(GetInventoryItemLink, "player", slot)
+        if ok and type(l) == "string" and not (issecretvalue and issecretvalue(l)) then links[#links + 1] = l end
+        if #links == 2 then break end
+    end
+    return links[1] or "[an item]", links[2] or "[another item]"
+end
+
+local function sampleLines()
+    local f = rawget(_G, "ChatFrame1")
+    if not (f and ChatTypeInfo) then error("no ChatFrame1 or ChatTypeInfo", 0) end
+    local itemA, itemB = itemLinks()
+    local function fmt(global, fallback) local s = rawget(_G, global); return type(s) == "string" and s or fallback end
+    local lines = {
+        { "SAY", fmt("CHAT_SAY_GET", "%s says: "):format(sampleName(1)) .. "sample say line: anyone heading to the Deadmines?" },
+        { "GUILD", fmt("CHAT_GUILD_GET", "[Guild] %s: "):format(sampleName(2)) .. "sample guild line: who has " .. itemA .. " to spare?" },
+        { "PARTY", fmt("CHAT_PARTY_GET", "[Party] %s: "):format(sampleName(3)) .. "sample party line: pull after this drink" },
+        { "WHISPER", fmt("CHAT_WHISPER_GET", "%s whispers: "):format(sampleName(4)) .. "sample whisper: is " .. itemB .. " still for sale?" },
+        { "CHANNEL1", "[1. General] " .. sampleName(5) .. ": sample channel line, long enough to wrap onto a second line of the chat window so the wrap is in the picture too" },
+        { "SYSTEM", "sample system line: the yellow kind Blizzard prints" },
+        { "OFFICER", fmt("CHAT_OFFICER_GET", "[Officer] %s: "):format(sampleName(6)) .. "sample officer line" },
+    }
+    local n = 0
+    for _, l in ipairs(lines) do
+        local info = ChatTypeInfo[l[1]] or { r = 1, g = 1, b = 1 }
+        local event = "CHAT_MSG_" .. (l[1] == "CHANNEL1" and "CHANNEL" or l[1])
+        f:AddMessage(l[2], info.r, info.g, info.b, info.id, nil, nil, event)
+        n = n + 1
+    end
+    return n .. " sample lines in General"
+end
+
+local function openWindow(what)
+    local G = glassChat()
+    if what == "copy" then G.Copy.Open(ChatFrame1)
+    elseif what == "focus" then G.Focus.Open(ChatFrame1, "")
+    elseif what == "url" then G.Url.Show("https://www.example.com/glasschat") end
+    return what .. " opened"
+end
+
+-- No new failures since the run began (some may have been there before).
+local function noNewFailures()
+    local keys, was = failureKeys(), type(ChatProbeDB.pearl) == "table" and ChatProbeDB.pearl.failures or 0
+    return #keys <= was, #keys .. " failures now, " .. was .. " at the start: " .. table.concat(keys, ", ")
+end
+
+Probe:Steps("pearl", {
+    title = "GlassChat: the Pearl look (#101)",
+    rev = 1,
+    { text = "Reading GlassChat's look, and saving your values to put back at the end.", auto = true,
+      run = function()
+          P.pearlFought = nil
+          keepPearl()
+          return describePearl(pearlState())
+      end,
+      check = function()
+          local s = pearlState()
+          if not s then return false, "GlassChat isn't loaded" end
+          return type(s.minor) == "number" and s.minor >= 11 and s.preset == "pearl", describePearl(s)
+      end },
+    { text = "The comparison values: glass on, reading 0.82, shell 0.68, tune reset, spam icon on.", button = "Set",
+      run = function()
+          local G = glassChat()
+          G.Settings.SetGlass(true)
+          G.Settings.ResetLook()
+          spamIcon(true)
+          return setPearl(0.82, 0.68)
+      end,
+      check = pearlIs({ glass = true, alpha = 0.82, shellAlpha = 0.68, look = "", icon = true }) },
+    { text = "Select the General tab, and stand so the chat is over bright ground or sky. Write lines puts sample lines in General (only you see them).",
+      button = "Write lines", run = sampleLines, screenshot = "bright" },
+    { text = "Over the bright background: is every line easy to read, and do the tab strip and the pills still look like glass?",
+      ask = true },
+    { text = "Now put the chat over something dark (an interior, a cave, a dark wall), then press Next.",
+      screenshot = "dark" },
+    { text = "Over the dark background: is every line easy to read?", ask = true },
+    { text = "Hover each of the five pills: the chat menu, voice, friends, the ! and the spam icon. Check the tooltips, and that each click still works (close what opens). Then Next.",
+      screenshot = "pills" },
+    { text = "Do the five pills share one rim and one darkness, with the voice and friends symbols in their usual colours?",
+      ask = true },
+    { text = "The ! and the spam icon now act as if 3 lines were waiting.", button = "Light them",
+      run = function() return lightPills(3) end, screenshot = "pending" },
+    { text = "Did the ! and the spam icon turn green, pulse and show a count?", ask = true },
+    { text = "Click the !, then the spam icon: each opens its list and stops pulsing. Leave the last list open, then Next.",
+      check = pearlIs({ alerts = 0, spam = 0 }), screenshot = "lists" },
+    { text = "Close the list. The tab strip and pills at 0 (reading area unchanged).", button = "Shell 0",
+      run = function() return setPearl(nil, 0) end, check = pearlIs({ shellAlpha = 0, alpha = 0.82 }), screenshot = "shell 0" },
+    { text = "The tab strip and pills at 1.", button = "Shell 1",
+      run = function() return setPearl(nil, 1) end, check = pearlIs({ shellAlpha = 1, alpha = 0.82 }), screenshot = "shell 1" },
+    { text = "The reading area at 0 (shell back to 0.68).", button = "Reading 0",
+      run = function() return setPearl(0, 0.68) end, check = pearlIs({ shellAlpha = 0.68, alpha = 0 }), screenshot = "reading 0" },
+    { text = "The reading area at 1.", button = "Reading 1",
+      run = function() return setPearl(1) end, check = pearlIs({ shellAlpha = 0.68, alpha = 1 }), screenshot = "reading 1" },
+    { text = "In those four: did the tab strip and the reading area always meet cleanly at the line under the tabs (no gap, overlap, darker band or broken rim)?",
+      ask = true },
+    { text = "Spam icon off and the shell at 0.4, so the next step builds it again under a new value.", button = "Hide icon",
+      run = function() spamIcon(false); return setPearl(0.82, 0.4) end,
+      check = pearlIs({ icon = false, shellAlpha = 0.4, alpha = 0.82 }) },
+    { text = "Spam icon back on.", button = "Show icon",
+      run = function() spamIcon(true); return describePearl(pearlState()) end,
+      check = pearlIs({ icon = true, shellAlpha = 0.4 }), screenshot = "icon back, shell 0.4" },
+    { text = "Is the spam icon's pill exactly as dark as the other four pills?", ask = true },
+    { text = "Shell back to 0.68.", auto = true, run = function() return setPearl(nil, 0.68) end,
+      check = pearlIs({ shellAlpha = 0.68 }) },
+    { text = "Click through a few tabs, hover the copy and search icons on the tab strip, then click into the chat input. Press Next while the input is still active.",
+      screenshot = "tabs and input" },
+    { text = "Drag a tab out into a floating window and resize it, then Next.", screenshot = "floating window" },
+    { text = "Did both windows look clean: no clipping, no gap or overlap under the tabs, no doubled layer, no washed-out text? (Dock the window back afterwards if you like.)",
+      ask = true },
+    { text = "Glass off, with 2 lines waiting on the ! and the spam icon.", button = "Glass off",
+      run = function()
+          lightPills(2)
+          glassChat().Settings.SetGlass(false)
+          return describePearl(pearlState())
+      end, check = pearlIs({ glass = false }), screenshot = "glass off" },
+    { text = "Is it Blizzard's own chat again, with the stock frames and buttons back?", ask = true },
+    { text = "Glass back on.", button = "Glass on",
+      run = function() glassChat().Settings.SetGlass(true); return describePearl(pearlState()) end,
+      check = pearlIs({ glass = true }), screenshot = "glass on" },
+    { text = "Is the glass back everywhere, with the ! and the spam icon pulsing again? Then click both to clear them.",
+      ask = true },
+    { text = "The copy window, on General.", button = "Copy",
+      run = function() return openWindow("copy") end, screenshot = "copy window" },
+    { text = "Focus mode, on General.", button = "Focus",
+      run = function() return openWindow("focus") end, screenshot = "focus mode" },
+    { text = "The web address box.", button = "Address",
+      run = function() return openWindow("url") end, screenshot = "address box" },
+    { text = "Were the copy window, focus mode, the address box and the two lists easy to read? Close them after.",
+      ask = true },
+    { text = "Fight something (a mob or a training dummy). While in combat, type in chat and press a voice button or two. This step ends by itself when combat does.",
+      wait = function()
+          if InCombatLockdown() then P.pearlFought = true; return false, "in combat: chat and press a voice button" end
+          if P.pearlFought then return true, "combat ended" end
+          return false, "waiting for combat"
+      end, timeout = 900, check = noNewFailures },
+    { text = "GlassChat's failures (/gchat failures).", auto = true,
+      run = function()
+          local keys = failureKeys()
+          local G = glassChat()
+          for _, k in ipairs(keys) do say("14 failure " .. k .. ": " .. tostring(G.failures[k])) end
+          return #keys
+      end, check = noNewFailures },
+    { text = "Putting your own values back.", auto = true,
+      run = function() restorePearl(); return describePearl(pearlState()) end,
+      check = function() return type(ChatProbeDB.pearl) ~= "table", describePearl(pearlState()) end },
+    { text = "That's all. Press Reload now (or type /reload) so the results and the screenshot names are saved.",
+      reload = true },
+})
+
+--------------------------------------------------------------------------------
 -- Command
 --------------------------------------------------------------------------------
 
@@ -800,6 +1070,7 @@ for _, c in ipairs({
     local fn = c[2]
     Probe:Command(c[1], function(arg) fn(arg) end, c[3])
 end
+Probe:Command("pearlrestore", function() restorePearl() end, "14 put back the values a stopped pearl run changed")
 -- Empties ChatProbeDB.log IN PLACE: the host holds that same table.
 Probe:Command("clear", function() Probe:ClearLog(); say("log cleared") end, "empty the saved log")
 
@@ -831,4 +1102,4 @@ end)
 NS._test = { Probe = Probe, identity = identity, identityFilter = identityFilter, ignoreTest = ignoreTest,
     ignoreReadBack = ignoreReadBack, blockWatch = blockWatch, P = P, state = state, clip = clip, copyable = copyable, link = link, watch = watch,
     report = report, history = history, watcher = watcher, sources = sources, route = route,
-    sourceOf = sourceOf, printHandler = printHandler, move = move }
+    sourceOf = sourceOf, printHandler = printHandler, move = move, pearlState = pearlState }

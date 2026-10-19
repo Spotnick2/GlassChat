@@ -53,3 +53,22 @@ character that made it (item 8; its `chat-cache.txt` lists `WINDOW 5 / NAME Prob
 | 12 | Ignore-list readiness | `GetNumIgnores()` answered **nil at `ADDON_LOADED`** on 3 of 6 loads, and 0 from `PLAYER_LOGIN` on. **Never read the list before `PLAYER_LOGIN`.** |
 | 12 | What the server ignore blocks | The ignorer, Karuzo Elegia, ignored the alt (Zoruka Mortalis, on another account).<br>**Whispers: blocked.** The alt gets `CHAT_MSG_IGNORED` ("... is ignoring you"). The first probe logged that event's text instead of its sender (arg2), so its name format is unmeasured (fixed after Codex's review of #16).<br>**Invites: never reach the ignorer.** The alt sent two invites, the ignorer's probe logged no `PARTY_INVITE_REQUEST` after the ignore, and no group formed (owner). The alt's "Looting set to..." lines were its own pending party.<br>**Duels: blocked** (owner, same layer: no duel arrives, and grouping doesn't work either).<br>**Say: not seen** (owner, same layer as the duel test).<br>Before the ignore, invites and a duel did arrive. `PARTY_INVITE_REQUEST`'s name is "First Surname" (2 words), but **`DUEL_REQUESTED`'s is one word with a dash**, so never match by name there. So the server ignore blocks whispers, say, invites and duels, the last two being what a chat filter can't, which makes S2b (mirroring) worth building later. |
 | 13 | Atlases for the chat-menu bubble and the friends button (#7) | *Pending.* `/fp chat atlases` asks the client which candidate frameless symbols exist (`chatframe-button-icon-*`, `socialqueuing-icon-group`, `groupfinder-icon-friend`, ...) and shows each one found, numbered, in gold, to choose from by eye. |
+
+## The Pearl look (item 14, 2026-10-18)
+
+`/fp steps chat pearl`, the in-game checks of `docs/PEARL-HANDOFF.md` (#101) as a guided procedure,
+run #151 on **1.60.1.70450** (newer than `MEASURED_ON_BUILD` 70374), with LibGlass r11 and the
+`pearl` preset. The procedure saves the owner's opacities, tune values and spam icon first, and
+puts them back at the end (`/fp chat pearlrestore` after a stopped run).
+
+| Check | Result |
+|---|---|
+| Library | LibGlass **11**, preset **pearl**. |
+| Readability | Clean on bright and dark ground, at shell 0 and 1 and reading 0 and 1. Class colours, item links and the timestamps stay legible. |
+| Header and reading area seam | Owner unsure. The screenshots show the tab strip and the reading area meeting at the separator, with no gap, overlap or darker band. |
+| The pills | All five on Pearl. They were **not on one vertical line** (owner): the `!` and the spam icon about 2.5 px left of the voice pills, the friends pill 1.5 px right. `ChatAlertFrame` justifies its stack `LEFT` at the column's width (ChatAlertFrameMixin.lua:5-7, FloatingChatFrame.xml:504), while the voice buttons (27 px) and the chat menu are centred. Fixed in `Buttons.lua` (`Buttons.ColumnOffset`): the side buttons are as wide as the stack with a centred pill, and the friends pill, symbol and count move onto the column's centre. Confirmed aligned in game (within a pixel). |
+| Waiting lines | The `!` and the spam icon turn green, pulse and count; a click on each clears it. |
+| Glass off / on | Off brings Blizzard's tabs, frames and buttons back. The `!` and the spam icon have no stock look, so they keep a plain tan box. On restores the Pearl look. |
+| Copy, focus mode, address box | All three open on Pearl. **The address box draws under the copy window** when both are open (owner): a strata issue, older than Pearl. |
+| Combat | No GlassChat failure, and no blocked or forbidden action. |
+| Failures | `GlassChat.failures` empty for the whole run. |
