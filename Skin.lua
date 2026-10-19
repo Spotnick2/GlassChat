@@ -594,7 +594,10 @@ local function hookFlash()
 end
 
 local function buildScroll(f, bar, track, thumb, back, fwd, jump)
-    local s = { stock = {} }
+    -- Lines may already wait below (glass turned on while scrolled up): the
+    -- flash is then already playing, so no StartFlash will tell us (Codex,
+    -- #113; ChatFrameMixin:OnUpdate only starts it on a change).
+    local s = { stock = {}, waiting = not f:AtBottom() }
     for _, owner in ipairs({ track, thumb }) do
         for _, k in ipairs({ "Begin", "Middle", "End" }) do s.stock[#s.stock + 1] = rawget(owner, k) end
     end
