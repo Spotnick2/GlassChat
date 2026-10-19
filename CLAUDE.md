@@ -176,9 +176,9 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     (track, thumb, steppers, the jump button's four states) at alpha 0, since the state handlers
     only `SetAtlas` (MinimalScrollBar.lua). Over them, fills: grey arrows (`arrowShape`, shared with
     the overflow arrow), a 1 px track, a `THUMB_W` thumb and the jump arrow over a bar, accent on
-    hover. Blizzard's "lines below" flash is hidden by its **vertex** alpha (`StartFlash` /
-    `StopFlash` reset its alpha), and hooks on those two turn the jump arrow accent while lines
-    wait below. Blizzard's hover fade of the bar is kept. Never styled, never touched.
+    hover. Blizzard's "lines below" flash (drawn ADD) is painted transparent black, since
+    `StartFlash` / `StopFlash` reset its alpha and a vertex alpha of 0 didn't hide it in game.
+    Hooks on those two turn the jump arrow accent while lines wait below. Blizzard's hover fade of the bar is kept. Never styled, never touched.
   - `Skin.Refresh()` applies setting changes, and glass off restores the stock look.
   - No Lua field or global is ever written on a Blizzard frame: state lives in weak-keyed tables.
     Creating regions on a tab and calling widget methods is fine.

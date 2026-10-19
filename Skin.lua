@@ -554,8 +554,12 @@ GC.Chat.AfterScan("overflow", Skin.Overflow)
 -- Over them, fills: grey arrows, a faint 1 px track, a slim thumb, and the
 -- jump button's arrow over a bar, accent on hover. Blizzard's "lines below"
 -- flash is re-shown at alpha 1 by StartFlash / StopFlash (ChatFrameUtil.lua:
--- 32-45), so it's hidden by its vertex alpha, and those two calls turn the
--- jump arrow accent instead. Blizzard's hover fade of the bar stays.
+-- 32-45), and a vertex alpha of 0 didn't hide it (owner's screenshot: the
+-- brown arrow behind ours while lines waited below). Its art becomes
+-- transparent black: it draws ADD, so black adds nothing whatever its alpha.
+-- Those two calls turn the jump arrow accent instead. Blizzard's hover fade
+-- of the bar stays.
+Skin.JUMP_FLASH = "minimal-scrollbar-arrow-returntobottom"   -- the Flash's atlas, for glass off
 Skin.SCROLL_ROWS = { 7, 5, 3, 1 }
 Skin.TRACK_ALPHA = 0.12
 Skin.THUMB_W = 4
@@ -648,7 +652,9 @@ function Skin.ScrollBar(f)
     for _, t in ipairs(s.stock) do t:SetAlpha(on and 0 or 1) end
     showAll(s.back, on); showAll(s.fwd, on); showAll(s.jump, on); showAll(s.thumb, on)
     s.track:SetShown(on)
-    if s.flash then s.flash:SetVertexColor(1, 1, 1, on and 0 or 1) end
+    if s.flash then
+        if on then s.flash:SetColorTexture(0, 0, 0, 0) else s.flash:SetAtlas(Skin.JUMP_FLASH, true) end
+    end
 end
 GC.Chat.OnEachFrame("scrollbar", Skin.ScrollBar)
 

@@ -20,7 +20,8 @@ local function allAlpha(a)
     return true
 end
 check(allAlpha(0), "every stock atlas at alpha 0 (" .. #stock .. ")")
-eq(jump.Flash._vertex[4], 0, "Blizzard's flash hidden by its vertex alpha")
+eq(table.concat(jump.Flash._color, ","), "0,0,0,0", "Blizzard's flash painted transparent black")
+eq(jump.Flash._blend, "ADD", "  which, drawn ADD, adds nothing")
 
 local function widths(list)
     local w = {}
@@ -60,7 +61,8 @@ eq(s.jump[1]._color[1], grey, "another flash leaves it alone")
 
 GC.Settings.SetGlass(false)
 check(allAlpha(1), "glass off: every stock atlas back")
-eq(jump.Flash._vertex[4], 1, "  the flash visible again")
+eq(jump.Flash._atlas, Skin.JUMP_FLASH, "  the flash's own art again")
+eq(jump.Flash._color, nil, "  not the black")
 check(not s.fwd[1]._shown and not s.thumb[1]._shown and not s.track._shown and not s.jump[5]._shown, "  ours hidden")
 bar.Back._scripts.OnEnter(bar.Back)
 eq(s.back[1]._color[1], grey, "  a hover doesn't paint it")
@@ -68,6 +70,7 @@ bar.Back._scripts.OnLeave(bar.Back)
 
 GC.Settings.SetGlass(true)
 check(allAlpha(0), "glass on again: styled again")
+eq(table.concat(jump.Flash._color, ","), "0,0,0,0", "  the flash black again")
 check(s.fwd[1]._shown and s.track._shown, "  ours shown")
 eq(Skin._test.scrollArt[f], s, "  not built twice")
 check(Skin._test.scrollArt[ChatFrame2] ~= nil, "every window gets it")

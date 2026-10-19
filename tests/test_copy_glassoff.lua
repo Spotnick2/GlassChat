@@ -9,7 +9,7 @@ local overflow = GeneralDockManager.overflowButton
 eq(overflow._normal._alpha, nil, "the dock's overflow button, never styled, is never touched")
 eq(overflow._highlight._file, [[Interface\ChatFrame\chat-tab-arrow-on]], "  nor its highlight")
 eq(ChatFrame1.ScrollBar.Track.Thumb.Begin._alpha, nil, "the scroll bar, never styled, is never touched")
-eq(ChatFrame1.ScrollToBottomButton.Flash._vertex, nil, "  nor the jump button's flash")
+eq(ChatFrame1.ScrollToBottomButton.Flash._atlas, "minimal-scrollbar-arrow-returntobottom", "  nor the jump button's flash")
 GC.Settings.SetGlass(true)
 check(GC.Copy._test.buttons[ChatFrame1] ~= nil, "glass on: the Copy button appears at once")
 eq(overflow._normal._alpha, 0, "  and the overflow button gets its arrow")
