@@ -484,6 +484,57 @@ end
 GC.Chat.OnEachFrame("lift", function(f) liftTab(f, 0) end)   -- every FCF_SetTabPosition call site passes 0
 GC.Chat.AfterScan("dock", function() Skin.LiftDock() end)
 
+-- The dock's overflow button (owner, #110), shown when the tabs don't fit:
+-- Blizzard's framed file arrow (FloatingChatFrame.xml:154-190) becomes a
+-- small down-arrow drawn from fills, the strip icons' grey (accent on
+-- hover). Its highlight texture stays, repainted as a soft accent glow: its
+-- FlashAnim is the pulse for an alerting tab scrolled out of view
+-- (FCFDockOverflowButton_UpdatePulseState). Glass off puts the art back; a
+-- button never styled (glass off from login) is never touched.
+Skin.OVERFLOW_HIGHLIGHT = "Interface\\ChatFrame\\chat-tab-arrow-on"
+Skin.OVERFLOW_GLOW = 0.25
+Skin.OVERFLOW_ROWS = { 9, 7, 5, 3, 1 }   -- px, top to bottom: the arrow
+local arrow, arrowOn
+
+local function paintArrow(c)
+    for _, t in ipairs(arrow) do t:SetColorTexture(c[1], c[2], c[3], 1) end
+end
+
+function Skin.Overflow()
+    local dock = rawget(_G, "GeneralDockManager")
+    local b = dock and rawget(dock, "overflowButton")   -- a parentKey: a plain field
+    if not b then return end
+    local on = GC.db.glass
+    if not arrow then
+        if not on then return end
+        arrow = {}
+        local rows = Skin.OVERFLOW_ROWS
+        for i, w in ipairs(rows) do
+            local t = b:CreateTexture(nil, "OVERLAY")
+            t:SetSize(w, 1)
+            t:SetPoint("TOP", b, "CENTER", 0, math.floor(#rows / 2) + 1 - i)
+            arrow[i] = t
+        end
+        paintArrow(Skin.TAB_GREY)
+        b:HookScript("OnEnter", function() if GC.db.glass then paintArrow(Skin.ACCENT) end end)
+        b:HookScript("OnLeave", function() paintArrow(Skin.TAB_GREY) end)
+    end
+    if arrowOn == on then return end
+    arrowOn = on
+    for _, t in ipairs(arrow) do t:SetShown(on) end
+    local normal, glow = b:GetNormalTexture(), b:GetHighlightTexture()
+    if normal then normal:SetAlpha(on and 0 or 1) end
+    if glow then
+        if on then
+            glow:SetColorTexture(Skin.ACCENT[1], Skin.ACCENT[2], Skin.ACCENT[3], Skin.OVERFLOW_GLOW)
+        else
+            glow:SetTexture(Skin.OVERFLOW_HIGHLIGHT)
+        end
+        glow:SetBlendMode("ADD")   -- the template's alphaMode, in case a repaint resets it (unmeasured)
+    end
+end
+GC.Chat.AfterScan("overflow", Skin.Overflow)
+
 -- After Blizzard's own tab updates (selection, docking, alerts).
 function Skin.HookTabs()
     if rawget(_G, "FCFDock_SetPrimary") then hooksecurefunc("FCFDock_SetPrimary", Skin.LiftDock) end

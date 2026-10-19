@@ -167,6 +167,11 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
       the name, repainted after `FCFTab_UpdateColors`. The other names are grey.
     - Resting opacity goes through `ChatFrameUtil.SetTabAlphas` after `FCFTab_UpdateAlpha`. Never
       write the `CHAT_FRAME_TAB_*_ALPHA` globals (that taints).
+    - **The dock's overflow button** (#110; `GeneralDockManager.overflowButton`, a parentKey):
+      its framed file arrow goes to alpha 0 under a grey down-arrow drawn from fills (accent on
+      hover), like the strip icons. Its highlight texture is repainted as a soft accent glow, never
+      replaced: its `FlashAnim` is the pulse for an alerting tab scrolled out of view. Glass off
+      restores both; never styled, never touched.
   - `Skin.Refresh()` applies setting changes, and glass off restores the stock look.
   - No Lua field or global is ever written on a Blizzard frame: state lives in weak-keyed tables.
     Creating regions on a tab and calling widget methods is fine.
