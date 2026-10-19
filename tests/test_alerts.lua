@@ -249,6 +249,25 @@ eq(b.pill:GetWidth(), GC.Buttons.SIDE_SIZE, "its pill keeps the button size")
 local pp = b.pill._points[1]
 check(pp and pp[1] == "CENTER" and pp[2] == b and pp[4] == 0 and pp[5] == 0, "centred on the button, so on the column")
 eq(b.glow._points[1][2], b.pill, "the green glow covers the pill, not the wider button")
+-- Blizzard's chat-button frame for glass off (#118), at alpha 0 with glass.
+local stockArt = { b._normal, b._pushed, b._highlight }
+eq(#stockArt, 3, "the stock frame's normal, pushed and highlight art")
+eq(b._normal._atlas .. " " .. b._pushed._atlas .. " " .. b._highlight._atlas,
+    "chatframe-button-up chatframe-button-down chatframe-button-highlight", "  the voice buttons' atlases")
+eq(b._highlight._blend, "ADD", "  the highlight added, as PropertyButton sets it")
+check(b._normal._width == 27 and b._normal._height == 26 and b._normal._points[1][1] == "CENTER",
+    "  27 x 26, centred like the pill")
+local function stockAlpha(a)
+    for _, t in ipairs(stockArt) do if t._alpha ~= a then return false end end
+    return true
+end
+check(stockAlpha(0), "  hidden with glass on")
+GC.Settings.SetGlass(false)
+check(stockAlpha(1), "glass off: the stock frame shows")
+check(not b.pill:IsShown(), "  and the pill is hidden")
+check(b:IsShown(), "  the button stays")
+GC.Settings.SetGlass(true)
+check(stockAlpha(0) and b.pill:IsShown(), "glass on again: the pill, the frame hidden")
 fresh()
 post(SAY, "karuzo one")
 post(SAY, "karuzo two")

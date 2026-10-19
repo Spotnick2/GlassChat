@@ -765,6 +765,17 @@ function Methods.SetVerticalScroll(w, v) w._vscroll = v end
 function Methods.GetNormalTexture(b) return b._normal end
 function Methods.GetPushedTexture(b) return b._pushed end
 function Methods.GetHighlightTexture(b) return b._highlight end
+-- A button's state art from an atlas: its normal, pushed and highlight
+-- textures, filling the button until re-anchored.
+local function stateAtlas(key)
+    return function(b, atlas, blend)
+        b[key] = b[key] or newWidget("Texture", b)
+        b[key]._atlas, b[key]._blend = atlas, blend
+        b[key]._points = { { "ALL", b } }
+    end
+end
+Methods.SetNormalAtlas, Methods.SetPushedAtlas = stateAtlas("_normal"), stateAtlas("_pushed")
+Methods.SetHighlightAtlas = stateAtlas("_highlight")
 ChatFrameChannelButton = newWidget("Button", UIParent, "ChatFrameChannelButton")
 ChatFrameChannelButton._level = 6
 for _, k in ipairs({ "_normal", "_pushed", "_highlight" }) do ChatFrameChannelButton[k] = newWidget("Texture", ChatFrameChannelButton) end

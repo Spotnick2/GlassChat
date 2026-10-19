@@ -260,6 +260,9 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
       (`count()`), they turn green with a green glow and a count, as the channel button turns
       into the green headset (ChannelFrameButtonMixin.lua:20-21), and the symbol pulses until
       clicked.
+    - **Glass off** (#118): the pill hides and they wear Blizzard's chat-button frame, the
+      voice buttons' `chatframe-button-up` / `-down` / `-highlight` (ADD) at 27 x 26, centred
+      like the pill, so the symbol isn't left bare in the stock column. With glass, at alpha 0.
     - **Lifecycle:** built at the first scan that shows one, re-stacked every scan.
       `Buttons.PaintSide(key)` repaints one after its count changed.
 - **`Layout.lua`** (M2, #9): one chat layout for every character. Chat windows are saved per
