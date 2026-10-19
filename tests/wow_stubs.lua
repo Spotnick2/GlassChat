@@ -219,7 +219,7 @@ function Methods.CreateMaskTexture(w) return newWidget("MaskTexture", w) end
 function Methods.CreateFontString(w) return newWidget("FontString", w) end
 function Methods.SetTexture(t, file) t._file = file; t._color = nil; return true end
 function Methods.SetBlendMode(t, mode) t._blend = mode end
-function Methods.SetColorTexture(t, r, g, b, a) t._color = { r, g, b, a }; t._file = nil end
+function Methods.SetColorTexture(t, r, g, b, a) t._color = { r, g, b, a }; t._file = nil; t._atlas = nil end
 function Methods.SetVertexColor(t, r, g, b, a) t._vertex = { r, g, b, a } end
 function Methods.AddMaskTexture(t, m) t._masks = t._masks or {}; table.insert(t._masks, m) end
 function Methods.SetGradient(t, orientation, c1, c2) t._gradient = { orientation, c1, c2 } end
@@ -413,6 +413,26 @@ function WoW.makeChatFrames(n)
             for _, t in ipairs({ "Left", "Right", "Mid", "FocusLeft", "FocusRight", "FocusMid" }) do
                 rawset(_G, name .. "EditBox" .. t, Methods.CreateTexture(e))
             end
+            -- The scroll bar (ChatFrame.xml:5, MinimalScrollBar.xml): a track
+            -- with a thumb, each in three atlas pieces, and two steppers with
+            -- one Texture; the jump-to-bottom button (FloatingChatFrame.xml:
+            -- 523-551) with its four state textures and its Flash.
+            local bar = newWidget("Frame", f)
+            bar.Track = newWidget("Frame", bar)
+            bar.Track.Thumb = newWidget("Button", bar.Track)
+            for _, owner in ipairs({ bar.Track, bar.Track.Thumb }) do
+                for _, k in ipairs({ "Begin", "Middle", "End" }) do owner[k] = newWidget("Texture", owner) end
+            end
+            for _, k in ipairs({ "Back", "Forward" }) do
+                bar[k] = newWidget("Button", bar)
+                bar[k].Texture = newWidget("Texture", bar[k])
+            end
+            f.ScrollBar = bar
+            local jump = newWidget("Button", f)
+            for _, k in ipairs({ "_normal", "_pushed", "_highlight", "_disabled" }) do jump[k] = newWidget("Texture", jump) end
+            jump.Flash = newWidget("Texture", jump)
+            jump.Flash._atlas, jump.Flash._blend = "minimal-scrollbar-arrow-returntobottom", "ADD"
+            f.ScrollToBottomButton = jump
         end
     end
 end
@@ -449,6 +469,10 @@ ChatFrameUtil = {
         table.insert(WoW.messageFilters[event], fn)
     end,
     SetTabAlphas = function(tab, over, rest) WoW.tabAlphas[tab] = { over, rest } end,
+    -- ChatFrameUtil.lua:32-45: play or stop a flash; StopFlash leaves the
+    -- region at alpha 1, shown only when asked.
+    StartFlash = function(region, animGroup) region:SetShown(true); region:SetAlpha(0) end,
+    StopFlash = function(region, animGroup, showWhenDone) region:SetAlpha(1); region:SetShown(showWhenDone == true) end,
     GetTabAlphas = function(tab)
         local a = WoW.tabAlphas[tab]
         if a then return a[1], a[2] end
@@ -756,7 +780,7 @@ rawset(TextToSpeechButton, "UpdateHighlight", function(self) self._highlight._al
 -- pushed and disabled, the frame baked in.
 function Methods.GetDisabledTexture(b) return b._disabled end
 function Methods.IsEnabled(b) return b._enabled ~= false end
-function Methods.SetAtlas(t, name) t._atlas = name end
+function Methods.SetAtlas(t, name) t._atlas = name; t._color = nil; t._file = nil end
 ChatFrameMenuButton = newWidget("Button", UIParent, "ChatFrameMenuButton")
 ChatFrameMenuButton._level = 6
 for _, k in ipairs({ "_normal", "_pushed", "_disabled", "_highlight" }) do ChatFrameMenuButton[k] = newWidget("Texture", ChatFrameMenuButton) end
