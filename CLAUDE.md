@@ -818,6 +818,9 @@ it goes red.
 - **CurseForge releases** are built by **CurseForge's own packager from the tag webhook**, reading
   `.pkgmeta`. CI (`package-check.yml`) dry-runs `BigWigsMods/packager` with `-d`: its `check` job
   builds and checks the zip. The packager derives the `forever` flavor from `## Interface: 16001`.
+  **Not set up yet** (owner, 2026-10-19): there is no CurseForge project and no tag webhook, so a
+  tag publishes only the GitHub Release below. The only release so far is the GitHub pre-release
+  `v0.1.0-beta` (2026-10-09). Releasing is the owner's call; don't suggest a tag.
 - **A GitHub Release for every `v*` tag** (#70, AltStable's job from its #209): `package-check.yml`'s
   `release` job, the only one with `contents: write`.
   - It publishes the zip `check` built and checked, never a second build. The zip must be named
