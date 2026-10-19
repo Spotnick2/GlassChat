@@ -177,7 +177,7 @@ function Url.Show(u)
     if API.IsSecret(u) or type(u) ~= "string" or u == "" then return end
     if not box then build() end
     box.url = u
-    box:Show()
+    API.ShowWindow(box)
     box.edit:SetText(u)
     box.edit:SetFocus()
     box.edit:HighlightText()

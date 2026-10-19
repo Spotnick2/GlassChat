@@ -99,5 +99,17 @@ check(not box:IsShown(), "another GlassChat link doesn't open it")
 WoW.callbacks.SetItemRef(nil, WoW.Secret("link"))
 check(not box:IsShown(), "nor a secret one")
 
+-- The box opens above the copy window (Pearl run, #106): both share the
+-- strata and the level, so the one opened last must be raised.
+GC.Copy.Show("Copy", "a line")
+local copy = GlassChatCopyWindow
+GC.Url.Show("https://www.example.com")
+check(box:GetFrameLevel() > copy:GetFrameLevel(), "the address box opens above the copy window")
+GC.Copy.Show("Copy", "a line")
+check(copy:GetFrameLevel() > box:GetFrameLevel(), "the copy window, opened again, comes above it")
+GC.Url.Show("https://www.example.org")
+check(box:GetFrameLevel() > copy:GetFrameLevel(), "and a box already open comes back to the front")
+check(box._toplevel and copy._toplevel, "a click brings either to the front (toplevel)")
+
 eq(next(GC.failures), nil, "nothing failed")
 done("test_url")

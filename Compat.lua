@@ -148,13 +148,14 @@ end
 -- clamped, Escape closes it (UISpecialFrames, as AltStable does on
 -- Forever), an opaque backing under the glass so nothing shows through the
 -- text. Fields: glass, backing, title, hint (anchor content below
--- `win.hint`). Hidden.
+-- `win.hint`). Hidden: open it with API.ShowWindow.
 function API.Window(name, width, height)
     local Glass = GlassChat.Glass
     local win = CreateFrame("Frame", name, UIParent)
     win:SetSize(width, height)
     win:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
     win:SetFrameStrata("FULLSCREEN_DIALOG")
+    win:SetToplevel(true)   -- a click brings it to the front, as Blizzard's dialogs
     win:SetClampedToScreen(true)
     win:EnableMouse(true)
     win:Hide()
@@ -172,4 +173,12 @@ function API.Window(name, width, height)
     win.hint:SetPoint("RIGHT", win, "RIGHT", -14, 0)
     win.hint:SetTextColor(0.75, 0.75, 0.75)
     return win
+end
+
+-- Every window shares the strata and the level, so the one opened last
+-- isn't on top by itself: the address box opened under the copy window
+-- (Pearl run, #106). Raise also covers a window already open.
+function API.ShowWindow(win)
+    win:Show()
+    win:Raise()
 end

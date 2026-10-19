@@ -169,6 +169,16 @@ function Methods.GetFrameLevel(w) return w._level end
 function Methods.SetFrameLevel(w, l) w._level = l end
 function Methods.SetFrameStrata(w, s) w._strata = s end
 function Methods.GetFrameStrata(w) return w._strata or "MEDIUM" end
+-- Above every other frame of its strata, as on the client (children aren't
+-- re-levelled here).
+function Methods.Raise(w)
+    local top = 0
+    for _, f in ipairs(WoW.frames) do
+        if f ~= w and (f._strata or "MEDIUM") == (w._strata or "MEDIUM") and f._level > top then top = f._level end
+    end
+    w._level = math.max(w._level, top + 1)
+end
+function Methods.SetToplevel(w, v) w._toplevel = v end
 function Methods.EnableMouse(w, v) w._mouse = v end
 function Methods.IsMouseEnabled(w) return w._mouse == true end
 function Methods.GetName(w) return w._name end
