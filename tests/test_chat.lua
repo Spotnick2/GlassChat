@@ -123,6 +123,20 @@ check(p.panel:IsShown() and not ChatFrame1Background:IsShown(), "glass on again"
 -- gets a faint fill and a gold underline, the others plain grey names.
 local tab, text = ChatFrame1Tab, ChatFrame1Tab:GetFontString()
 eq(select(5, p.panel:GetPoint(1)), GC.Skin.PAD_Y + GC.Skin.TAB_STRIP + GC.Skin.TAB_GAP, "the panel reaches up over the raised tabs")
+-- The input box sits flush under the window, as Blizzard places it (#114):
+-- no bottom padding, and its glass starts at the panel's bottom with its
+-- left and right edges.
+local point, rel, relPoint, x, y = p.panel:GetPoint(2)
+check(point == "BOTTOMRIGHT" and relPoint == "BOTTOMRIGHT" and x == GC.Skin.PAD_X and y == 0,
+    "the panel ends at the background's bottom (y " .. tostring(y) .. ")")
+eq(rel, ChatFrame1Background, "  Blizzard's background")
+local function pt(frame, i) local a, r, b, px, py = frame:GetPoint(i); return a, r, b .. " " .. px .. " " .. py end
+local a1, r1, s1 = pt(e.panel, 1)
+local a2, r2, s2 = pt(e.panel, 2)
+local a3, r3, s3 = pt(e.panel, 3)
+check(a1 == "TOPLEFT" and r1 == p.panel and s1 == "BOTTOMLEFT 0 0", "the input's glass starts at the panel's bottom left")
+check(a2 == "TOPRIGHT" and r2 == p.panel and s2 == "BOTTOMRIGHT 0 0", "  and right: flush, no overlap, the same width")
+check(a3 == "BOTTOM" and r3 == ChatFrame1EditBox and s3 == "BOTTOM 0 " .. GC.Skin.EDIT_INSET, "  its bottom is the box's, past the empty art")
 check(p.separator ~= nil, "a separator line runs under the tabs")
 -- At the tabs' bottom edge, where the strip is raised to: higher, it ran
 -- through the tab names and the strip's icons (owner's screenshot).
