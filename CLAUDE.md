@@ -144,7 +144,8 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     `GetTimeVisible()` + `GetFadeDuration()` after it was added, or after a scroll:
     `hooksecurefunc(f, "ResetAllFadeTimes")`), while the mouse is over it (between Blizzard's
     `FCF_FadeInChatFrame` / `FCF_FadeOutChatFrame`), when it's scrolled up, while its edit box has
-    focus, or when its lines never fade. New lines are seen through `Chat.LineCount`. One
+    focus, or when its lines never fade. New lines are seen through `Chat.LineCount`, on hidden
+    windows too (a tab picked from the dock's overflow list is shown with no fade reset). One
     `OnUpdate` driver checks every `IDLE_EVERY` (0.2 s); a failure leaves every window awake and
     stops it.
   - **No wash** on the window and edit box panels: `Glass.SetWash(g, 0)` (r7). The wash is a

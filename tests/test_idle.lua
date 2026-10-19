@@ -94,6 +94,25 @@ GC.Settings.SetGlass(true)
 run(1)
 eq(next(GC.failures), nil, "no failures")
 
+-- A hidden window keeps its lines' own time (Codex, #109): a docked tab
+-- picked from the overflow list is shown with no fade reset, its lines
+-- already faded, so it must not wake for a fresh 123 s.
+local f3 = ChatFrame3
+local function reading3() return P[f3].g.tint._color[4] end
+f3:Hide()
+run(1)
+f3:AddMessage("while hidden")
+run(130)
+f3:Show()
+run(0.5)
+check(near(reading3(), 0.2), "lines that faded while the window was hidden don't wake it when shown")
+f3:Hide()
+f3:AddMessage("just now, while hidden")
+run(1)
+f3:Show()
+run(0.5)
+eq(reading3(), 0.82, "  a line still readable does")
+
 -- A failure leaves every window awake, and the driver stops.
 rawset(f, "GetFading", function() error("boom") end)
 run(0.5)

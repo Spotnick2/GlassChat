@@ -503,9 +503,16 @@ end
 -- Idle: awake while a line is still readable (its own fade timer, restarted
 -- by a scroll), the mouse is over the window, it's scrolled up, its edit
 -- box has focus, or its lines never fade.
-local function awake(f, now)
+-- A new line, or the first check. Every window, hidden ones too: a docked tab
+-- picked from the overflow list is shown with no fade reset
+-- (FCFDock_SelectWindow, FloatingChatFrame.lua:2298; a tab click resets, line
+-- 1733), so lines it got while hidden must keep their own time (Codex, #109).
+local function noteLines(f, now)
     local n = GC.Chat.LineCount(f)
-    if counted[f] ~= n then counted[f], active[f] = n, now end   -- a new line, or the first check
+    if counted[f] ~= n then counted[f], active[f] = n, now end
+end
+
+local function awake(f, now)
     if hovered[f] then return true end
     local edit = editOf(f)
     if edit and edit:HasFocus() then return true end
@@ -520,7 +527,8 @@ local function idleStep(elapsed)
     if check then sinceCheck = 0 end
     local now = GetTime()
     for _, f in ipairs(GC.Chat.Frames()) do
-        if panels[f] and f:IsShown() then   -- a hidden window is checked once shown
+        if check then noteLines(f, now) end
+        if panels[f] and f:IsShown() then   -- only shown windows are judged and painted
             if check then target[f] = awake(f, now) and 1 or 0 end
             local k, t = wake[f] or 1, target[f] or 1
             if k ~= t then
