@@ -491,7 +491,10 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
       start and then from `GlassUI.Suite.LookChanged`;
     - `/gchat body` / `/gchat accent` set an override in `GlassChatDB.suiteOwn`, never pruned,
       and `suite` clears it. `db.body` / `db.accent` stay saved and unused;
-    - a saved `/gchat alpha` is the backing's opacity, reported as `own.backing`.
+    - a saved `/gchat alpha` is the backing's opacity, reported as `own.backing`. So a saved
+      alpha equal to the default still counts: `ensureDefaults` keeps it (`KEEP`), and
+      `/gchat alpha reset` (`Settings.ResetAlpha`) unsets it, clearing before the repaint and
+      the report (Codex on #124).
   - **Not following:** `db.body` and `db.accent`. Their defaults are `clear` and `gold` (owner,
     2026-10-19), the suite's own, so the chat looks the same with or without Glass UI.
   - **The numbers are Glass UI's** (`Suite.Body`, `Suite.Accent`, feature-detected, checked,
@@ -547,6 +550,9 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     and the key.
   - **Defaults:** a key unset or set to its default travels as `D`. The receiver resets it
     through `set(default)` and then clears it; a setter never takes nil.
+    - **Except an `explicit` key** (`alpha`, whose saved value is the backing over Glass UI's
+      bodies): a value equal to the default travels as `V` and applies over an unset one, and
+      its own `reset` (`Settings.ResetAlpha`) clears before repainting.
   - **Format `ST1`:** the shape is all-or-nothing, with caps and duplicates refused. A value this
     copy can't take (an unknown key, out of range, an unknown choice) is skipped and reported.
   - **Applying:** only changed values are applied. The old raw values go to

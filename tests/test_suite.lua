@@ -94,6 +94,43 @@ GC.db.alpha = nil
 GC.Skin.Refresh()
 eq(backing(), 0.40, "  without one, the body's")
 
+-- An explicit alpha equal to the default is still the backing, after a
+-- reload's pruning too (Codex on #124).
+GC.Settings.SetAlpha(GC.DEFAULTS.alpha)
+GC._test.ensureDefaults()
+GC.Skin.Refresh()
+eq(backing(), GC.DEFAULTS.alpha, "an explicit default alpha survives a reload's pruning")
+eq(last().own.backing, true, "  still its own backing")
+slash("alpha reset")
+eq(rawget(GC.db, "alpha"), nil, "/gchat alpha reset: unset")
+eq(backing(), 0.40, "  the body's backing again")
+eq(last().own.backing, nil, "  reported as the body's")
+
+-- Settings sync: an explicit default alpha travels as a value, and a reset
+-- (a D, or an undo to unset) clears before the repaint and the report.
+local SS = GC.SettingsSync
+local from, sid = { guid = "Player-1-0000000B", name = "Karuzo Memphisto" }, 1760000000000
+local function receive(...)
+    sid = sid + 1
+    SS.Receive(table.concat({ "ST1", ... }, "\n"), from, tostring(sid))
+end
+GC.Settings.SetAlpha(GC.DEFAULTS.alpha)
+check(SS.Build():find("V\tcore\talpha\tn\t", 1, false) ~= nil, "an explicit default alpha is sent as a value")
+slash("alpha reset")
+receive("V\tcore\talpha\tn\t" .. GC.DEFAULTS.alpha)
+eq(rawget(GC.db, "alpha"), GC.DEFAULTS.alpha, "  and received over an unset one")
+GC.Settings.SetAlpha(0.9)
+receive("D\tcore\talpha")
+eq(rawget(GC.db, "alpha"), nil, "a received D unsets it")
+eq(backing(), 0.40, "  the repaint after the clear: the body's backing")
+eq(last().own.backing, nil, "  and the report too")
+receive("V\tcore\talpha\tn\t0.9")
+eq(backing(), 0.9, "a received alpha over an unset one")
+slash("settings undo")
+eq(rawget(GC.db, "alpha"), nil, "undo: unset again")
+eq(backing(), 0.40, "  repainted at the body's backing")
+eq(last().own.backing, nil, "  and reported")
+
 -- Junk from Glass UI: our copy.
 Fake.Body = function() return { backing = "dark" } end
 lookChanged({ tint = "smoked" })

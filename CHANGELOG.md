@@ -8,6 +8,7 @@
   - `/gchat body smoked` is denser and `/gchat body class` takes your class colour. The dark glass
     from before is `/gchat body chat`. `/gchat accent ice` brings back the blue tab.
   - If you set `/gchat alpha` before, the chat keeps that darkness over the new glass.
+    `/gchat alpha reset` gives the glass its own again.
   - With Glass UI's "Use Glass UI appearance" on for Glass Chat, the chat follows its tint and
     accent live. Your own `/gchat body` or `/gchat accent` then overrides it for the chat alone,
     and `suite` follows Glass UI again. A `/gchat alpha` you set keeps the chat as dark as you

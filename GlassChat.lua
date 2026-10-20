@@ -42,11 +42,15 @@ GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default
 -- the default are dropped once, so they follow future defaults too.
 -- Nothing may REQUIRE a value to have survived: SavedVariables were broken
 -- on builds before 70009.
+-- Kept even when equal to the default: a saved alpha is also the backing over
+-- Glass UI's bodies (Suite.Backing), so "set to 0.82" and "unset" differ
+-- (Codex on #124). /gchat alpha reset clears it.
+local KEEP = { alpha = true }
 local function ensureDefaults()
     if type(GlassChatDB) ~= "table" then GlassChatDB = {} end
     local db = GlassChatDB
     for k, v in pairs(DEFAULTS) do
-        if db[k] == v then db[k] = nil end
+        if db[k] == v and not KEEP[k] then db[k] = nil end
     end
     if type(db.look) == "table" then
         for k, v in pairs(db.look) do
@@ -77,6 +81,15 @@ function Settings.SetAlpha(a)
     GC.db.alpha = clamp(a, 0, 1)
     GC.Skin.Refresh()
     GC.Suite.Report()   -- over a Glass UI body, its own backing
+end
+
+-- Unset: the shipped reading opacity, and Glass UI's bodies at their own
+-- backing. Cleared before the repaint and the report (settings sync's reset
+-- and undo come here too; Codex on #124).
+function Settings.ResetAlpha()
+    GC.db.alpha = nil
+    GC.Skin.Refresh()
+    GC.Suite.Report()
 end
 
 function Settings.SetShellAlpha(a)
@@ -229,7 +242,7 @@ end
 local function help()
     local db = GC.db
     say("/gchat glass on/off - the glass panels (" .. onOff(db.glass) .. ")")
-    say("/gchat alpha 0-1 - reading area and input darkness (" .. db.alpha .. ")")
+    say("/gchat alpha 0-1/reset - reading area and input darkness (" .. db.alpha .. ")")
     say("/gchat shellalpha 0-1 - tab strip and pills darkness (" .. db.shellAlpha .. ")")
     say("/gchat idle 0-1 - darkness with nothing to read, 1 = never fades (" .. db.idleAlpha .. ")")
     say("/gchat lines N - lines kept per chat window (" .. db.lines .. ")")
@@ -322,6 +335,9 @@ local function slash(msg, editBox)
     end
     if cmd == "tune" then
         tuneCmd(arg)
+    elseif cmd == "alpha" and arg == "reset" then
+        Settings.ResetAlpha()
+        say("alpha unset: " .. GC.db.alpha .. ", and Glass UI's bodies at their own backing")
     elseif cmd == "body" or cmd == "accent" then
         lookCmd(cmd, arg)
     elseif cmd == "layout" then
