@@ -56,7 +56,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
 `Libs\LibAccountSync-1.0\LibAccountSync-1.0.xml` (own-account messaging) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
 `Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `Levels.lua` → `Alerts.lua` →
-`Suite.lua` → `AccountSync.lua` → `SettingsSync.lua` → `GlassChat.lua`.
+`Suite.lua` → `Area.lua` → `AccountSync.lua` → `SettingsSync.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -503,6 +503,24 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
   - **The report** (`Suite.Report`, on every change): `built` (`GC.glassPreset`) while
     following, `look = { tint, accent }`, and `own` (tint, accent, backing).
   - Not in settings sync: Glass UI owns the look, and the body and accent aren't registered.
+- **`Area.lua`** (#122; the shape agreed with Glass UI): the screen area the chat occupies, so
+  the other Glass addons can keep clear of it. GlassPanel's `EdgeChanged` pattern: we announce, they
+  follow, no dependency either way.
+  - **`GlassChat.Footprint()`** returns a fresh `{ left, right, top, bottom }` in UIParent units
+    from the screen's bottom-left, or nil before the first measure (a combat measure included).
+  - **`EventRegistry "GlassChat.LayoutChanged"` (footprint)**: at the first measure, then out of
+    combat when a side moved more than `Area.TOLERANCE` (0.5); a combat change at
+    `PLAYER_REGEN_ENABLED`. Every listener gets the same table: read it, never keep it.
+  - **What counts:** the union of `ChatFrame1`, its glass panel (over the tabs), its tab and
+    `GeneralDockManager`, its edit box **shown or not** (the IM style hides it between messages;
+    the footprint must not move while typing) and the box's panel, the button column
+    (`ChatFrame1ButtonFrame`, the voice, menu and friends buttons) and our side buttons, while
+    shown. Blizzard's toasts don't count.
+  - A rect with a secret or unreadable side is skipped; an unreadable window means no measure.
+  - Measured on the next frame after a scan, `ChatFrame1`'s `OnSizeChanged`, the world, UI scale
+    and display events, and every `Area.EVERY` (1 s) as the safety net for an Edit Mode move.
+  - No consumer yet: Glass UI's group layout keeps every vertical anchor fixed, and a lower
+    layout first needs this agreement (GlassUI docs/GROUP-LAYOUT.md).
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
   - **One instance per snapshot kind, on one store** (`AS.insts`, tag → instance): `GlassChat`
