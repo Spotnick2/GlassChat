@@ -429,6 +429,8 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         if not ok then API.Fail("start alerts", err) end
         ok, err = pcall(GC.SettingsSync.Start)
         if not ok then API.Fail("start settings sync", err) end
+        ok, err = pcall(GC.Area.Start)
+        if not ok then API.Fail("start area", err) end
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- arg1 = isInitialLogin: warn and offer at a real login, never on /reload.
         if arg1 and GC.Layout then GC.Layout.ScheduleOffer() end

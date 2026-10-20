@@ -157,6 +157,17 @@ function Methods.SetSize(w, x, y) w._width, w._height = x, y end
 function Methods.SetWidth(w, x) w._width = x end
 function Methods.SetHeight(w, y) w._height = y end
 function Methods.GetWidth(w) return w._width end
+-- A rect only where a test set one (WoW.SetRect): unreadable otherwise, as
+-- an unanchored frame is.
+function WoW.SetRect(w, l, b, width, height, scale)
+    w._rect = { l = l, b = b, w = width, h = height }
+    w._scale = scale
+end
+function Methods.GetLeft(w) return w._rect and w._rect.l end
+function Methods.GetRight(w) return w._rect and (w._rect.l + w._rect.w) end
+function Methods.GetBottom(w) return w._rect and w._rect.b end
+function Methods.GetTop(w) return w._rect and (w._rect.b + w._rect.h) end
+function Methods.GetEffectiveScale(w) return w._scale or 1 end
 function Methods.GetHeight(w) return w._height end
 -- A texture painted with SetGradient ignores a later SetAlpha (measured on
 -- 70374, porting guide §3, #95): GetAlpha still reads what it read before.
@@ -395,6 +406,8 @@ function WoW.makeChatFrames(n)
             f._level = 5
             for _, t in ipairs(CHAT_FRAME_TEXTURES) do rawset(_G, name .. t, Methods.CreateTexture(f)) end
             f.Background = _G[name .. "Background"]
+            -- The button column's frame (FloatingChatFrame.xml:503, parentKey buttonFrame).
+            f.buttonFrame = CreateFrame("Frame", name .. "ButtonFrame", f)
             -- The lines live in a clipping child that covers the frame
             -- (ScrollingMessageFrame.xml:10); 200 px tall, 14 pt font.
             f._height, f._font = 200, { "Fonts\ARIALN.TTF", 14, "" }
@@ -682,6 +695,11 @@ EventRegistry = { RegisterCallback = function(self, event, fn, owner)
     WoW.callbacks[event] = function(_, ...)
         for _, c in ipairs(list) do c.fn(c.owner, ...) end
     end
+end,
+-- CallbackRegistryMixin:TriggerEvent: every callback, its owner first.
+TriggerEvent = function(self, event, ...)
+    local fire = WoW.callbacks[event]
+    if fire then fire(nil, ...) end
 end }
 -- MenuUtil.CreateContextMenu (Blizzard_Menu): the generator fills a root
 -- description; WoW.menu holds its title and buttons ({ text, fn }).

@@ -383,6 +383,15 @@ function Buttons.Side(key, opts)
     sides[key] = { opts = opts }
 end
 
+-- The side buttons built so far, shown or not (Area.lua's footprint).
+function Buttons.SideFrames()
+    local out = {}
+    for _, s in pairs(sides) do
+        if s.button then out[#out + 1] = s.button end
+    end
+    return out
+end
+
 -- Build, show and stack every side button: each shown one sits on the one
 -- below it, the first on the chat-menu bubble.
 function Buttons.RefreshSides()

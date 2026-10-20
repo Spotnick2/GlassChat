@@ -22,6 +22,7 @@ Url.lua
 Levels.lua
 Alerts.lua
 Suite.lua
+Area.lua
 AccountSync.lua
 SettingsSync.lua
 GlassChat.lua
