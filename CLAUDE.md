@@ -56,7 +56,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
 `Libs\LibAccountSync-1.0\LibAccountSync-1.0.xml` (own-account messaging) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
 `Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `Levels.lua` → `Alerts.lua` →
-`AccountSync.lua` → `SettingsSync.lua` → `GlassChat.lua`.
+`Suite.lua` → `AccountSync.lua` → `SettingsSync.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -139,6 +139,17 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     and input; `shellAlpha` (0.68) controls the header and every pill. Both use `GC.Settings`,
     refresh live and participate in settings sync. Saved opacity and `look` overrides win.
     The rim is Pearl-tinted, grain is off, and the edge stays subdued. See `docs/PEARL-HANDOFF.md`.
+    This is the `chat` body.
+  - **Glass UI's bodies** (#121): `clear`, `smoked` or `class`, the damage meter's look (owner).
+    - `panel` holds no glass of its own. Our charcoal is on its child `p.own`. Glass UI's body is
+      `p.band` (a "small" glass over the tab strip, down to the separator) and `p.body` (under
+      it). The edit box has `e.own` and `e.body`. The tint in effect shows one set or the other.
+    - Each Glass UI surface is the Pearl material as built, with an opaque `backing` at
+      `BACKGROUND -7` inside the mask (Glass UI's `Kit:Panel`).
+    - Painted by `paintBody` from `GC.Suite.Body(tint)`: the tint, or the class colour ×
+      `classShade` at the built alpha; the wash as a factor of `STYLE.wash`; the backing at the
+      body's opacity, or at a saved `/gchat alpha`.
+    - Idle shows `idleAlpha` of the tint and the backing.
   - **Idle** (owner, #108): with nothing to read, the three fills fade to `idleAlpha` (default
     0.2, `/gchat idle`, synced; 1 = never) over `SLEEP_TIME` (2 s), and back over `WAKE_TIME`
     (0.25 s). The rim and edge stay. A window is awake while a line is still readable (each fades
@@ -468,6 +479,27 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     (`Alerts.LOG_SIZE`). The `!` is side button 1 (`Buttons.Side`), in Blizzard's stack above
     the button column. It's green, pulsing and counting while alerts wait, and a click lists them
     (`Copy.Show`).
+- **`Suite.lua`** (#121; Glass UI's docs/SUITE.md and SUITE-LOOK.md): following Glass UI's suite
+  look. The owner wanted the meter's look on the chat, synced from Glass UI, with its colours set
+  there.
+  - **Deciding:** once a session, at `PLAYER_LOGIN`, through `GlassUI.Suite.Theme("GlassChat")`.
+    A Suite counts only at `API == 1` with `Theme` and `Report` (GAB's `suiteAPI`). The material
+    is Pearl either way (Glass.lua builds it at load), so only the body and the accent change,
+    live.
+  - **While following:**
+    - the tint (`Suite.Tint`) and the accent (`Suite.AccentName`) are the suite look's, pulled at
+      start and then from `GlassUI.Suite.LookChanged`;
+    - `/gchat body` / `/gchat accent` set an override in `GlassChatDB.suiteOwn`, never pruned,
+      and `suite` clears it. `db.body` / `db.accent` stay saved and unused;
+    - a saved `/gchat alpha` is the backing's opacity, reported as `own.backing`.
+  - **Not following:** `db.body` (`chat`, our charcoal, by default) and `db.accent` (`ice`). The
+    suite's default accent is gold.
+  - **The numbers are Glass UI's** (`Suite.Body`, `Suite.Accent`, feature-detected, checked,
+    cached until the look changes) whoever picked the tint. `Skin.BODIES` and `Skin.ACCENTS` are
+    the copies for a player without Glass UI, or for a malformed answer.
+  - **The report** (`Suite.Report`, on every change): `built` (`GC.glassPreset`) while
+    following, `look = { tint, accent }`, and `own` (tint, accent, backing).
+  - Not in settings sync: Glass UI owns the look, and the body and accent aren't registered.
 - **`AccountSync.lua`**: GlassChat's link to the player's other WoW accounts, through the embedded
   **LibAccountSync-1.0** (Spotnick2/LibAccountSync; GlassChat is its pilot consumer).
   - **One instance per snapshot kind, on one store** (`AS.insts`, tag → instance): `GlassChat`

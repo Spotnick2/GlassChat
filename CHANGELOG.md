@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Glass UI's look for the chat:** `/gchat body clear`, `smoked` or `class` puts the chat in
+  Glass UI's damage meter and quest tracker glass: a band behind the tabs, the reading area under
+  it. `/gchat body chat` is GlassChat's own dark glass, still the default. `/gchat accent gold`
+  turns the selected tab back to Blizzard's yellow, and `ice` is the blue.
+  - With Glass UI's "Use Glass UI appearance" on for Glass Chat, the chat follows its tint and
+    accent live. Your own `/gchat body` or `/gchat accent` then overrides it for the chat alone,
+    and `suite` follows Glass UI again. A `/gchat alpha` you set keeps the chat as dark as you
+    chose.
+
 - **Pearl chat styling:** thin pale rims and soft ice-blue selected tabs, menu bubble and
   copy/search hover icons, using LibGlass r11's shared Pearl preset.
 - **Readability and glass depth separately:** chat and the edit box default to a darker backing

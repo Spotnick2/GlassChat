@@ -16,3 +16,5 @@ GlassChat = GlassChat or {}
 -- still loading an older embedded copy; the packaged dependency is r11.
 local lib, minor = LibStub:GetLibrary("LibGlass-1.0")
 GlassChat.Glass = lib:New(minor >= 11 and { preset = "pearl" } or nil)
+-- What was built, for Glass UI's page (Suite.lua's report).
+GlassChat.glassPreset, GlassChat.glassMinor = minor >= 11 and "pearl" or "classic", minor

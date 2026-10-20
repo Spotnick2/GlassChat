@@ -21,6 +21,7 @@ Focus.lua
 Url.lua
 Levels.lua
 Alerts.lua
+Suite.lua
 AccountSync.lua
 SettingsSync.lua
 GlassChat.lua

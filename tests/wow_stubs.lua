@@ -662,6 +662,7 @@ function IsShiftKeyDown() return WoW.mods.shift == true end
 function IsControlKeyDown() return WoW.mods.ctrl == true end
 function IsAltKeyDown() return WoW.mods.alt == true end
 function UnitName(unit) if unit == "player" then return WoW.playerName or "Karuzo", "Morphisto" end end
+function UnitClass(unit) if unit == "player" then return "Warrior", WoW.playerClass or "WARRIOR", 1 end end
 function GetRealmName() return "Doomhowl" end
 function GetNormalizedRealmName() return WoW.realm or "Doomhowl" end
 -- Sounds and the taskbar flash (#83): recorded; WoW.willPlay = false refuses.

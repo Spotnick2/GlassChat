@@ -30,6 +30,8 @@ local DEFAULTS = {
     alertFlash = true,     -- blink the game in the taskbar on an alert
     whisperSound = true,   -- the tell sound on every whisper, as with Prat (stock: 5 min apart; #92)
     tabsCatch = true,      -- an open tab named after an addon catches its lines (#81)
+    body = "chat",         -- the glass body: chat (our charcoal) or a Glass UI one, clear / smoked / class (trial)
+    accent = "ice",        -- the selected tab and the strip icons: ice (Pearl's) or gold (Blizzard's)
 }
 GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default
 
@@ -74,6 +76,7 @@ end
 function Settings.SetAlpha(a)
     GC.db.alpha = clamp(a, 0, 1)
     GC.Skin.Refresh()
+    GC.Suite.Report()   -- over a Glass UI body, its own backing
 end
 
 function Settings.SetShellAlpha(a)
@@ -117,6 +120,22 @@ end
 function Settings.ResetLook()
     GC.db.look = {}
     GC.Skin.Refresh()
+end
+
+-- The body and the accent when not following Glass UI (#121; Suite.lua):
+-- while following, /gchat sets an override there instead.
+function Settings.SetBody(name)
+    if name ~= "chat" and not GC.Skin.BODIES[name] then return false end
+    GC.db.body = name
+    GC.Suite.Changed()
+    return true
+end
+
+function Settings.SetAccent(name)
+    if not GC.Skin.ACCENTS[name] then return false end
+    GC.db.accent = name
+    GC.Suite.Changed()
+    return true
 end
 
 function Settings.SetTimestamps(on)
@@ -222,6 +241,8 @@ local function help()
     say("/gchat levels on/off - a player's level before their name, once seen (" .. onOff(db.levels) .. ")")
     say("/gchat alert - a sound when chat mentions your name or your words (" .. onOff(db.alerts) .. ")")
     say("/gchat stamps on/off - a time on every line, addon output too (" .. onOff(db.timestamps) .. ")")
+    say("/gchat body chat/clear/smoked/class - the glass body: ours, or Glass UI's (" .. GC.Suite.Tint() .. ")")
+    say("/gchat accent ice/gold - the selected tab's colour (" .. GC.Suite.AccentName() .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
     say("/gchat layout - save this character's chat windows for your other characters")
     say("/gchat tabs - chatty addons with their own tab (offered in chat)")
@@ -269,6 +290,27 @@ local function tuneCmd(arg)
     say("/gchat tune reset - back to the shipped look")
 end
 
+-- /gchat body and /gchat accent: our own setting, or while following Glass
+-- UI an override of the suite's ("suite" goes back to it).
+local LOOK_CMD = { body = { key = "tint", set = Settings.SetBody, choices = "chat/clear/smoked/class" },
+    accent = { key = "accent", set = Settings.SetAccent, choices = "ice/gold" } }
+local function lookCmd(cmd, arg)
+    local c, S = LOOK_CMD[cmd], GC.Suite
+    local function now()
+        local v = cmd == "body" and S.Tint() or S.AccentName()
+        if not S.Following() then return v end
+        return v .. (S.Own(c.key) and " (its own; \"suite\" follows Glass UI again)" or " (Glass UI's)")
+    end
+    if arg == "" then say(cmd .. " " .. now()); return end
+    local ok
+    if S.Following() then ok = S.SetOwn(c.key, arg) else ok = c.set(arg) end
+    if ok then
+        say(cmd .. " " .. now())
+    else
+        say("/gchat " .. cmd .. " " .. c.choices .. (S.Following() and "/suite" or ""))
+    end
+end
+
 local function slash(msg, editBox)
     local cmd, arg = (msg or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
     -- A plugin's subcommand gets the rest of the line as typed (case kept:
@@ -280,6 +322,8 @@ local function slash(msg, editBox)
     end
     if cmd == "tune" then
         tuneCmd(arg)
+    elseif cmd == "body" or cmd == "accent" then
+        lookCmd(cmd, arg)
     elseif cmd == "layout" then
         GC.Layout.Command(arg)
     elseif cmd == "focus" then
