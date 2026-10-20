@@ -38,6 +38,21 @@ Skin.GRAIN, Skin.WASH = 0, 0
 Skin.RIM_IDLE, Skin.RIM_FOCUS = 0.38, 0.70
 Skin.PEARL = { 0.86, 0.90, 0.94 }
 
+-- Glass UI's bodies (owner, 2026-10-19: its damage meter and quest tracker
+-- look on the chat, #121). The tint in effect (Suite.Tint: the suite's while
+-- following, else db.body) picks one; "chat" is our own charcoal above. Per
+-- window, the meter's layout: a small glass band behind the tabs and the
+-- body under it, each Pearl as built over an opaque backing. The numbers come
+-- from Glass UI (Suite.Body); these are the copy for a player without it.
+-- The wash is a factor of the material's own (Glass UI's rule).
+Skin.BODIES = {
+    clear  = { tint = { 0.13, 0.16, 0.22, 0.24 }, wash = 1, backing = 0.35 },
+    smoked = { tint = { 0.05, 0.06, 0.08, 0.62 }, wash = 0.14 / 0.18, backing = 0.92 },
+    class  = { classShade = 0.6, wash = 1, backing = 0.35 },
+}
+Skin.BACKING = { 0.04, 0.05, 0.07 }
+function Skin.Body() return GC.Suite.Body(GC.Suite.Tint()) end   -- nil: ours
+
 -- The window panel's surface, live-tunable (/gchat tune <key> <value>) and
 -- saved account-wide in GlassChatDB.look; these are the shipped values.
 -- The header's sheen stays short and subdued. Existing saved /gchat tune
@@ -123,6 +138,9 @@ end
 -- its children, and something sets the chat frame's. So the window panel
 -- is a child of UIParent, pinned to BACKGROUND, and follows the chat
 -- frame's OnShow/OnHide. The edit box panel stays a child of its box.
+--
+-- The panel itself holds no glass: our own glass is on one child (own), Glass
+-- UI's body on others, and db.body shows one or the other.
 local function newPanel(parent, size, strata)
     local panel = CreateFrame("Frame", nil, strata and UIParent or parent)
     if strata then
@@ -131,14 +149,54 @@ local function newPanel(parent, size, strata)
     else
         panel:SetFrameLevel(math.max(0, parent:GetFrameLevel() - 1))
     end
-    local g = Glass.Apply(panel, size)
+    local own = CreateFrame("Frame", nil, panel)
+    own:SetAllPoints(panel)
+    local g = Glass.Apply(own, size)
     g.rim:SetVertexColor(Skin.PEARL[1], Skin.PEARL[2], Skin.PEARL[3])
     g.rim:SetAlpha(Skin.RIM_IDLE)
     g.dark:SetAlpha(0.20)
     g.shadow:SetAlpha(0)
     Glass.SetWash(g, Skin.WASH)
     tune(g)
-    return panel, g
+    return panel, g, own
+end
+
+-- A Glass UI body surface: the material as built, with an opaque backing
+-- under its tint (Glass UI's Kit:Panel: above the shadow, under the tint,
+-- inside the mask). Painted by paintBody.
+local function newBody(panel, size)
+    local frame = CreateFrame("Frame", nil, panel)
+    local g = Glass.Apply(frame, size)
+    local backing = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
+    backing:SetAllPoints(frame)
+    backing:AddMaskTexture(g.mask)
+    return { frame = frame, g = g, backing = backing }
+end
+
+-- The class body's colour: unreadable early in a login, then the material's
+-- own tint until the next paint.
+local function classTint(body)
+    local _, classFile = UnitClass("player")
+    local r, g, b = GC.API.ClassColor(classFile)
+    if not r then return nil end
+    return r * body.classShade, g * body.classShade, b * body.classShade
+end
+
+-- k: how much of the fills shows, 1 awake, down to db.idleAlpha idle.
+local function paintBody(s, body, k)
+    local r, g, b, a
+    if body.tint then
+        r, g, b, a = body.tint[1], body.tint[2], body.tint[3], body.tint[4]
+    else
+        local st = Glass.STYLE.tint
+        r, g, b = classTint(body)
+        if not r then r, g, b = st[1], st[2], st[3] end
+        a = st[4]
+    end
+    Glass.SetSurfaceTint(s.g, r, g, b, a * k)
+    Glass.SetWash(s.g, Glass.STYLE.wash * body.wash)
+    local c = body.backing
+    s.backing:SetColorTexture(c[1], c[2], c[3], GC.Suite.Backing(body) * k)
 end
 
 -- Idle (owner, #108): with nothing to read, the window goes clear. Blizzard
@@ -172,12 +230,20 @@ local function paintIdle(f)
         return idle + (full - idle) * k
     end
     local p = panels[f]
+    local edit = editOf(f)
+    local e = edit and panels[edit]
+    local body = Skin.Body()
+    if body then
+        -- Glass UI's bodies have no opacity of ours: idle shows idleAlpha of them.
+        local kb = k >= 1 and 1 or GC.db.idleAlpha + (1 - GC.db.idleAlpha) * k
+        if p then paintBody(p.band, body, kb); paintBody(p.body, body, kb) end
+        if e then paintBody(e.body, body, kb) end
+        return
+    end
     if p then
         p.g.tint:SetColorTexture(T[1], T[2], T[3], mix(GC.db.alpha))
         p.header:SetColorTexture(T[1], T[2], T[3], mix(GC.db.shellAlpha))
     end
-    local edit = editOf(f)
-    local e = edit and panels[edit]
     if e then e.g.tint:SetColorTexture(T[1], T[2], T[3], mix(GC.db.alpha)) end
 end
 
@@ -202,10 +268,10 @@ function Skin.Frame(f)
     if on and not p then
         -- Exactly over Blizzard's background rectangle (FloatingChatFrame.xml:6-12).
         local bg = rawget(_G, name .. "Background") or f
-        local panel, g = newPanel(f, "large", "BACKGROUND")
+        local panel, g, own = newPanel(f, "large", "BACKGROUND")
         panel:SetPoint("TOPLEFT", bg, "TOPLEFT", -Skin.PAD_X, Skin.PAD_Y + Skin.TAB_STRIP + Skin.TAB_GAP)
         panel:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", Skin.PAD_X, -Skin.PAD_BOTTOM)
-        local sep = panel:CreateTexture(nil, "ARTWORK")
+        local sep = own:CreateTexture(nil, "ARTWORK")
         sep:SetColorTexture(Skin.SEPARATOR[1], Skin.SEPARATOR[2], Skin.SEPARATOR[3], Skin.SEPARATOR[4])
         -- At the tabs' bottom edge (the strip is TAB_GAP up, LiftDock /
         -- liftTab), under the selected tab's accent underline: PAD_Y higher, it
@@ -221,13 +287,20 @@ function Skin.Frame(f)
         g.tint:ClearAllPoints()
         g.tint:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -headerHeight)
         g.tint:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 0, 0)
-        local header = panel:CreateTexture(nil, "BACKGROUND", nil, -6)
+        local header = own:CreateTexture(nil, "BACKGROUND", nil, -6)
         header:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
         header:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, -headerHeight)
         header:AddMaskTexture(g.mask)
+        -- Glass UI's body: the band down to the separator, the body under it.
+        local band, body = newBody(panel, "small"), newBody(panel, "large")
+        band.frame:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
+        band.frame:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, -headerHeight)
+        body.frame:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -headerHeight)
+        body.frame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 0, 0)
         -- The directional edge is the material's own (g.edge, GlassUnitFrames
         -- #60), set to this window's values in Skin.WindowLook.
-        p = { panel = panel, g = g, header = header, separator = sep, edge = g.edge }
+        p = { panel = panel, g = g, own = own, band = band, body = body, header = header, separator = sep,
+            edge = g.edge }
         panels[f] = p
         -- The panel follows the chat frame's size: refit the lines then.
         panel:SetScript("OnSizeChanged", function() Skin.FitLines(f) end)
@@ -239,7 +312,15 @@ function Skin.Frame(f)
         end)
         f:HookScript("OnHide", function() panel:Hide() end)
     end
-    if p then p.panel:SetShown(on and f:IsShown()); tune(p.g); Skin.WindowLook(p) end
+    local suite = Skin.Body() ~= nil
+    if p then
+        p.panel:SetShown(on and f:IsShown())
+        p.own:SetShown(not suite)
+        p.band.frame:SetShown(suite)
+        p.body.frame:SetShown(suite)
+        tune(p.g)
+        Skin.WindowLook(p)
+    end
     setTextures(name, FRAME_TEXTURES, not on)
     Skin.FitLines(f)
 
@@ -247,20 +328,36 @@ function Skin.Frame(f)
     if not edit then paintIdle(f); return end
     local e = panels[edit]
     if on and not e then
-        local panel, g = newPanel(edit, "small")
+        local panel, g, own = newPanel(edit, "small")
         -- Under the window panel, flush, with its left and right edges (#114);
         -- its bottom is the box's own, past the empty art.
         -- (p exists: with glass on, the window's panel is built above.)
         panel:SetPoint("TOPLEFT", p.panel, "BOTTOMLEFT", 0, 0)
         panel:SetPoint("TOPRIGHT", p.panel, "BOTTOMRIGHT", 0, 0)
         panel:SetPoint("BOTTOM", edit, "BOTTOM", 0, Skin.EDIT_INSET)
-        e = { panel = panel, g = g }
+        local body = newBody(panel, "small")
+        body.frame:SetAllPoints(panel)
+        e = { panel = panel, g = g, own = own, body = body }
         panels[edit] = e
-        -- Focus shows on the rim, since the focus art is hidden.
-        edit:HookScript("OnEditFocusGained", function() e.g.rim:SetAlpha(Skin.RIM_FOCUS); poke() end)
-        edit:HookScript("OnEditFocusLost", function() e.g.rim:SetAlpha(Skin.RIM_IDLE); poke() end)
+        -- Focus shows on the rim, since the focus art is hidden. Glass UI's
+        -- body: full white, and back to the material's own rim.
+        edit:HookScript("OnEditFocusGained", function()
+            e.g.rim:SetAlpha(Skin.RIM_FOCUS)
+            Glass.SetSurfaceRim(e.body.g, 1, 1, 1, 1)
+            poke()
+        end)
+        edit:HookScript("OnEditFocusLost", function()
+            e.g.rim:SetAlpha(Skin.RIM_IDLE)
+            Glass.SetSurfaceRim(e.body.g)
+            poke()
+        end)
     end
-    if e then e.panel:SetShown(on); tune(e.g) end
+    if e then
+        e.panel:SetShown(on)
+        e.own:SetShown(not suite)
+        e.body.frame:SetShown(suite)
+        tune(e.g)
+    end
     setEditArt(edit:GetName(), on and 0 or 1)
     paintIdle(f)   -- after tune and WindowLook, which paint the reading opacities
 end
@@ -334,8 +431,17 @@ Skin.TAB_REST = { selected = 1, other = 0.9 }
 Skin.TAB_HOVER = 1
 Skin.TAB_PAD_X, Skin.TAB_PAD_Y = 10, 5
 Skin.TAB_GOLD = { 1, 0.82, 0 }
--- Gold remains the alert resting colour; navigation uses Pearl's ice blue.
+-- Gold remains the alert resting colour; navigation uses the accent: Pearl's
+-- ice blue or Blizzard's gold, the suite's while following Glass UI, else
+-- db.accent (Suite.AccentColor; the copy below for a player without Glass UI).
+-- One table, recoloured in place: the modules holding it see the change at
+-- their next paint (icons drawn once, at the next /reload).
+Skin.ACCENTS = { ice = { 0.65, 0.835, 0.905 }, gold = Skin.TAB_GOLD }
 Skin.ACCENT = { 0.65, 0.835, 0.905 }
+local function applyAccent()
+    local c = GC.Suite.AccentColor()
+    Skin.ACCENT[1], Skin.ACCENT[2], Skin.ACCENT[3] = c[1], c[2], c[3]
+end
 Skin.TAB_GREY = { 0.8, 0.8, 0.8 }
 Skin.TAB_FILL = 0.08
 local TAB_ART = { "Left", "Middle", "Right", "ActiveLeft", "ActiveMiddle", "ActiveRight",
@@ -389,12 +495,15 @@ local function paintTab(tab, selected)
     lit.fill:SetShown(on and selected)
     lit.line:SetShown(on and selected)
     if on then
-        local c = selected and Skin.ACCENT or Skin.TAB_GREY
+        local c, A = selected and Skin.ACCENT or Skin.TAB_GREY, Skin.ACCENT
         tab:GetFontString():SetTextColor(c[1], c[2], c[3])
+        lit.fill:SetColorTexture(A[1], A[2], A[3], Skin.TAB_FILL)
+        lit.line:SetColorTexture(A[1], A[2], A[3], 1)
     end
 end
 
 function Skin.Tab(f)
+    applyAccent()
     local tab = tabOf(f)
     local text = tab and tab:GetFontString()
     if not text then return end

@@ -66,7 +66,8 @@ local sections, order = {}, {}
 -- functions for call-time ranges), values = {..} (for "e"), default =
 -- function, get = function (raw, nil when unset), set = function(v),
 -- reset = optional function (else set(default) then clear), clear = function,
--- label = optional display name }.
+-- label = optional display name, explicit = true when a value equal to the
+-- default still differs from unset }.
 function SS.Register(name, keys)
     if not sections[name] then order[#order + 1] = name end
     local byKey = {}
@@ -94,6 +95,11 @@ end
 local function same(spec, a, b)
     if spec.type == "n" and type(a) == "number" and type(b) == "number" then return math.abs(a - b) < 1e-9 end
     return a == b
+end
+
+-- A value that means "at its default", the same as unset (never for an explicit key).
+local function atDefault(spec, v)
+    return not spec.explicit and same(spec, v, spec.default())
 end
 
 local function encode(spec, v)
@@ -146,10 +152,20 @@ local function lookKey(key)
         clear = function() local look = rawget(GC.db, "look"); if type(look) == "table" then look[key] = nil end end,
     }
 end
+-- Unset is not the default value here: over Glass UI's bodies, a saved alpha
+-- is the backing (Suite.Backing). So a reset clears it before repainting.
+-- And a value equal to the default still counts as set (explicit): it travels
+-- as V, and is applied over an unset one.
+local function alphaKey()
+    local k = coreKey("alpha", "n", "SetAlpha", 0, 1, "darkness")
+    k.reset = function() GC.Settings.ResetAlpha() end
+    k.explicit = true
+    return k
+end
 function SS.RegisterCore()
     local keys = {
         coreKey("glass", "b", "SetGlass"),
-        coreKey("alpha", "n", "SetAlpha", 0, 1, "darkness"),
+        alphaKey(),
         coreKey("shellAlpha", "n", "SetShellAlpha", 0, 1, "tab strip and pills darkness"),
         coreKey("idleAlpha", "n", "SetIdleAlpha", 0, 1, "darkness with nothing to read"),
         coreKey("lines", "i", "SetLines", function() return GC.Chat.MIN_LINES end, function() return GC.Chat.MAX_LINES end, "scrollback"),
@@ -227,7 +243,7 @@ function SS.Build(withLayout)
             local raw = spec.get()
             if not API.IsSecret(raw) then
                 -- A value set to its default travels as "at its default" too.
-                if raw == nil or same(spec, raw, spec.default()) or rejects(spec, raw) then
+                if raw == nil or atDefault(spec, raw) or rejects(spec, raw) then
                     out[#out + 1] = line("D", name, spec.key)
                 else
                     out[#out + 1] = line("V", name, spec.key, spec.type, encode(spec, raw))
@@ -371,14 +387,14 @@ function SS.Apply(snap, from, guid)
             local apply
             if item.default then
                 if raw ~= nil then apply = function() reset(spec) end end
-            elseif raw == nil and same(spec, item.value, spec.default()) then
+            elseif raw == nil and atDefault(spec, item.value) then
                 apply = nil
             elseif raw == nil or not same(spec, raw, item.value) then
                 apply = function() spec.set(item.value) end
             end
             if apply then
                 -- An explicit value equal to the default, cleared: nothing visible changes.
-                local visible = not (item.default and same(spec, raw, spec.default()))
+                local visible = not (item.default and atDefault(spec, raw))
                 undo.values[item.section .. "." .. item.key] = { raw = raw, unset = raw == nil }
                 local ok, err = pcall(apply)
                 if ok then

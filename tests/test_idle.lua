@@ -6,6 +6,8 @@ dofile("tests/harness.lua")
 
 WoW.now = 1000
 local GC = loadAddon()
+-- Our charcoal's opacities (alpha, shellAlpha); Glass UI's bodies idle in test_body.
+GC.Settings.SetBody("chat")
 local P = GC.Skin._test.panels
 local f = ChatFrame1
 local p, e = P[f], P[ChatFrame1EditBox]
