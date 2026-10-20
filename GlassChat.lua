@@ -30,8 +30,8 @@ local DEFAULTS = {
     alertFlash = true,     -- blink the game in the taskbar on an alert
     whisperSound = true,   -- the tell sound on every whisper, as with Prat (stock: 5 min apart; #92)
     tabsCatch = true,      -- an open tab named after an addon catches its lines (#81)
-    body = "chat",         -- the glass body: chat (our charcoal) or a Glass UI one, clear / smoked / class (trial)
-    accent = "ice",        -- the selected tab and the strip icons: ice (Pearl's) or gold (Blizzard's)
+    body = "clear",        -- the glass body: Glass UI's clear (owner's pick, #121), smoked, class, or chat (our charcoal)
+    accent = "gold",       -- the selected tab and the strip icons: gold (Blizzard's, owner's pick, #121) or ice (Pearl's)
 }
 GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default
 

@@ -139,7 +139,7 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     and input; `shellAlpha` (0.68) controls the header and every pill. Both use `GC.Settings`,
     refresh live and participate in settings sync. Saved opacity and `look` overrides win.
     The rim is Pearl-tinted, grain is off, and the edge stays subdued. See `docs/PEARL-HANDOFF.md`.
-    This is the `chat` body.
+    This is the `chat` body (`/gchat body chat`); the default is Glass UI's clear (below).
   - **Glass UI's bodies** (#121): `clear`, `smoked` or `class`, the damage meter's look (owner).
     - `panel` holds no glass of its own. Our charcoal is on its child `p.own`. Glass UI's body is
       `p.band` (a "small" glass over the tab strip, down to the separator) and `p.body` (under
@@ -178,7 +178,7 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     - The name is 14 pt with a shadow, set at `ADDON_LOADED`, before Blizzard names and sizes
       the tabs. The text box is grown from its 8 px.
     - The stock art (background, selected and highlight pieces) is at alpha 0.
-    - The selected tab gets an ice-blue name, faint fill and underline (`Skin.ACCENT`): textures on the tab, under
+    - The selected tab gets the accent (`Skin.ACCENT`: gold by default, or ice blue) on its name, faint fill and underline: textures on the tab, under
       the name, repainted after `FCFTab_UpdateColors`. The other names are grey.
     - Resting opacity goes through `ChatFrameUtil.SetTabAlphas` after `FCFTab_UpdateAlpha`. Never
       write the `CHAT_FRAME_TAB_*_ALPHA` globals (that taints).
@@ -492,8 +492,8 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     - `/gchat body` / `/gchat accent` set an override in `GlassChatDB.suiteOwn`, never pruned,
       and `suite` clears it. `db.body` / `db.accent` stay saved and unused;
     - a saved `/gchat alpha` is the backing's opacity, reported as `own.backing`.
-  - **Not following:** `db.body` (`chat`, our charcoal, by default) and `db.accent` (`ice`). The
-    suite's default accent is gold.
+  - **Not following:** `db.body` and `db.accent`. Their defaults are `clear` and `gold` (owner,
+    2026-10-19), the suite's own, so the chat looks the same with or without Glass UI.
   - **The numbers are Glass UI's** (`Suite.Body`, `Suite.Accent`, feature-detected, checked,
     cached until the look changes) whoever picked the tint. `Skin.BODIES` and `Skin.ACCENTS` are
     the copies for a player without Glass UI, or for a malformed answer.

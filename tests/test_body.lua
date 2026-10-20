@@ -11,8 +11,14 @@ local f = ChatFrame1
 local p, e = P[f], P[ChatFrame1EditBox]
 local function near(a, b) return math.abs(a - b) < 1e-6 end
 
-eq(GC.db.body, "chat", "our own body by default")
-check(p.own:IsShown() and not p.band.frame:IsShown() and not p.body.frame:IsShown(), "  our glass shown, Glass UI's hidden")
+eq(GC.db.body, "clear", "Glass UI's clear body by default (owner, #121)")
+eq(GC.db.accent, "gold", "and the gold accent")
+check(not p.own:IsShown() and p.band.frame:IsShown() and p.body.frame:IsShown(), "  Glass UI's glass shown, ours hidden")
+check(not e.own:IsShown() and e.body.frame:IsShown(), "  the edit box too")
+eq(GC.Skin._test.tabLit[ChatFrame1Tab].line._color[2], 0.82, "  the selected tab is gold")
+
+check(GC.Settings.SetBody("chat"), "chat is a body")
+check(p.own:IsShown() and not p.band.frame:IsShown() and not p.body.frame:IsShown(), "chat: our glass shown, Glass UI's hidden")
 check(e.own:IsShown() and not e.body.frame:IsShown(), "  the edit box too")
 
 check(GC.Settings.SetBody("clear"), "clear is a body")
@@ -46,13 +52,12 @@ check(p.own:IsShown() and not p.body.frame:IsShown(), "chat: our glass back")
 -- The accent.
 local tab = ChatFrame1Tab
 local lit = GC.Skin._test.tabLit[tab]
-check(GC.Settings.SetAccent("gold"), "gold is an accent")
-
-eq(GC.Skin.ACCENT[1], 1, "  the shared accent is gold")
-eq(lit.line._color[2], 0.82, "  the selected tab's underline is gold")
+check(GC.Settings.SetAccent("ice"), "ice is an accent")
+eq(GC.Skin.ACCENT[1], 0.65, "  the shared accent is Pearl's ice")
+eq(lit.line._color[1], 0.65, "  the selected tab's underline too")
 check(not GC.Settings.SetAccent("pink"), "an unknown accent is refused")
-GC.Settings.SetAccent("ice")
-eq(lit.line._color[1], 0.65, "ice: back to Pearl's")
+GC.Settings.SetAccent("gold")
+eq(lit.line._color[2], 0.82, "gold: back to Blizzard's")
 
 eq(next(GC.failures), nil, "no failures")
 done("test_body")

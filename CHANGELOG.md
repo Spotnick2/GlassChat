@@ -2,10 +2,12 @@
 
 ## Unreleased
 
-- **Glass UI's look for the chat:** `/gchat body clear`, `smoked` or `class` puts the chat in
-  Glass UI's damage meter and quest tracker glass: a band behind the tabs, the reading area under
-  it. `/gchat body chat` is GlassChat's own dark glass, still the default. `/gchat accent gold`
-  turns the selected tab back to Blizzard's yellow, and `ice` is the blue.
+- **A new look: Glass UI's clear glass.** The chat now wears the damage meter and quest tracker
+  glass from Glass UI, with or without Glass UI installed: a band behind the tabs and the reading
+  area under it. The selected tab is back to Blizzard's gold.
+  - `/gchat body smoked` is denser and `/gchat body class` takes your class colour. The dark glass
+    from before is `/gchat body chat`. `/gchat accent ice` brings back the blue tab.
+  - If you set `/gchat alpha` before, the chat keeps that darkness over the new glass.
   - With Glass UI's "Use Glass UI appearance" on for Glass Chat, the chat follows its tint and
     accent live. Your own `/gchat body` or `/gchat accent` then overrides it for the chat alone,
     and `suite` follows Glass UI again. A `/gchat alpha` you set keeps the chat as dark as you
