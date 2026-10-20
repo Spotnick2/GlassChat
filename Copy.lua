@@ -44,28 +44,41 @@ function Copy.Plain(text)
     return s
 end
 
--- A window's lines, oldest first: the newest Copy.MAX of them, as
--- { text, raw, hidden, r, g, b, id, event, kept } (GetMessageInfo's
--- returns: ScrollingMessageFrame's UnpackageEntry of AddMessage's
--- arguments; kept is the 11th, Keep.lua's own, after Blizzard's ten). Returns the entries, how many were hidden (secret), and the
--- window's total. A line that fails to read for another reason is a
--- failure, not a secret. Copy and focus mode both read through this.
+-- How many lines a window holds (0 when unreadable).
+function Copy.Count(f)
+    local ok, n = pcall(f.GetNumMessages, f)
+    if not ok or API.IsSecret(n) or type(n) ~= "number" then return 0 end
+    return n
+end
+
+-- Line i (1 = oldest) as { text, raw, hidden, r, g, b, id, event, kept }
+-- (GetMessageInfo's returns: ScrollingMessageFrame's UnpackageEntry of
+-- AddMessage's arguments; kept is the 11th, Keep.lua's own, after
+-- Blizzard's ten). A secret line is { text = HIDDEN, hidden = true }, never
+-- read. A line that fails to read for another reason is a failure, not a
+-- secret: nil. Copy, focus mode and the kept chat all read through this.
+function Copy.Entry(f, i, key)
+    local okM, text, r, g, b, id, _, _, event, _, _, kept = pcall(f.GetMessageInfo, f, i)
+    if not okM then
+        API.Fail(key or "copy read", text)
+    elseif API.IsSecret(text) then
+        return { text = Copy.HIDDEN, hidden = true }
+    else
+        local plain = Copy.Plain(text)
+        if plain then return { text = plain, raw = text, r = r, g = g, b = b, id = id, event = event, kept = kept } end
+    end
+end
+
+-- A window's lines, oldest first: the newest Copy.MAX of them. Returns the
+-- entries, how many were hidden (secret), and the window's total.
 function Copy.Read(f, key)
     local out, hidden = {}, 0
-    local ok, n = pcall(f.GetNumMessages, f)
-    if not ok or API.IsSecret(n) or type(n) ~= "number" then return out, 0, 0 end
+    local n = Copy.Count(f)
     for i = math.max(1, n - Copy.MAX + 1), n do
-        local okM, text, r, g, b, id, _, _, event, _, _, kept = pcall(f.GetMessageInfo, f, i)
-        if not okM then
-            API.Fail(key or "copy read", text)
-        elseif API.IsSecret(text) then
-            hidden = hidden + 1
-            out[#out + 1] = { text = Copy.HIDDEN, hidden = true }
-        else
-            local plain = Copy.Plain(text)
-            if plain then
-                out[#out + 1] = { text = plain, raw = text, r = r, g = g, b = b, id = id, event = event, kept = kept }
-            end
+        local e = Copy.Entry(f, i, key)
+        if e then
+            out[#out + 1] = e
+            if e.hidden then hidden = hidden + 1 end
         end
     end
     return out, hidden, n

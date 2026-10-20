@@ -4,7 +4,7 @@
 -- Prat's Scrollback copies the frame's private historyBuffer and pushes into
 -- it; here only public calls:
 -- - saved at PLAYER_LOGOUT, which fires on /reload and on logout before
---   SavedVariables are written: each window's lines through Copy.Read;
+--   SavedVariables are written: each window's lines through Copy.Entry;
 -- - put back at the next PLAYER_LOGIN with BackFillMessage, which adds at
 --   the oldest end (ScrollingMessageFrame.lua:20), so the history sits above
 --   whatever printed at login, under a grey divider. It never goes through
@@ -129,18 +129,24 @@ local function colour(v)
     return v
 end
 
+-- Newest first, over the whole window, until Keep.MAX lines are found:
+-- Copy.Read's Copy.MAX would miss older chat under a run of addon lines,
+-- with /gchat lines up to 5000 (Codex on #126). Returned oldest first.
 local function saveWindow(f, now)
-    local lines = {}
-    for _, e in ipairs((GC.Copy.Read(f, "keep read"))) do
-        if not e.hidden and plainString(e.raw) and wanted(e.event, e.id) then
+    local found = {}
+    for i = GC.Copy.Count(f), 1, -1 do
+        if #found >= Keep.MAX then break end
+        local e = GC.Copy.Entry(f, i, "keep read")
+        if e and not e.hidden and plainString(e.raw) and wanted(e.event, e.id) then
             local t = plainNumber(e.kept) or now
             if now - t <= Keep.MAX_AGE then
-                lines[#lines + 1] = { text = saveText(e.raw), r = colour(e.r), g = colour(e.g), b = colour(e.b),
+                found[#found + 1] = { text = saveText(e.raw), r = colour(e.r), g = colour(e.g), b = colour(e.b),
                     id = plainNumber(e.id), event = e.event, t = t }
             end
         end
     end
-    while #lines > Keep.MAX do table.remove(lines, 1) end
+    local lines = {}
+    for k = #found, 1, -1 do lines[#lines + 1] = found[k] end
     return lines
 end
 

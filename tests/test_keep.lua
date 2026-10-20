@@ -114,6 +114,14 @@ logout()
 eq(#kept(1), K.MAX, "at most Keep.MAX lines")
 eq(kept(1)[1].text, "line 11", "  the newest")
 
+-- Older chat under more than Copy.MAX addon lines is still found (Codex on #126).
+f1._lines = {}
+for i = 1, 3 do say(f1, "guild " .. i, "CHAT_MSG_GUILD") end
+for i = 1, GC.Copy.MAX + 50 do f1:AddMessage("|cff00ccff[ASProbe]|r spam " .. i) end
+logout()
+eq(#kept(1), 3, "chat older than Copy.MAX addon lines is kept")
+eq(kept(1)[1].text, "guild 1", "  oldest first")
+
 -- Off forgets at once.
 slash("keep off")
 eq(GC.charDB.kept, nil, "/gchat keep off: forgotten")

@@ -409,7 +409,9 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
   off by default, synced), never addon output (owner).
   - **Only public calls**, unlike Prat's Scrollback (which copies the private `historyBuffer`):
     - saved at `PLAYER_LOGOUT` (it fires on `/reload` too, before SavedVariables are written)
-      through `Copy.Read`;
+      through `Copy.Entry`, newest first over the **whole** window until `Keep.MAX` lines are
+      found. `Copy.Read`'s newest `Copy.MAX` would miss older chat under a run of addon lines
+      (Codex on #126);
     - put back at `PLAYER_LOGIN` with `BackFillMessage`, which adds at the oldest end, so the
       history sits above the login lines, under a grey divider.
     - It never goes through `AddMessage`, so the shared hook never sees it: no stamp, no routing,
@@ -420,7 +422,7 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     `Keep.MAX_AGE` (24 h) old.
   - **Each restored line passes back its id and event** (focus mode still sorts it), with
     `accessID` / `typeID` / `eventArgs` nil: those are this session's (FloatingChatFrame.lua:933,
-    ChatFrameUtil.lua:854). **Its saved time is an 11th value** (`Copy.Read`'s `kept`), so it keeps
+    ChatFrameUtil.lua:854). **Its saved time is an 11th value** (`Copy.Entry`'s `kept`), so it keeps
     its age over several sessions.
   - **Battle.net names** are per-session `|K` tokens. At the save, each `BNplayer` link becomes
     its BattleTag (`C_BattleNet.GetAccountInfoByID`, a plain string), between ``/`` markers.
