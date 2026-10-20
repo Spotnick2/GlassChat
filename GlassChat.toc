@@ -18,6 +18,7 @@ Buttons.lua
 Layout.lua
 Tabs.lua
 Focus.lua
+Keep.lua
 Url.lua
 Levels.lua
 Alerts.lua

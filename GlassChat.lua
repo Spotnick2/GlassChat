@@ -9,7 +9,7 @@ local say = API.Print
 
 -- Account-wide (GlassChatDB): the look and behaviour, the same on every
 -- character (owner: no per-character setup). Per character
--- (GlassChatCharDB): only what you sent.
+-- (GlassChatCharDB): what you sent, and the kept chat (Keep.lua).
 local DEFAULTS = {
     glass = true,          -- the glass panels (off: Blizzard's own background)
     alpha = 0.82,          -- reading area and edit box; saved user values still win
@@ -32,6 +32,7 @@ local DEFAULTS = {
     tabsCatch = true,      -- an open tab named after an addon catches its lines (#81)
     body = "clear",        -- the glass body: Glass UI's clear (owner's pick, #121), smoked, class, or chat (our charcoal)
     accent = "gold",       -- the selected tab and the strip icons: gold (Blizzard's, owner's pick, #121) or ice (Pearl's)
+    keep = false,          -- player chat kept across sessions and reloads, per character (#125)
 }
 GC.DEFAULTS = DEFAULTS   -- read by settings sync, to reset a key to its default
 
@@ -206,6 +207,13 @@ function Settings.SetTabsCatch(on)
     GC.db.tabsCatch = on and true or false
 end
 
+-- Off forgets this character's kept chat at once; the others' goes at their
+-- next logout.
+function Settings.SetKeep(on)
+    GC.db.keep = on and true or false
+    if not on and GC.charDB then GC.charDB.kept = nil end
+end
+
 function Settings.SetShortChannels(on)
     GC.db.shortChannels = on and true or false
 end
@@ -254,6 +262,7 @@ local function help()
     say("/gchat levels on/off - a player's level before their name, once seen (" .. onOff(db.levels) .. ")")
     say("/gchat alert - a sound when chat mentions your name or your words (" .. onOff(db.alerts) .. ")")
     say("/gchat stamps on/off - a time on every line, addon output too (" .. onOff(db.timestamps) .. ")")
+    say("/gchat keep on/off - player chat kept across reloads and logins, never addon lines (" .. onOff(db.keep) .. ")")
     say("/gchat body chat/clear/smoked/class - the glass body: ours, or Glass UI's (" .. GC.Suite.Tint() .. ")")
     say("/gchat accent ice/gold - the selected tab's colour (" .. GC.Suite.AccentName() .. ")")
     say("/gchat tabsize N - tab name size, fits fully after /reload (" .. db.tabSize .. ")")
@@ -275,7 +284,7 @@ end
 
 local TOGGLES = { glass = Settings.SetGlass, colors = Settings.SetClassColors, arrows = Settings.SetPlainArrows,
     channels = Settings.SetShortChannels, stamps = Settings.SetTimestamps, urls = Settings.SetUrls,
-    levels = Settings.SetLevels }
+    levels = Settings.SetLevels, keep = Settings.SetKeep }
 local NUMBERS = { alpha = Settings.SetAlpha, shellalpha = Settings.SetShellAlpha, idle = Settings.SetIdleAlpha, lines = Settings.SetLines, history = Settings.SetHistory,
     tabsize = Settings.SetTabSize }
 
@@ -431,6 +440,8 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         if not ok then API.Fail("start settings sync", err) end
         ok, err = pcall(GC.Area.Start)
         if not ok then API.Fail("start area", err) end
+        ok, err = pcall(GC.Keep.Start)
+        if not ok then API.Fail("start keep", err) end
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- arg1 = isInitialLogin: warn and offer at a real login, never on /reload.
         if arg1 and GC.Layout then GC.Layout.ScheduleOffer() end

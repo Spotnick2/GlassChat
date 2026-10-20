@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Keep the chat across reloads and logins:** `/gchat keep on` brings back what players said
+  (say, party, guild, whispers, channels...) after a `/reload` or the next login, above a
+  "previous session" line. Addon output and system lines are never kept. It keeps the last 200
+  lines per window, up to a day old, for each character separately. Off by default;
+  `/gchat keep off` forgets it.
+
 - **A new look: Glass UI's clear glass.** The chat now wears the damage meter and quest tracker
   glass from Glass UI, with or without Glass UI installed: a band behind the tabs and the reading
   area under it. The selected tab is back to Blizzard's gold.

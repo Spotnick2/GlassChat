@@ -45,9 +45,9 @@ function Copy.Plain(text)
 end
 
 -- A window's lines, oldest first: the newest Copy.MAX of them, as
--- { text, raw, hidden, id, event } (GetMessageInfo's 1st, 5th and 8th
+-- { text, raw, hidden, r, g, b, id, event, kept } (GetMessageInfo's
 -- returns: ScrollingMessageFrame's UnpackageEntry of AddMessage's
--- arguments). Returns the entries, how many were hidden (secret), and the
+-- arguments; kept is the 11th, Keep.lua's own, after Blizzard's ten). Returns the entries, how many were hidden (secret), and the
 -- window's total. A line that fails to read for another reason is a
 -- failure, not a secret. Copy and focus mode both read through this.
 function Copy.Read(f, key)
@@ -55,7 +55,7 @@ function Copy.Read(f, key)
     local ok, n = pcall(f.GetNumMessages, f)
     if not ok or API.IsSecret(n) or type(n) ~= "number" then return out, 0, 0 end
     for i = math.max(1, n - Copy.MAX + 1), n do
-        local okM, text, _, _, _, id, _, _, event = pcall(f.GetMessageInfo, f, i)
+        local okM, text, r, g, b, id, _, _, event, _, _, kept = pcall(f.GetMessageInfo, f, i)
         if not okM then
             API.Fail(key or "copy read", text)
         elseif API.IsSecret(text) then
@@ -63,7 +63,9 @@ function Copy.Read(f, key)
             out[#out + 1] = { text = Copy.HIDDEN, hidden = true }
         else
             local plain = Copy.Plain(text)
-            if plain then out[#out + 1] = { text = plain, raw = text, id = id, event = event } end
+            if plain then
+                out[#out + 1] = { text = plain, raw = text, r = r, g = g, b = b, id = id, event = event, kept = kept }
+            end
         end
     end
     return out, hidden, n
