@@ -588,6 +588,11 @@ function Methods.AddMessage(f, msg, ...)
     f._lines = f._lines or {}
     table.insert(f._lines, { m = msg, extra = { n = select("#", ...), ... } })
 end
+-- ScrollingMessageFrame:BackFillMessage: at the oldest end (ScrollingMessageFrame.lua:20).
+function Methods.BackFillMessage(f, msg, ...)
+    f._lines = f._lines or {}
+    table.insert(f._lines, 1, { m = msg, extra = { n = select("#", ...), ... } })
+end
 -- ScrollingMessageFrame:TransformMessages over the stub's _lines buffer
 -- (entries { m = text }), as the mixin does (ScrollingMessageFrame.lua:95).
 -- ScrollingMessageFrame:RemoveMessagesByPredicate: RemoveIf walks oldest to
@@ -996,6 +1001,20 @@ function C_BattleNet.GetFriendGameAccountInfo(i, j)
     local id = (WoW.bn.friends[i] or {})[j]
     if not id then return nil end
     return C_BattleNet.GetGameAccountInfoByID(id) or { gameAccountID = id }
+end
+-- Battle.net friends' accounts, for the kept chat's names (Keep.lua):
+-- WoW.bn.friendAccounts[i] = { bnetAccountID, accountName (a |K token), battleTag }.
+WoW.bn.friendAccounts = {}
+function C_BattleNet.GetFriendAccountInfo(i) return WoW.bn.friendAccounts[i] end
+function C_BattleNet.GetAccountInfoByID(id)
+    for _, a in ipairs(WoW.bn.friendAccounts) do
+        if a.bnetAccountID == id then return a end
+    end
+end
+-- LinkUtil.lua:163.
+function GetBNPlayerLink(name, linkDisplayText, bnetIDAccount, lineID, chatType, chatTarget)
+    return ("|HBNplayer:%s:%s:%s:%s:%s|h%s|h"):format(name, tostring(bnetIDAccount), tostring(lineID or 0),
+        tostring(chatType), tostring(chatTarget), linkDisplayText)
 end
 function BNFeaturesEnabledAndConnected() return WoW.bn.connected ~= false end
 function BNGetNumFriends() return #WoW.bn.friends, #WoW.bn.friends end

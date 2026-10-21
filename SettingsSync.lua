@@ -183,6 +183,7 @@ function SS.RegisterCore()
         coreKey("alertFlash", "b", "SetAlertFlash", nil, nil, "alert flash"),
         coreKey("whisperSound", "b", "SetWhisperSound", nil, nil, "whisper sound"),
         coreKey("tabsCatch", "b", "SetTabsCatch", nil, nil, "tabs catching their addon"),
+        coreKey("keep", "b", "SetKeep", nil, nil, "kept chat"),
     }
     local looks = {}
     for k in pairs(GC.Skin.LOOK) do looks[#looks + 1] = k end

@@ -55,7 +55,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 
 TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
 `Libs\LibAccountSync-1.0\LibAccountSync-1.0.xml` (own-account messaging) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
-`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Url.lua` → `Levels.lua` → `Alerts.lua` →
+`Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Keep.lua` → `Url.lua` → `Levels.lua` → `Alerts.lua` →
 `Suite.lua` → `Area.lua` → `AccountSync.lua` → `SettingsSync.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
@@ -405,6 +405,35 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
   - **Export** writes the view's plain lines to `GlassChatDB.export`.
   - **Secret lines** are `Copy.HIDDEN`, never matched or exported. The chat behind it is never
     touched.
+- **`Keep.lua`** (#125): player chat kept across sessions and reloads (`db.keep`, `/gchat keep`,
+  off by default, synced), never addon output (owner).
+  - **Only public calls**, unlike Prat's Scrollback (which copies the private `historyBuffer`):
+    - saved at `PLAYER_LOGOUT` (it fires on `/reload` too, before SavedVariables are written)
+      through `Copy.Entry`, newest first over the **whole** window until `Keep.MAX` lines are
+      found. `Copy.Read`'s newest `Copy.MAX` would miss older chat under a run of addon lines
+      (Codex on #126);
+    - put back at `PLAYER_LOGIN` with `BackFillMessage`, which adds at the oldest end, so the
+      history sits above the login lines, under a grey divider.
+    - It never goes through `AddMessage`, so the shared hook never sees it: no stamp, no routing,
+      no line count. `ResetAllFadeTimes` afterwards shows it and wakes the window.
+  - **What's kept:** lines whose event `Focus.KindOf` sorts as player chat (say, party, guild,
+    whispers, channels...). Never addon or system lines, secret lines, the combat log
+    (`COMBATLOG`) or temporary whisper windows. The newest `Keep.MAX` (200) per window, at most
+    `Keep.MAX_AGE` (24 h) old.
+  - **Each restored line passes back its id and event** (focus mode still sorts it), with
+    `accessID` / `typeID` / `eventArgs` nil: those are this session's (FloatingChatFrame.lua:933,
+    ChatFrameUtil.lua:854). **Its saved time is an 11th value** (`Copy.Entry`'s `kept`), so it keeps
+    its age over several sessions.
+  - **Battle.net names** are per-session `|K` tokens. At the save, each `BNplayer` link becomes
+    its BattleTag (`C_BattleNet.GetAccountInfoByID`, a plain string), between ``/`` markers.
+    At the restore, the friend is found by BattleTag and the link rebuilt with
+    `GetBNPlayerLink` (Prat's `updateBnet`), else it's the BattleTag's plain name. Any other
+    token becomes `?`. **Unmeasured:** that the rebuilt link opens a whisper, and that the friend
+    list is ready at `PLAYER_LOGIN`.
+  - **Where:** `GlassChatCharDB.kept`, per character, keyed by window number, with its name
+    (`GetChatWindowInfo`). A window renamed since gets nothing. Never `GlassChat.lua`, which holds
+    focus mode's export. `/gchat keep off` forgets this character's at once, the others' at their
+    next logout.
 - **`Url.lua`** (M5): click a web address to copy it (`db.urls`, on by default).
   - **The filter:** a message filter on the player-chat events (`Url.EVENTS`) rewrites arg1,
     returning false plus every argument. Each web address becomes
