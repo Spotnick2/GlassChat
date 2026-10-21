@@ -28,6 +28,9 @@ WoW.tick()
 for _, cmd in ipairs({ "", "failures", "version", "copy", "tune", "spam icon on", "spam log", "spam", "mutes", "ignores", "focus bags", "tabs" }) do
     SlashCmdList.GLASSCHAT(cmd)
 end
+-- Every options page built (#127).
+local O = GlassChat.Options
+for _, page in ipairs({ O._test.main, O._test.about, unpack(O._test.pages) }) do page.frame:Show() end
 -- A click on a web address opens its box.
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:url:https://wowhead.com")
 
