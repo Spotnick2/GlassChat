@@ -238,6 +238,28 @@ Alerts.OneOf = oneOf
 -- A word as kept: folded as messages are, trimmed.
 local function normalize(p) return (Alerts.Fold(p):gsub("^ ", ""):gsub(" $", "")) end
 
+-- Your words, shared by /gchat alert and the options page. Each returns
+-- whether it changed the list, and what to tell the player.
+function Alerts.Words() return words() end
+
+function Alerts.AddWord(raw)
+    local w, list = normalize(raw), words()
+    if w == "" then return false, "/gchat alert add <word or phrase>" end
+    if #w > Alerts.MAX_WORD then return false, "too long: at most " .. Alerts.MAX_WORD .. " letters" end
+    if oneOf(list, w) then return false, "already watched: " .. w end
+    if #list >= Alerts.MAX_WORDS then return false, "at most " .. Alerts.MAX_WORDS .. " words: remove one first" end
+    list[#list + 1] = w
+    return true, "alert on: " .. w
+end
+
+function Alerts.RemoveWord(raw)
+    local w, list = normalize(raw), words()
+    for i, x in ipairs(list) do
+        if x == w then table.remove(list, i); return true, "no longer watched: " .. w end
+    end
+    return false, "not watched: " .. w
+end
+
 function Alerts.Command(arg)
     local db = GC.db
     local sub, rest = arg:match("^(%S*)%s*(.-)%s*$")
@@ -246,18 +268,9 @@ function Alerts.Command(arg)
         GC.Settings.SetAlerts(sub == "on")
         say("alerts " .. sub)
     elseif sub == "add" then
-        local w, list = normalize(rest), words()
-        if w == "" then say("/gchat alert add <word or phrase>")
-        elseif #w > Alerts.MAX_WORD then say("too long: at most " .. Alerts.MAX_WORD .. " letters")
-        elseif oneOf(list, w) then say("already watched: " .. w)
-        elseif #list >= Alerts.MAX_WORDS then say("at most " .. Alerts.MAX_WORDS .. " words: remove one first")
-        else list[#list + 1] = w; say("alert on: " .. w) end
+        say(select(2, Alerts.AddWord(rest)))
     elseif sub == "remove" then
-        local w, list = normalize(rest), words()
-        for i, x in ipairs(list) do
-            if x == w then table.remove(list, i); say("no longer watched: " .. w); return end
-        end
-        say("not watched: " .. w)
+        say(select(2, Alerts.RemoveWord(rest)))
     elseif sub == "name" and oneOf(Alerts.NAME_MODES, rest:lower()) then
         GC.Settings.SetAlertName(rest:lower())
         say("your name: " .. rest:lower())
