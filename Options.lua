@@ -50,12 +50,20 @@ function Options.Heading(col, text)
     return fs
 end
 
--- A line of small text; `lines` for the room a wrapped one takes.
+-- A wrapped text's height as drawn, or nil before the client can tell.
+local function textHeight(fs)
+    local h = fs:GetStringHeight()
+    if API.IsSecret(h) or type(h) ~= "number" or h <= 0 then return nil end
+    return h
+end
+
+-- A line of small text, wrapped at the page's width. It takes the room its
+-- text takes as drawn, at least `lines` lines (for a text set later).
 function Options.Note(col, text, lines)
     local fs = label(col.parent, text, "GameFontHighlightSmall")
     fs:SetWidth(Options.WIDTH)
     fs:SetJustifyH("LEFT")
-    place(col, fs, 13 * (lines or 1), 4)
+    place(col, fs, math.max(13 * (lines or 1), textHeight(fs) or 0), 4)
     return fs
 end
 
@@ -408,16 +416,19 @@ about = newPage("About", "Glass Chat", function(col)
     Options.Note(col, "Focus mode (the magnifier on the tab strip, or /gchat focus) freezes a window to search, "
         .. "filter, copy and export. The Copy button copies a window. Click an addon's [Name] in chat for only its "
         .. "lines, right-click it for its own tab. Click a web address to copy it.", 3)
+    -- One wrapped block, its height its text's: a long command wraps without
+    -- running into the next (owner's screenshot).
     Options.Heading(col, "Commands")
-    local lines = {}
-    Options._test.aboutLines = lines
+    local commands = Options.Note(col, "")
+    commands:SetSpacing(3)
+    local top = col.y - 13
+    Options._test.aboutCommands = commands
     building[#building + 1] = function()
         local help = GC.HelpLines()
-        for i = #lines + 1, #help do
-            lines[i] = Options.Note(col, "")
-        end
-        for i, fs in ipairs(lines) do fs:SetText(help[i] or "") end
-        col.parent:SetHeight(col.y + 16)
+        commands:SetText(table.concat(help, "\n"))
+        local h = textHeight(commands) or #help * 16
+        commands:SetHeight(h)
+        col.parent:SetHeight(top + h + 16)
     end
 end)
 

@@ -118,9 +118,7 @@ eq(GC.Spam.db.repeatWindow, 600, "  the repeat window in minutes")
 
 -- About: the commands /gchat help prints.
 show(O._test.about)
-local about = O._test.aboutLines
-eq(#about, #GC.HelpLines(), "About lists every command /gchat help prints")
-check(about[1]:GetText():find("^/gchat options") ~= nil, "  /gchat options first")
+eq(O._test.aboutCommands:GetText(), table.concat(GC.HelpLines(), "\n"), "About lists every command /gchat help prints")
 
 slash("options")
 eq(reg.opened, 7, "/gchat options opens it")
