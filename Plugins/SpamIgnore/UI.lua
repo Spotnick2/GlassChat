@@ -262,8 +262,41 @@ local function spam(arg)
     end
 end
 
+-- Its page under Glass Chat's options (#127), added before PLAYER_LOGIN so it
+-- registers in order. The lists stay commands.
+UI.SCORES = { { "off", "Off" }, { "watch", "Watch" }, { "hide", "Hide" } }
+local function optionsPage()
+    local O = GC.Options
+    if not O then return end
+    UI.page = O.AddPage("Spam & Ignore", function(col)
+        local function get(k) return function() return Spam.db[k] end end
+        O.Heading(col, "Public chat")
+        O.Check(col, "Hide Chinese, Japanese and Korean posts", get("cjk"), UI.Set.cjk)
+        O.Slider(col, "Hide a repeated post for (minutes)", { min = 0, max = Spam.REPEAT_MAX / 60, step = 1, fmt = "%d",
+            get = function() return Spam.db.repeatWindow / 60 end, set = function(m) UI.Set.repeatWindow(m * 60) end })
+        O.Radios(col, "Spam score", UI.SCORES, get("score"), UI.Set.score, { 120, 100 })
+        O.Note(col, "Watch hides nothing: /gchat spam score lists what it would hide, and why.")
+        O.Heading(col, "Ignores")
+        O.Check(col, "Keep Blizzard's ignore list in step (blocks invites and duels too)", get("mirror"), UI.Set.mirror)
+        O.Check(col, "Copy the lists between your WoW accounts (/gchat ignore send)", GC.AccountSync.IsEnabled,
+            GC.AccountSync.SetEnabled)
+        local counts = O.Note(col, "")
+        O.OnRefresh(function()
+            local n = 0
+            for _ in pairs(Spam.db.ignore) do n = n + 1 end
+            for _ in pairs(Spam.db.pending) do n = n + 1 end
+            counts:SetText(n .. " ignored, " .. #Spam.db.mutes .. " muted phrases: /gchat ignores, /gchat mutes")
+        end)
+        O.Heading(col, "What was hidden")
+        O.Check(col, "An icon beside the chat while hidden lines wait", get("icon"), UI.Set.icon)
+        O.Button(col, "Show hidden lines", 160, UI.Open)
+        O.Note(col, "The lists are commands: /gchat ignore, /gchat mute, /gchat allow. /gchat help lists them all.")
+    end)
+end
+
 function UI.Start()
     registerSettings()
+    optionsPage()
     UI.RegisterIcon()
     Spam.onHidden = UI.Blocked
     GC.RegisterSlash("mute", mute)

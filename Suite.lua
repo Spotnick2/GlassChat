@@ -161,6 +161,7 @@ function Suite.Report()
         minor = GC.glassMinor,
         look = { tint = tint, accent = Suite.AccentName() },
         own = own,
+        options = GC.Options and GC.Options.Open,   -- Glass UI's page opens ours (SUITE.md)
     }
     pcall(suite.Report, Suite.ADDON, state)
 end

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **An options page:** Esc > Options > AddOns > Glass Chat, or `/gchat options`. Everything you
+  could only set with `/gchat` is there:
+  - the chat itself;
+  - the look: body, accent, darkness and fine tuning. While Glass UI sets the look, its choice
+    comes first and a button opens Glass UI;
+  - alerts, with your words added and removed there;
+  - Spam & Ignore, when the plugin is installed;
+  - an About page listing every command.
+
 - **Keep the chat across reloads and logins:** `/gchat keep on` brings back what players said
   (say, party, guild, whispers, channels...) after a `/reload` or the next login, above a
   "previous session" line. Addon output and system lines are never kept. It keeps the last 200

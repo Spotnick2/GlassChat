@@ -68,6 +68,23 @@ eq(backing(), 0.90, "LookChanged: the new tint at once")
 eq(lit.line._color[1], 0.65, "  and the new accent")
 eq(last().look.tint, "smoked", "  reported")
 
+-- The options page while following (#127): "Glass UI's" first, selected
+-- while there's no override; a body of its own is the override; Open Glass UI.
+local opened = false
+Fake.Open = function() opened = true end
+GC.Options.lookPage.frame:Show()
+local radios = GC.Options._test.body
+eq(radios[1].text:GetText(), "Glass UI's", "options: Glass UI's choice first")
+check(radios[1]:GetChecked(), "  selected with no override")
+radios[5]._scripts.OnClick(radios[5])
+eq(GC.db.suiteOwn.tint, "chat", "  Charcoal is an override")
+check(radios[5]:GetChecked() and not radios[1]:GetChecked(), "  and shows")
+radios[1]._scripts.OnClick(radios[1])
+eq(rawget(GC.db, "suiteOwn"), nil, "  Glass UI's clears it")
+GC.Options._test.openSuite._scripts.OnClick(GC.Options._test.openSuite)
+check(opened, "  Open Glass UI opens Glass UI's page")
+eq(type(last().options), "function", "the report carries our options opener")
+
 -- An override.
 slash("body chat")
 check(p.own:IsShown() and not p.body.frame:IsShown(), "/gchat body chat while following: our charcoal")

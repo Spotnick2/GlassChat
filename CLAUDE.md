@@ -56,7 +56,7 @@ GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue p
 TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
 `Libs\LibAccountSync-1.0\LibAccountSync-1.0.xml` (own-account messaging) → `Compat.lua` → `Glass.lua` → `Chat.lua` → `Skin.lua` → `History.lua` →
 `Copy.lua` → `Buttons.lua` → `Layout.lua` → `Tabs.lua` → `Focus.lua` → `Keep.lua` → `Url.lua` → `Levels.lua` → `Alerts.lua` →
-`Suite.lua` → `Area.lua` → `AccountSync.lua` → `SettingsSync.lua` → `GlassChat.lua`.
+`Suite.lua` → `Area.lua` → `AccountSync.lua` → `SettingsSync.lua` → `Options.lua` → `GlassChat.lua`.
 
 - **`Compat.lua`**: `GlassChat.API` is the only route to client APIs that moved or may be
   absent. It holds:
@@ -612,9 +612,34 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     travel; its `docked` does, since `Matches` compares it.
   - **Order:** `GlassChatDB.settingsApplied[guid]`. It travels on its own tag, `GlassChatST`, so
     it never races the lists (LibAccountSync#17).
+- **`Options.lua`** (#127): the page in **Esc > Options > AddOns > Glass Chat** (`/gchat options`),
+  the porting guide's measured recipe ("An Options page with sub-pages and an About page"), as the
+  sibling Glass addons build theirs.
+  - **Each page** is a plain `Frame` with `.name`, **hidden at creation** (a page created shown is
+    blank on its first visit). It's built on its first `OnShow` inside a scroll area (the canvas is
+    a fixed size), and every value is re-read on each `OnShow`, so a `/gchat` change never shows
+    stale. A refresh never saves a value back: the slider's `OnValueChanged` returns while
+    `refreshing` (an unset `alpha` must stay unset, `KEEP`).
+  - **Registered once at `PLAYER_LOGIN`**: `RegisterCanvasLayoutCategory` +
+    `RegisterAddOnCategory`, then the sub-pages in order: Look, Alerts, the plugins' (added with
+    `GC.Options.AddPage` before `PLAYER_LOGIN`), About last. No Settings framework: no page.
+  - **Controls** (`Options.Heading`, `Note`, `Check`, `Radios`, `Slider`, `Button`, `OnRefresh`,
+    for the plugins too):
+    - `UICheckButtonTemplate`;
+    - `UIRadioButtonTemplate` through `API.SafeFrame`, falling back to the client's radio art.
+      **No dropdowns**;
+    - GlassUnitFrames' hand-built slider.
+    **Each writes through `GC.Settings`** (or the module's own function, as `/gchat` does): no new
+    state.
+  - **Look while following Glass UI:** each radio row starts with "Glass UI's", selected while
+    there's no override, as `/gchat body suite`. A choice is `Suite.SetOwn`. **Open Glass UI**
+    (`GlassUI.Suite.Open`, under `pcall`) shows only when the suite has it. The report carries
+    `options = Options.Open`, so Glass UI's page opens ours.
+  - **Alerts' words** go through `Alerts.AddWord` / `RemoveWord`, shared with `/gchat alert`.
+  - **About** lists `GC.HelpLines()`, the lines `/gchat help` prints, so the two can't drift.
 - **`GlassChat.lua`**: bootstrap. Account-wide settings live in `GlassChatDB` (owner: no
   per-character setup); only the sent history is per character, in `GlassChatCharDB`.
-  `GC.Settings.*` is the one place settings change (`/gchat` today, an options panel later). It
+  `GC.Settings.*` is the one place settings change (`/gchat` and the options page). It
   also holds `/gchat` and the login warning when the build differs from `MEASURED_ON_BUILD` (dev builds only).
   There's no combat queue: chat frames aren't protected. If a feature ever needs one, lift
   GlassRaidFrames' `WhenOutOfCombat` (one queue only).
@@ -627,7 +652,8 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
   - `GC.Chat.OnEachFrame` / `Chat.Scan`;
   - `GC.Skin.Panel(f)`, `Skin.ReserveIcons(n)` and `STRIP_ICON_STEP` for a tab-strip icon, or
     `GC.Buttons.Side` for a button beside the chat;
-  - `GC.Copy.Show(title, text, status)` for a text window.
+  - `GC.Copy.Show(title, text, status)` for a text window;
+  - `GC.Options.AddPage(name, build)` for its page under Glass Chat's options (Spam & Ignore's).
 - **`Plugins/SpamIgnore/`** (Spam & Ignore, S1, #19; plan: `docs/PLAN-SPAM.md`):
   - **One filter, two policies.** Explicit GUID ignores apply to every player-chat event, guild
     and group included. Heuristics (literal mutes at word edges, `~` aggressive, CJK, the spam

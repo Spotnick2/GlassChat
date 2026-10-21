@@ -26,4 +26,5 @@ Suite.lua
 Area.lua
 AccountSync.lua
 SettingsSync.lua
+Options.lua
 GlassChat.lua

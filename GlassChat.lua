@@ -69,7 +69,7 @@ local function clamp(v, lo, hi)
     return v
 end
 
--- Every setting goes through here: /gchat now, an options panel later.
+-- Every setting goes through here: /gchat and the options page (Options.lua).
 local Settings = {}
 GC.Settings = Settings
 
@@ -247,8 +247,11 @@ function GC.RegisterSlash(sub, fn, help)
     for _, line in ipairs(help or {}) do pluginHelp[#pluginHelp + 1] = line end
 end
 
-local function help()
-    local db = GC.db
+-- /gchat help's lines, also the options page's About.
+function GC.HelpLines()
+    local db, out = GC.db, {}
+    local function say(line) out[#out + 1] = line end
+    say("/gchat options - the options page (Esc > Options > AddOns > Glass Chat)")
     say("/gchat glass on/off - the glass panels (" .. onOff(db.glass) .. ")")
     say("/gchat alpha 0-1/reset - reading area and input darkness (" .. db.alpha .. ")")
     say("/gchat shellalpha 0-1 - tab strip and pills darkness (" .. db.shellAlpha .. ")")
@@ -275,6 +278,11 @@ local function help()
     say("/gchat failures - what failed to build or register")
     say("/gchat version - client build vs the measured one")
     for _, line in ipairs(pluginHelp) do say(line) end
+    return out
+end
+
+local function help()
+    for _, line in ipairs(GC.HelpLines()) do say(line) end
 end
 
 -- "on"/"off" -> true/false; anything else -> nil.
@@ -381,6 +389,8 @@ local function slash(msg, editBox)
         -- The window the command was typed in (an undocked one included).
         local f = editBox and editBox.GetParent and editBox:GetParent()
         GC.Copy.Open(f and f.GetMessageInfo and f or nil)
+    elseif cmd == "options" or cmd == "config" then
+        if not GC.Options.Open() then say("the options page isn't available on this client: /gchat help") end
     elseif cmd == "failures" then
         failures()
     elseif cmd == "version" then
@@ -442,6 +452,8 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         if not ok then API.Fail("start area", err) end
         ok, err = pcall(GC.Keep.Start)
         if not ok then API.Fail("start keep", err) end
+        ok, err = pcall(GC.Options.Start)
+        if not ok then API.Fail("start options", err) end
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- arg1 = isInitialLogin: warn and offer at a real login, never on /reload.
         if arg1 and GC.Layout then GC.Layout.ScheduleOffer() end

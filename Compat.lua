@@ -65,6 +65,15 @@ function API.ClassColor(classFile)
     return nil
 end
 
+-- A frame from a template that may be missing: a missing template doesn't
+-- throw, it returns a bare frame, so `proof` (a field the template makes)
+-- tells. Returns the frame and whether the template took (GlassActionBars').
+function API.SafeFrame(ftype, parent, template, proof)
+    local ok, f = pcall(CreateFrame, ftype, nil, parent, template)
+    if ok and f then return f, (proof == nil) or f[proof] ~= nil end
+    return CreateFrame(ftype, nil, parent), false
+end
+
 -- A plain Blizzard button (UIPanelButtonTemplate, as GlassPanel uses it).
 function API.Button(parent, text, width, onClick)
     local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")

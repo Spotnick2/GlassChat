@@ -128,6 +128,8 @@ function CreateFrame(ftype, name, parent, template)
     if ftype == "StatusBar" then w._min, w._max, w._value = 0, 1, 0 end
     -- The template's bar, shown by default as on the client.
     if template == "UIPanelScrollFrameTemplate" then w.ScrollBar = newWidget("Slider", w) end
+    -- UIRadioButtonTemplate's own label (parentKey text).
+    if template == "UIRadioButtonTemplate" then w.text = newWidget("FontString", w) end
     table.insert(WoW.frames, w)
     if name then rawset(_G, name, w) end
     return w
@@ -322,7 +324,15 @@ end
 function Methods.SetMinMaxValues(b, lo, hi) b._min, b._max = lo, hi end
 function Methods.SetStatusBarColor(b, r, g, bl, a) b._color = { r, g, bl, a } end
 function Methods.GetValue(b) return b._value end
-function Methods.SetValue(b, v) b._value = v end
+-- A slider's SetValue fires OnValueChanged on a change, as the client's does.
+function Methods.SetValue(b, v)
+    local old = b._value
+    b._value = v
+    if b._type == "Slider" and v ~= old and b._scripts.OnValueChanged then b._scripts.OnValueChanged(b, v, false) end
+end
+-- CheckButton.
+function Methods.SetChecked(b, v) b._checked = v and true or false end
+function Methods.GetChecked(b) return b._checked == true end
 function Methods.SetStatusBarTexture(b, file)
     b._fill = b._fill or newWidget("Texture", b)
     b._fill._file = file
