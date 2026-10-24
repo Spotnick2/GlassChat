@@ -955,3 +955,26 @@ it goes red.
   abstraction or config.
 - **Measured beats reasoned.** If a claim about the client can be checked in game, check it.
 - Match the surrounding code's idiom. Keep pure refactors in their own commit.
+
+## Consulting Codex
+
+The shared `codex-consult` skill (user level) has the invocation and the gotchas. For this repo:
+
+For GlassChat, good things to hand Codex:
+- anything that reads chat payloads or scrollback lines, which may be secret (chat messaging
+  lockdown), or that does string work near one;
+- anything that sets a field on a Blizzard chat frame or calls a restricted API
+  (`CopyToClipboard`), where taint can get the action blocked;
+- message and sender-name filters, link handling, and anything that writes to SavedVariables;
+- any plan that grows scope back toward full Prat, or replaces a stock chat function instead of
+  extending it.
+
+**Always hand it `CLAUDE.md` and `docs/PLAN.md` alongside the diff or plan**, plus
+`C:/Projects/WoW/References/Docs/PORTING-TBC-TO-FOREVER.md` and any `docs/` probe results. Those findings
+were measured on the live client. Without them, a cold reviewer argues from Classic-era or Retail
+behaviour that doesn't hold here: that chat payloads may be secret, that names carry surnames,
+that secure snippets are broken.
+`C:/Projects/WoW/References/Forever/api/forever-api-<version>.<build>.md` (take the highest build) is the full API surface when a question
+turns on whether something exists, and `C:/Projects/WoW/wow-ui-source` (branch `forever`) is the
+client's own FrameXML. The design reference is `C:/Projects/WoW/References/Addons/ChatCommunication/Prat/Prat-3.0`; its
+mechanism (replacing the message handler, RawHooks) is the part we deliberately don't use.
