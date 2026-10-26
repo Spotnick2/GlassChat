@@ -929,9 +929,12 @@ it goes red.
 - **CurseForge releases** are built by **CurseForge's own packager from the tag webhook**, reading
   `.pkgmeta`. CI (`package-check.yml`) dry-runs `BigWigsMods/packager` with `-d`: its `check` job
   builds and checks the zip. The packager derives the `forever` flavor from `## Interface: 16001`.
-  **Not set up yet** (owner, 2026-10-19): there is no CurseForge project and no tag webhook, so a
-  tag publishes only the GitHub Release below. The only release so far is the GitHub pre-release
-  `v0.1.0-beta` (2026-10-09). Releasing is the owner's call; don't suggest a tag.
+  **Set up** (2026-10-26, #129): CurseForge project `1757140`, Wago project `5NRg0w63` (both in
+  the TOC; `WAGO_API_TOKEN` is a repo secret). A tag runs `package-check.yml`'s `check`, then
+  `release` (GitHub, with `release.json`) and `wago`, per `References\Docs\RELEASING.md`. An
+  alpha tag (`vX.Y.Z-alpha1`) falls back to `## Unreleased` for its notes. The CurseForge
+  description is the untracked `README.curseforge.md` (in `.git/info/exclude`). Releasing is the
+  owner's call; don't suggest a tag.
 - **A GitHub Release for every `v*` tag** (#70, AltStable's job from its #209): `package-check.yml`'s
   `release` job, the only one with `contents: write`.
   - It publishes the zip `check` built and checked, never a second build. The zip must be named

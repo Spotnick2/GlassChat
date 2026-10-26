@@ -672,3 +672,32 @@ may consider it more useful to permit linking proprietary applications with
 the library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.  But first, please read
 <https://www.gnu.org/licenses/why-not-lgpl.html>.
+
+---------------------------------------------------------------------------
+
+THIRD-PARTY COMPONENTS
+
+The GPL-3.0 terms above cover Glass Chat's own code. They do NOT relicense
+the libraries bundled under Libs/, which are redistributed under their own
+terms and remain the work of their authors:
+
+  Libs/LibGlass-1.0        LibGlass-1.0, copyright (c) 2026 Spotnick2.
+                           MIT License; its own LICENSE ships beside it.
+                           Fetched at build time, not kept in this
+                           repository.
+
+  Libs/LibGlass-1.0/LibStub
+                           LibStub, bundled by LibGlass-1.0. By Kaelten,
+                           Cladhaire, ckknight, Mikk, Ammo, Nevcairiel and
+                           joshborke. Public domain.
+
+  Libs/LibAccountSync-1.0  LibAccountSync-1.0, copyright (c) 2026
+                           Spotnick2. MIT License; its own LICENSE ships
+                           beside it. Fetched at build time, not kept in
+                           this repository.
+
+  Libs/LibAccountSync-1.0/LibStub
+                           The same LibStub (public domain).
+
+  Libs/LibAccountSync-1.0/ChatThrottleLib
+                           ChatThrottleLib, by Mikk. Public domain.

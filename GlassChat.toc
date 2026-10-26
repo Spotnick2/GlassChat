@@ -3,6 +3,9 @@
 ## Notes: Liquid-glass chat with class colours, click-to-copy and search for WoW: Forever. /gchat help
 ## Author: Spotnick
 ## Version: @project-version@
+## X-License: GPL-3.0
+## X-Curse-Project-ID: 1757140
+## X-Wago-ID: 5NRg0w63
 ## SavedVariables: GlassChatDB, GlassChatSyncDB
 ## SavedVariablesPerCharacter: GlassChatCharDB
 
