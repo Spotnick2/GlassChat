@@ -37,7 +37,7 @@
 - **All side pills update together:** the alerts and Spam & Ignore pills now refresh their
   glass darkness with the other buttons. Their counts, gold idle symbols and green alerts remain.
 - **Alerts when chat mentions you:** when someone writes your character's first name in public,
-  guild, party or raid chat, a sound plays (LFG Bulletin Board's notification sound) and the game
+  guild, party or raid chat, a sound plays (the LFG notification sound) and the game
   blinks in the taskbar.
   - **The alerts button:** a new `!` beside the chat, above the buttons there. It's gold at rest,
     and turns green and pulses with a count when something mentions you. Click it
@@ -47,13 +47,13 @@
   - **Your own words:** add them with `/gchat alert add <words>` (one list for all your
     characters).
   - **Settings:**
-    - `/gchat alert sound raid|ready|tell|lfg|off` picks the sound (`lfg` is the one LFG
-      Bulletin Board plays);
+    - `/gchat alert sound raid|ready|tell|lfg|off` picks the sound (`lfg` is the LFG
+      notification sound);
     - `/gchat alert flash off` stops the blinking;
     - `/gchat alert off` turns it all off.
   - **What doesn't alert:** whispers (they have their own sound, below), your own lines and
     hidden spam.
-- **The whisper sound on every whisper, as with Prat:** the game plays it only when you haven't
+- **The whisper sound on every whisper:** the game plays it only when you haven't
   had a whisper for 5 minutes, so in a conversation only the first one made a sound. Now every
   whisper and Battle.net whisper does. An ignored player's whispers stay silent.
   `/gchat alert whisper off` goes back to the game's way.
