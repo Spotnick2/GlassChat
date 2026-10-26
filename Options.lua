@@ -409,7 +409,7 @@ end)
 --------------------------------------------------------------------------------
 
 about = newPage("About", "Glass Chat", function(col)
-    Options.Note(col, "A much smaller, glass-styled take on Prat for World of Warcraft: Forever.")
+    Options.Note(col, "A small, glass-styled chat for World of Warcraft: Forever.")
     local version = Options.Note(col, "")
     building[#building + 1] = function() version:SetText("Version " .. Options.VersionText() .. ", by Spotnick") end
     Options.Heading(col, "How to use")

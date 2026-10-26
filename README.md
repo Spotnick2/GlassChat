@@ -2,8 +2,8 @@
 
 A liquid-glass chat for **World of Warcraft: Forever**: Blizzard's own chat windows on a dark,
 see-through glass panel, with class-coloured names, a focus mode to search and copy what was said,
-click-to-copy web addresses, and a tab of their own for addons that flood chat. A much smaller
-take on Prat-3.0.
+click-to-copy web addresses, and a tab of their own for addons that flood chat. Small and
+streamlined on purpose.
 
 > **Alpha.** It is in daily use, but young: expect rough edges, and please report them.
 
@@ -97,7 +97,7 @@ with your other WoW accounts through `/gchat ignore send` and `/gchat settings s
 - **Some parts are tested offline only.** The kept chat's Battle.net names, the guild level
   roster and the side buttons' stacking inside Blizzard's alert frame are not yet checked in
   game. Reports welcome.
-- **Small on purpose.** No module zoo, no Ace3 and no profiles: Prat's other modules are out.
+- **Small on purpose.** No module zoo, no Ace3 and no profiles.
 
 ## Bugs and ideas
 
@@ -107,8 +107,6 @@ to build or register.
 
 ## Credits
 
-- The design follows [Prat-3.0](https://www.curseforge.com/wow/addons/prat-3-0). Glass Chat is a
-  much smaller addon with its own code.
 - The glass comes from [LibGlass-1.0](https://github.com/Spotnick2/LibGlass), and the messaging
   between your accounts from [LibAccountSync-1.0](https://github.com/Spotnick2/LibAccountSync),
   both included in the download.
