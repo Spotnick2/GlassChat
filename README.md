@@ -126,5 +126,5 @@ pwsh Tools\deploy.ps1     # the addon and its libraries into your AddOns folder
 
 ## Licence
 
-GPL-3.0; see [LICENSE](LICENSE). LibGlass-1.0, LibAccountSync-1.0, LibStub and ChatThrottleLib
+MIT; see [LICENSE](LICENSE). LibGlass-1.0, LibAccountSync-1.0, LibStub and ChatThrottleLib
 ship under their own terms (listed there).

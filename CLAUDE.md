@@ -801,7 +801,7 @@ we don't use. Worth reading:
 - `modules\Scrollback.lua`: history kept across sessions in SavedVariables;
 - `services\classcolor.lua` and `services\helpers.lua`: name colouring by GUID.
 
-Prat is **GPL-3.0, like this repo**, so lifting code is allowed with attribution in the file
+Prat is **GPL-3.0** and this repo is **MIT**, so lifting Prat code would make that file GPL: take ideas only, unless the owner agrees. Attribution would go in the file
 header. Prefer our own code anyway: Prat's is written for its Ace3 pipeline.
 
 Keep a `MEASURED_ON_BUILD` constant in the source, matching the dump's build (`1.60.1.70450`),
