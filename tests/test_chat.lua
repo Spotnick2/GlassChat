@@ -341,6 +341,12 @@ ChatFrame1:AddMessage("|cff888888[09:15:01]|r stamped by another addon", 1, 1, 1
 eq(last(), "|cff888888[09:15:01]|r stamped by another addon", "nor one whose time sits in a colour code (Prat's stamps)")
 ChatFrame1:AddMessage(WoW.Secret("hidden"), 1, 1, 1)
 check(true, "a secret line is left alone (no error)")
+-- The hook's other arguments can be secret too (#132 H6): an id or an event.
+ChatFrame1:AddMessage("[pet] a secret id", 1, 1, 1, WoW.Secret("id"))
+ChatFrame1:AddMessage("[pet] a secret event", 1, 1, 1, 1, nil, 1, WoW.Secret("event"))
+eq(GC.failures["tab route"], nil, "a secret id or event: routing doesn't fail")
+eq(GC.failures["line rewrite"], nil, "  nor does the rewrite")
+eq(last(), "[pet] a secret event", "  and a line with a secret event is left to Blizzard")
 
 -- The new line is the one stamped, not an identical older one (Codex, #22),
 -- before and after the buffer wraps.
@@ -374,6 +380,17 @@ any = false
 for _, e in ipairs(ChatFrame1._lines) do if e.m ~= "same" then any = true end end
 check(not any, "and none when the line counts don't agree")
 SlashCmdList.GLASSCHAT("stamps on")
+
+-- What a stamped line costs (#132 H3): each walk visits the whole window, so
+-- the hook pays at most two (find the new line, rewrite it), and a line that
+-- needs no rewrite pays none.
+ChatFrame1._lines, ChatFrame1._rot = {}, 0
+walks(ChatFrame1)
+ChatFrame1:AddMessage("[pet] stable slot 5: empty", 1, 1, 1)
+check(walks(ChatFrame1) <= 2, "a stamped line walks the window at most twice")
+check(last():find("^%[%d%d:%d%d:%d%d%] %[pet%] stable slot 5"), "and is stamped")
+ChatFrame1:AddMessage("[1. General] [Bob]: hi", 1, 1, 1, 1, nil, 1, "CHAT_MSG_CHANNEL")
+eq(walks(ChatFrame1), 0, "a chat-event line (Blizzard stamps it) walks nothing")
 
 -- The Blizzard setting: given back, but never over a newer choice (Codex, #22).
 SlashCmdList.GLASSCHAT("stamps off")

@@ -170,6 +170,52 @@ refuses({ "ST1", "L\tW\t2\tr\tn\t0.5" }, "an incomplete colour")
 refuses({ "ST1", "L\tW\t2\tpoint\te\tTOPLEFT" }, "an incomplete position")
 refuses({ "ST1", "L\tW\t99\tname\ts\tX" }, "a window out of range")
 refuses({ "ST1", "L\tC\t2\tbad|channel" }, "a channel with a pipe")
+-- Every other shape check, with its reason (#132 H5).
+local function refusesWith(lines, want, label)
+    local snap, why = P(lines)
+    check(snap == nil, "refused: " .. label)
+    eq(why, want, "the reason: " .. label)
+end
+local bigSnap, bigWhy = SS.Parse("ST1\n" .. string.rep("x", SS.MAX))
+check(bigSnap == nil, "refused: a body over SS.MAX")
+eq(bigWhy, "too large", "the reason: a body over SS.MAX")
+refusesWith({ "ST1", "T\tsoon" }, "bad T line", "a T that isn't a number")
+refusesWith({ "ST1", "T\t1\t2" }, "bad T line", "a T with a field too many")
+refusesWith({ "ST1", "D\tcore\tbad-key!" }, "bad D line", "a key outside the charset")
+refusesWith({ "ST1", "D\tcore\t" .. string.rep("k", 33) }, "bad D line", "a key over 32 bytes")
+refusesWith({ "ST1", "D\tco re\tlines" }, "bad D line", "a section outside the charset")
+refusesWith({ "ST1", "D\tcore" }, "bad D line", "a D with a field missing")
+refusesWith({ "ST1", "L\tW\t2\tname\ts\tA", "L\tW\t2\tname\ts\tB" }, "duplicate window field", "a window field twice")
+refusesWith({ "ST1", "L\tW\t2\tr\tn\t1.5", "L\tW\t2\tg\tn\t0", "L\tW\t2\tb\tn\t0" }, "bad colour", "a colour over 1")
+refusesWith({ "ST1", "L\tW\t2\ta\tn\t-0.1" }, "bad colour", "an opacity under 0")
+refusesWith({ "ST1", "L\tW\t2\tpoint\te\ttopleft" }, "bad anchor", "an anchor in lower case")
+refusesWith({ "ST1", "L\tW\t2\tfontSize\ti\tbig" }, "bad window value", "a window value that doesn't decode")
+refusesWith({ "ST1", "L\tW\t2\tname\ts" }, "bad window field", "a window field with its value missing")
+refusesWith({ "ST1", "L\tW\t2\tname\ti\t3" }, "bad window field", "a window field with the wrong mark")
+refusesWith({ "ST1", "L\tW\t2\tbogus\ti\t3" }, "bad window field", "an unknown window field")
+refusesWith({ "ST1", "L\tW\t2.5\tname\ts\tX" }, "bad window", "a window number that isn't whole")
+refusesWith({ "ST1", "L\tW\tx\tname\ts\tX" }, "bad window", "a window number that isn't a number")
+refusesWith({ "ST1", "L\tW\t0\tname\ts\tX" }, "bad window", "window 0")
+refusesWith({ "ST1", "L\tW\t2\twidth\tn\t400" }, "incomplete size", "a width without a height")
+refusesWith({ "ST1", "L\tM\t2\tbad group" }, "bad message group", "a message group outside the charset")
+refusesWith({ "ST1", "L\tM\t2" }, "bad message group", "a message group missing")
+refusesWith({ "ST1", "L\tC\t2\tA\tB" }, "bad channel", "a channel line with a field too many")
+refusesWith({ "ST1", "L\tC\t2\tbad" .. string.char(1) .. "name" }, "bad channel", "a channel with a control character")
+refusesWith({ "ST1", "L\tQ\t2\tx" }, "unknown layout line", "an unknown layout record")
+local groups = { "ST1" }
+for i = 1, SS.GROUPS_MAX + 1 do groups[#groups + 1] = "L\tM\t2\tG" .. i end
+refusesWith(groups, "too many message groups", "a window over the message-group cap")
+local channels = { "ST1" }
+for i = 1, SS.CHANNELS_MAX + 1 do channels[#channels + 1] = "L\tC\t2\tChannel" .. i end
+refusesWith(channels, "too many channels", "a window over the channel cap")
+-- A sender the library can't name, or a stream id that isn't one: nothing at all.
+newChat()
+SS.Receive("ST1\nV\tcore\ttimestamps\tb\t1", { guid = "not-a-guid", name = "X" }, "1760000000900")
+SS.Receive("ST1\nV\tcore\ttimestamps\tb\t1", { guid = "Player-1-0000000C", name = "X" }, "soon")
+SS.Receive("ST1\nV\tcore\ttimestamps\tb\t1", "Player-1-0000000C", "1760000000901")
+eq(#newChat(), 0, "a bad sender or stream id: not a word")
+check(type(rawget(db, "settingsApplied")) ~= "table" or (db.settingsApplied["not-a-guid"] == nil
+    and db.settingsApplied["Player-1-0000000C"] == nil), "and no stream id kept for it")
 -- A value this copy can't take is skipped and reported; the rest applies.
 local snap = P({ "ST1", "V\tcore\thistory\ti\t600", "V\tspam\tscore\te\tparanoid", "V\tcore\tnewThing\tb\t1",
                  "V\tfuture\tx\tb\t1", "V\tcore\ttimestamps\tb\t0" })

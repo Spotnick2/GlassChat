@@ -122,6 +122,26 @@ logout()
 eq(#kept(1), 3, "chat older than Copy.MAX addon lines is kept")
 eq(kept(1)[1].text, "guild 1", "  oldest first")
 
+-- A line's other values can be secret too: Copy.Entry checks only the text
+-- (#132 H6). Each is read through Keep's own checks: a secret colour saves as
+-- plain white, a secret event never saves, a secret kept time saves as now.
+f1._lines = {}
+f1:AddMessage("secret colour", WoW.Secret("r"), 1, 1, 4, 7, 9, "CHAT_MSG_SAY", {}, function() end)
+f1:AddMessage("secret event", 1, 1, 1, 4, 7, 9, WoW.Secret("event"), {}, function() end)
+f1:AddMessage("secret time", 1, 1, 1, 4, 7, 9, "CHAT_MSG_SAY", {}, function() end, WoW.Secret("kept"))
+f1:AddMessage("secret id", 1, 1, 1, WoW.Secret("id"), 7, 9, "CHAT_MSG_SAY", {}, function() end)
+logout()
+local s1 = kept(1)
+eq(#s1, 3, "a secret event: not kept; the others are")
+eq(s1[1].text, "secret colour", "  a secret colour")
+eq(s1[1].r, 1, "  saved as a plain 1")
+eq(s1[2].text, "secret time", "  a secret kept time")
+eq(type(s1[2].t), "number", "  saved as a plain number")
+check(not issecretvalue(s1[2].t), "  never the secret")
+eq(s1[3].text, "secret id", "  a secret id")
+eq(s1[3].id, nil, "  saved without it")
+eq(next(GC.failures), nil, "secrets in a line's other values: no failure")
+
 -- Off forgets at once.
 slash("keep off")
 eq(GC.charDB.kept, nil, "/gchat keep off: forgotten")
