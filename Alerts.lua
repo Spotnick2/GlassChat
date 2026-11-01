@@ -112,6 +112,23 @@ local function words()
     return db.alertWords
 end
 
+-- The saved words, checked once at login (#132 F5): the file can be edited by
+-- hand, and a word that isn't a string would make the filter throw on every
+-- line. Strings only, as AddWord keeps them: at most MAX_WORDS, MAX_WORD bytes.
+function Alerts.CleanWords()
+    local saved = rawget(GC.db, "alertWords")
+    if saved == nil then return end
+    local out = {}
+    if type(saved) == "table" then
+        for _, w in ipairs(saved) do
+            if type(w) == "string" and w ~= "" and #w <= Alerts.MAX_WORD and #out < Alerts.MAX_WORDS then
+                out[#out + 1] = w
+            end
+        end
+    end
+    GC.db.alertWords = out
+end
+
 -- Does this message mention you or one of your words? Plain strings only.
 function Alerts.Matches(msg)
     if not me then Alerts.ReadNames() end
@@ -331,6 +348,7 @@ function Alerts.Start()
     started = true
     local f = CreateFrame("Frame")
     f:SetScript("OnEvent", function()
+        Alerts.CleanWords()
         Alerts.ReadNames()
         -- After Url's, explicitly: the order doesn't rest on two frames' event order.
         if GC.Url and GC.Url.AddFilters then GC.Url.AddFilters() end

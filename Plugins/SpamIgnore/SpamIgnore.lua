@@ -81,6 +81,12 @@ function Spam.Load()
     end
     db.mutes = mutes
     if db.collected ~= nil and type(db.collected) ~= "table" then db.collected = nil end
+    -- The cap holds on load too (#132 F5): a dev build's corpus is trimmed, oldest first.
+    if type(db.collected) == "table" and #db.collected > Spam.COLLECT_MAX then
+        local t, kept = db.collected, {}
+        for i = #t - Spam.COLLECT_MAX + 1, #t do kept[#kept + 1] = t[i] end
+        db.collected = kept
+    end
     setmetatable(db, { __index = DEFAULTS })
     if type(GlassChatSpamIgnoreCharDB) ~= "table" then GlassChatSpamIgnoreCharDB = {} end
     Spam.db, Spam.charDB = db, GlassChatSpamIgnoreCharDB

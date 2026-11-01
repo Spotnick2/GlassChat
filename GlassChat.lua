@@ -228,7 +228,8 @@ local function failures()
     local any = false
     for key, err in pairs(GC.failures) do
         any = true
-        say(key .. ": " .. err)
+        local n = GC.failureCounts[key] or 1
+        say(key .. ": " .. err .. (n > 1 and (" (" .. n .. " times)") or ""))
     end
     for _, line in ipairs(GC.eventFailures) do
         any = true
@@ -427,8 +428,26 @@ SLASH_GLASSCHAT1 = "/gchat"
 SLASH_GLASSCHAT2 = "/glasschat"
 SlashCmdList.GLASSCHAT = slash
 
+-- A protected call the client refused and blamed on us (#132 F2): no pcall
+-- sees it (probe item 2: pcall returns true). Recorded as a failure, counted,
+-- and said once a session per function. The 70532 dump declares both
+-- arguments as strings; each is checked before any use.
+local OURS = { [ADDON or "GlassChat"] = true, GlassChatSpamIgnore = true }
+local refusedSaid = {}
+function GC.OnBlocked(event, addon, fn)
+    if API.IsSecret(addon) or type(addon) ~= "string" or not OURS[addon] then return end
+    if API.IsSecret(fn) or type(fn) ~= "string" or fn == "" then return end
+    fn = fn:gsub("|", "||")
+    local key = (event == "ADDON_ACTION_FORBIDDEN" and "forbidden " or "blocked ") .. fn
+    API.Fail(key, "refused by the client" .. (addon ~= ADDON and (" (" .. addon .. ")") or ""))
+    if not refusedSaid[key] then
+        refusedSaid[key] = true
+        say("|cffff6060the game refused " .. fn .. " for GlassChat|r: /gchat failures")
+    end
+end
+
 local boot = CreateFrame("Frame")
-boot:SetScript("OnEvent", function(_, event, arg1)
+boot:SetScript("OnEvent", function(_, event, arg1, arg2)
     if event == "ADDON_LOADED" then
         if arg1 ~= ADDON then return end
         GC.db, GC.charDB = ensureDefaults()
@@ -454,6 +473,8 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         if not ok then API.Fail("start keep", err) end
         ok, err = pcall(GC.Options.Start)
         if not ok then API.Fail("start options", err) end
+    elseif event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
+        GC.OnBlocked(event, arg1, arg2)
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- arg1 = isInitialLogin: warn and offer at a real login, never on /reload.
         if arg1 and GC.Layout then GC.Layout.ScheduleOffer() end
@@ -466,6 +487,6 @@ boot:SetScript("OnEvent", function(_, event, arg1)
         end
     end
 end)
-API.RegisterEvents(boot, { "ADDON_LOADED", "PLAYER_ENTERING_WORLD" })
+API.RegisterEvents(boot, { "ADDON_LOADED", "PLAYER_ENTERING_WORLD", "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN" })
 
 GC._test = { ensureDefaults = ensureDefaults, DEFAULTS = DEFAULTS }

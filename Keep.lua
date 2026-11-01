@@ -138,7 +138,8 @@ local function saveWindow(f, now)
         if #found >= Keep.MAX then break end
         local e = GC.Copy.Entry(f, i, "keep read")
         if e and not e.hidden and plainString(e.raw) and wanted(e.event, e.id) then
-            local t = plainNumber(e.kept) or now
+            -- A time ahead of the clock (a clock change, a hand edit) is now (#132 F5).
+            local t = math.min(plainNumber(e.kept) or now, now)
             if now - t <= Keep.MAX_AGE then
                 found[#found + 1] = { text = saveText(e.raw), r = colour(e.r), g = colour(e.g), b = colour(e.b),
                     id = plainNumber(e.id), event = e.event, t = t }
@@ -192,7 +193,7 @@ local function restoreWindow(f, lines, now, saved, known)
     for k = #keep, 1, -1 do
         local l = keep[k]
         f:BackFillMessage(restoreText(l.text, known), colour(l.r), colour(l.g), colour(l.b), l.id, nil, nil,
-            l.event, nil, nil, l.t)
+            l.event, nil, nil, math.min(l.t, now))
     end
     f:ResetAllFadeTimes()   -- shown like new lines, and the window awake (Skin's idle)
 end

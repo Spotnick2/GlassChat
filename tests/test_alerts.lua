@@ -92,6 +92,17 @@ GC.db.alertWords = {}
 for i = 1, Alerts.MAX_WORDS + 1 do SlashCmdList.GLASSCHAT("alert add word" .. i) end
 eq(#GC.db.alertWords, Alerts.MAX_WORDS, "at most MAX_WORDS")
 GC.db.alertWords = {}
+-- Saved words are checked at login (#132 F5): a hand-edited file can hold
+-- anything, and a word that isn't a string would throw on every line.
+GC.db.alertWords = { 5, {}, "ok", string.rep("x", Alerts.MAX_WORD + 1) }
+Alerts.CleanWords()
+eq(#GC.db.alertWords, 1, "only the plain words of the right length stay")
+eq(GC.db.alertWords[1], "ok", "  in order")
+eq(Alerts.Matches("is that ok"), true, "  and they still match")
+GC.db.alertWords = "not a list"
+Alerts.CleanWords()
+eq(type(GC.db.alertWords), "table", "a saved value that isn't a list becomes an empty one")
+GC.db.alertWords = {}
 
 -- The alert: through the filters, once per line, throttled.
 fresh()

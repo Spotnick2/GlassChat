@@ -142,6 +142,25 @@ eq(s1[3].text, "secret id", "  a secret id")
 eq(s1[3].id, nil, "  saved without it")
 eq(next(GC.failures), nil, "secrets in a line's other values: no failure")
 
+-- A kept time ahead of the clock (a clock change, a hand edit) is now (#132
+-- F5): restored once, saved back at now, never kept for ever.
+local now = time()
+f1._lines = {}
+GC.charDB.kept = { saved = now, windows = { [1] = { name = (GetChatWindowInfo(1)), lines = {
+    { text = "from the future", r = 1, g = 1, b = 1, event = "CHAT_MSG_SAY", t = now + 3600 } } } } }
+T.reset()
+K.Restore()
+local fut = f1._lines[1]
+eq(fut and fut.m, "from the future", "a line dated ahead is restored")
+check(fut and fut.extra[10] <= time(), "  with its time clamped to now")
+logout()
+check(kept(1)[1] and kept(1)[1].t <= time(), "  and saved back at now")
+-- The save clamps on its own: a line in the window carrying a time ahead.
+f1._lines = {}
+f1:AddMessage("ahead in the window", 1, 1, 1, 4, 7, 9, "CHAT_MSG_SAY", {}, function() end, time() + 3600)
+logout()
+check(kept(1)[1] and kept(1)[1].t <= time(), "a window line dated ahead is saved at now")
+
 -- Off forgets at once.
 slash("keep off")
 eq(GC.charDB.kept, nil, "/gchat keep off: forgotten")

@@ -206,6 +206,14 @@ local W_FIELDS = {
 SS.W_FIELDS = W_FIELDS
 -- Never for the main window: its place and size are Edit Mode's.
 local MAIN_NEVER = { width = true, height = true, point = true, x = true, y = true }
+-- What Blizzard itself can save (#132 F3; FloatingChatFrame.lua, 70532):
+-- FCF_SavePositionAndDimensions (1353-1380) keeps x and y as fractions of the
+-- screen and the point as one of four corners; a floating window resizes
+-- within 250 x 120 to 800 x 800 (FloatingChatFrame.xml:450-456), and the
+-- template is clampedToScreen (:443), so the client keeps it on screen. The
+-- ceilings only refuse nonsense. A font of 0 or less would blank the window.
+local W_RANGE = { fontSize = { 6, 64 }, width = { 250, 4096 }, height = { 120, 4096 }, x = { -1, 1 }, y = { -1, 1 } }
+local ANCHORS = { TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
 
 local function layoutRecords(out, windows)
     local nums = {}
@@ -328,7 +336,9 @@ function SS.Parse(body)
                     if (field == "r" or field == "g" or field == "b" or field == "a") and (v < 0 or v > 1) then
                         return nil, "bad colour"
                     end
-                    if field == "point" and not v:find("^%u+$") then return nil, "bad anchor" end
+                    if field == "point" and not ANCHORS[v] then return nil, "bad anchor" end
+                    local range = W_RANGE[field] or (field == "docked" and { 1, maxWin }) or nil
+                    if range and (v < range[1] or v > range[2]) then return nil, "bad window value" end
                     w[field] = v
                 elseif kind == "M" then
                     if #f ~= 4 or not decode("e", f[4]) then return nil, "bad message group" end

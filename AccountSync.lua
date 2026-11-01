@@ -51,11 +51,14 @@ end
 -- Whether the plugin that holds the store is here (settings sync needs it).
 function AS.HasStore() return store() ~= nil end
 
-local function dispatch(payload, sender, sid)
+-- tag: the instance the payload arrived on. A kind is taken only on its own
+-- tag (#132 F4): the tags exist so the kinds never share a replay floor.
+local function dispatch(tag, payload, sender, sid)
     if API.IsSecret(payload) or type(payload) ~= "string" then return end
     local kind, body = payload:match("^(%w+)\n(.*)$")
     local fn = kind and handlers[kind]
     if not fn then return end   -- a kind this copy doesn't know: ignored
+    if (AS.TAGS[kind] or AS.TAG) ~= tag then return end   -- on another kind's tag: ignored
     local ok, err = pcall(fn, body, sender, sid)
     if not ok then API.Fail("account sync " .. kind, err) end
 end
@@ -70,7 +73,7 @@ if lib then
         local ok, inst = pcall(lib.New, lib, { addon = tag, store = store, report = report, maxPayload = AS.MAX })
         if ok and inst then
             AS.insts[tag] = inst
-            inst.OnMessage(dispatch)
+            inst.OnMessage(function(payload, sender, sid) dispatch(tag, payload, sender, sid) end)
         else
             API.Fail("account sync " .. tag, inst or "no instance")
         end
