@@ -28,13 +28,14 @@ file doesn't cover something, check how those handle it before you invent a new 
 `ChatFrameUtil`, `ScrollingMessageFrame`). Frames, tabs, docking, Edit Mode and the edit box stay
 Blizzard's. GlassChat uses only documented hooks:
 - `ChatFrameUtil.AddMessageEventFilter` / `AddSenderNameFilter`;
-- `EventRegistry` callbacks (`"SetItemRef"` for our `|Haddon:GlassChat:…|h` links,
-  `"ChatFrame.OnHyperlinkClick"`);
-- `hooksecurefunc`;
-- `setprinthandler` wrapping (never replacing) the previous handler;
+- `EventRegistry` callbacks (`"SetItemRef"` for our `|Haddon:GlassChat:…|h` links);
+- `hooksecurefunc` and `HookScript`;
 - `FCF_OpenNewWindow` for smart tabs;
 - CVars and public `ScrollingMessageFrame` methods (`GetMessageInfo`, `SetMaxLines`,
-  `SetTextCopyable`).
+  `TransformMessages`, `RemoveMessagesByPredicate`, `BackFillMessage`).
+
+`setprinthandler` (wrapped, never replaced) is used by `Tools/ChatProbe` only: the shared
+`AddMessage` hook already sees `print`'s lines (#132).
 
 **Never** a `RawHook`, a replaced `MessageEventHandler`, a hook on `ItemRefTooltip:SetHyperlink`,
 or a read of private fields (`historyBuffer`, `visibleLines`). Reading a template's
@@ -63,8 +64,11 @@ TOC load order: `Libs\LibGlass-1.0\LibGlass-1.0.xml` (the embedded material) →
   - `IsSecret`;
   - event registration that reports failures;
   - `ClassColor`;
-  - `Fail(key, err)`, the **one** failure recorder (`GlassChat.failures`, read by
-    `/gchat failures`);
+  - `Fail(key, err)`, the **one** failure recorder: the first message per key in
+    `GlassChat.failures`, how many times in `GlassChat.failureCounts`, both read by
+    `/gchat failures` (#132). **A protected call the client refuses** (`ADDON_ACTION_BLOCKED` /
+    `FORBIDDEN` naming GlassChat or the plugin; no `pcall` sees it) is recorded there too, as
+    `blocked <fn>` / `forbidden <fn>`, said once a session (`GC.OnBlocked`, the boot frame);
   - `MEASURED_ON_BUILD`;
   - the dialog helpers lifted from GlassPanel's Compat (`Window`, `Button`, `AutoHideScrollBar`),
     and `ShowWindow`, which opens a window in front of the others (they share one strata, #106).
@@ -118,7 +122,14 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
   refresh wiring. Scans run at `ADDON_LOADED` (so login lines get the longer scrollback), at
   `PLAYER_LOGIN`, on `UPDATE_CHAT_WINDOWS` / `UPDATE_FLOATING_CHAT_WINDOWS`, and after
   `FCF_OpenNewWindow` / `FCF_OpenTemporaryWindow` (hooksecurefunc). It also holds:
-  - **scrollback**: `SetMaxLines(db.lines)`, which keeps the existing lines (CircularBuffer.lua:29);
+  - **scrollback**: `SetMaxLines(db.lines)`, which keeps the existing lines (CircularBuffer.lua:29).
+    **Never shrunk onto a window holding as many lines as the new size or more** (#132): Blizzard's
+    rebuild then sets the buffer's head to its maximum instead of 0, and the next line lands in a
+    slot no index reaches (CircularBuffer.lua:29-40, 180-187; source-derived, probe item 15.9).
+    That window keeps its size until a scan finds it holding fewer lines. `Tabs`' `removeNewest`
+    likewise rebuilds only when the newest line is the one to remove;
+  - **the combat log is never rewritten** by the shared hook (its own Timestamp option stamps it,
+    and a rewrite walks the whole buffer twice: #132);
   - **class colours**: `chatClassColorOverride` kept at `"0"` at login. Turning the option off
     leaves the CVar alone.
   - **short channel names**: a `CHAT_MSG_CHANNEL` message filter (`Chat.ShortChannel`) rewrites
@@ -196,7 +207,9 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     Hooks on those two turn the jump arrow accent while lines wait below. Blizzard's hover fade of the bar is kept. Never styled, never touched.
   - `Skin.Refresh()` applies setting changes, and glass off restores the stock look.
   - No Lua field or global is ever written on a Blizzard frame: state lives in weak-keyed tables.
-    Creating regions on a tab and calling widget methods is fine.
+    Creating regions on a tab and calling widget methods is fine. Two Blizzard tables are written
+    through their own API or idiom: `ChatFrameUtil.SetTabAlphas` and a `table.insert` into
+    `UISpecialFrames` (`API.Window`). `tests/test_taint.lua` fails on any other global write.
 - **`History.lua`**: plain Up/Down cycle **our own list**, `GlassChatCharDB.sent`. The edit
   box's native history ignores plain arrows here, even with `SetAltArrowKeyMode(false)`, because
   the template has `ignoreArrows="true"` (measured).
@@ -568,8 +581,8 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
       is taken out at GlassChat's `ADDON_LOADED` and adopted at the plugin's, with its key.
     - The getter reads it raw, nil until the SavedVariables load.
   - **A payload is `"<kind>\n<body>"`.** Features register a kind with `AccountSync.On`;
-    Spam & Ignore's snapshot is `SI`. The kind alone picks the handler, on either tag. An unknown
-    kind is ignored.
+    Spam & Ignore's snapshot is `SI`. The kind picks the handler, **only on its own tag**
+    (`AS.TAGS[kind] or AS.TAG`; #132): one on another kind's tag, or an unknown kind, is ignored.
   - **The sender comes from the library** (Blizzard's sender id), never from the payload.
   - Library reports: `error` goes to `API.Fail` and chat; `info` is kept for
     `/gchat ignore sync` and printed only in developer mode.
@@ -913,7 +926,7 @@ it goes red.
   Commit or push only when asked. Before committing, `luac -p` must be clean and the tests green.
   **After pushing, check the PR's `package-check` run** (`gh run list`, then `gh run view`). CI
   has no API dump, so run a new test once with `GLASSCHAT_API_DUMP` pointing at a missing file.
-- Review policy: use the shared `$wow-addon-review` skill for PR reviews.
+- Review policy: reviews go through the shared `codex-consult` skill (below), launched by the owner.
 - **The owner merges and closes PRs, and launches reviews.** Claude opens the issue, branch and
   PR, runs the tests, and stops there: never `gh pr merge` or close a PR, and never start a Codex
   or Fable review on its own. When the owner posts or points to a review, reconcile it (below)

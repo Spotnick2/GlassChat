@@ -240,6 +240,11 @@ end
 local function removeNewest(f, msg)
     local n = f:GetNumMessages()
     if API.IsSecret(n) or type(n) ~= "number" or n < 1 then return false end
+    -- Only when the newest line is the one to remove: a pass that removes
+    -- nothing still rebuilds the buffer, and on a full window that rebuild
+    -- loses the next line (Chat.lua's scrollback note; #132 F3b).
+    local ok, newest = pcall(f.GetMessageInfo, f, n)
+    if not ok or API.IsSecret(newest) or type(newest) ~= "string" or newest ~= msg then return false end
     local i, removed = 0, false
     f:RemoveMessagesByPredicate(function(m)
         i = i + 1
@@ -543,4 +548,5 @@ Tabs._test = {
     end,
     loaded = function() loading = false end,
     sources = function() return current, previous end,
+    removeNewest = removeNewest,
 }

@@ -3,6 +3,7 @@
 ## Notes: Muted phrases, repeats, CJK posts, and one ignore list for all your characters. /gchat spam
 ## Author: Spotnick
 ## Version: @project-version@
+## X-License: MIT
 ## Group: GlassChat
 ## Dependencies: GlassChat
 ## OptionalDeps: AltStable

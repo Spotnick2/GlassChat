@@ -279,6 +279,15 @@ eq(#db.mutes, 0, "and not added")
 SlashCmdList.GLASSCHAT("mute " .. string.rep("b", Spam.MUTE_MAX))
 Spam.Load()
 eq(#Spam.db.mutes, 1, "one at the limit is kept across a load")
+-- The collected corpus is trimmed on load too (#132 F5): a dev build's lines
+-- don't ride along whole into a release.
+local corpus = {}
+for i = 1, Spam.COLLECT_MAX + 5 do corpus[i] = { text = "line " .. i } end
+GlassChatSpamIgnoreDB.collected = corpus
+Spam.Load()
+eq(#GlassChatSpamIgnoreDB.collected, Spam.COLLECT_MAX, "an oversized corpus is cut to COLLECT_MAX on load")
+eq(GlassChatSpamIgnoreDB.collected[1].text, "line 6", "  the oldest go")
+GlassChatSpamIgnoreDB.collected = nil
 db = Spam.db
 db.mutes = {}
 Spam.RebuildMutes()

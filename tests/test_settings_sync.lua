@@ -208,6 +208,24 @@ refusesWith(groups, "too many message groups", "a window over the message-group 
 local channels = { "ST1" }
 for i = 1, SS.CHANNELS_MAX + 1 do channels[#channels + 1] = "L\tC\t2\tChannel" .. i end
 refusesWith(channels, "too many channels", "a window over the channel cap")
+-- What Blizzard can save, and nothing else (#132 F3): screen fractions, four
+-- corners, the floating template's resize bounds, a readable font.
+refusesWith({ "ST1", "L\tW\t2\tfontSize\ti\t0" }, "bad window value", "a font size of 0")
+refusesWith({ "ST1", "L\tW\t2\tfontSize\ti\t200" }, "bad window value", "a font size of 200")
+refusesWith({ "ST1", "L\tW\t2\tdocked\ti\t0" }, "bad window value", "docked at 0")
+refusesWith({ "ST1", "L\tW\t2\tdocked\ti\t99" }, "bad window value", "docked past the last window")
+refusesWith({ "ST1", "L\tW\t2\twidth\tn\t-5", "L\tW\t2\theight\tn\t150" }, "bad window value", "a negative width")
+refusesWith({ "ST1", "L\tW\t2\twidth\tn\t100", "L\tW\t2\theight\tn\t150" }, "bad window value", "a width under 250")
+refusesWith({ "ST1", "L\tW\t2\twidth\tn\t400", "L\tW\t2\theight\tn\t50" }, "bad window value", "a height under 120")
+refusesWith({ "ST1", "L\tW\t2\tx\tn\t1e6" }, "bad window value", "an offset of a million")
+refusesWith({ "ST1", "L\tW\t2\tx\tn\t10" }, "bad window value", "an offset in pixels, not a screen fraction")
+refusesWith({ "ST1", "L\tW\t2\ty\tn\t-1.5" }, "bad window value", "an offset under -1")
+refusesWith({ "ST1", "L\tW\t2\tpoint\te\tBOGUS" }, "bad anchor", "an anchor that isn't a corner")
+refusesWith({ "ST1", "L\tW\t2\tpoint\te\tCENTER" }, "bad anchor", "CENTER (Blizzard saves a corner)")
+check(P({ "ST1", "L\tW\t2\tpoint\te\tTOPRIGHT", "L\tW\t2\tx\tn\t-0.02", "L\tW\t2\ty\tn\t-0.3",
+    "L\tW\t2\twidth\tn\t250", "L\tW\t2\theight\tn\t120", "L\tW\t2\tfontSize\ti\t12", "L\tW\t2\tdocked\ti\t2" }),
+    "the smallest window, a right-hand corner and a negative offset: taken")
+
 -- A sender the library can't name, or a stream id that isn't one: nothing at all.
 newChat()
 SS.Receive("ST1\nV\tcore\ttimestamps\tb\t1", { guid = "not-a-guid", name = "X" }, "1760000000900")
@@ -332,7 +350,7 @@ db.layoutRevision = 7
 GlassChatCharDB.layoutAnswered = 5
 local withLayout = table.concat({ "ST1",
     "L\tW\t1\tname\ts\tMain", "L\tW\t1\tdocked\ti\t1", "L\tW\t1\tshown\tb\t1", "L\tM\t1\tSAY", "L\tM\t1\tGUILD",
-    "L\tW\t2\tname\ts\tTrade", "L\tW\t2\tpoint\te\tBOTTOMLEFT", "L\tW\t2\tx\tn\t10", "L\tW\t2\ty\tn\t200",
+    "L\tW\t2\tname\ts\tTrade", "L\tW\t2\tpoint\te\tBOTTOMLEFT", "L\tW\t2\tx\tn\t0.1", "L\tW\t2\ty\tn\t0.4",
     "L\tW\t2\twidth\tn\t400", "L\tW\t2\theight\tn\t150", "L\tW\t2\tshown\tb\t1", "L\tC\t2\tTrade - City",
     "L\tW\t3\tname\ts\tEmpty" }, "\n")
 local offered = 0
@@ -350,7 +368,7 @@ local w1, w2, w3 = db.layout.windows[1], db.layout.windows[2], db.layout.windows
 eq(w1.docked, 1, "docked stays a number")
 eq(#w1.messages, 2, "message groups")
 eq(w2.channels[1], "Trade - City", "channels")
-check(w2.point == "BOTTOMLEFT" and w2.x == 10 and w2.y == 200 and w2.width == 400, "a floating window's place and size")
+check(w2.point == "BOTTOMLEFT" and w2.x == 0.1 and w2.y == 0.4 and w2.width == 400, "a floating window's place and size")
 check(type(w3.messages) == "table" and type(w3.channels) == "table", "lists are always there, empty or not")
 eq(w3.shown, false, "an absent shown is false")
 eq(w3.docked, nil, "and an undocked window has no docked")
@@ -439,6 +457,36 @@ end
 local big = SS.Build(true)
 check(SS.Parse(big), "a real-sized layout (10 windows, 50 groups each) is within the caps")
 check(#big < GC.AccountSync.MAX, "and the link's size")
+
+-- A layout as this client saves it is what the receiver takes (#132 F3):
+-- captured from windows holding Blizzard-shaped values (screen fractions).
+local w2 = WoW.window(2)
+w2.docked, w2.point, w2.x, w2.y, w2.width, w2.height = nil, "BOTTOMRIGHT", -0.02, 0.31, 430, 120
+local w3 = WoW.window(3)
+w3.docked, w3.point, w3.x, w3.y, w3.width, w3.height = nil, "TOPLEFT", 0.05, -0.2, 296, 147
+GC.Layout.Save()
+local captured = SS.Build(true)
+check(captured:find("\nL\tW\t2\tx\tn\t%-0%.02") and captured:find("\nL\tW\t3\tpoint\te\tTOPLEFT"),
+    "the capture carries the saved places")
+check(SS.Parse(captured), "a captured layout parses")
+-- A saved layout edited by hand into a size Blizzard can't save is never sent.
+db.layout.windows[2].fontSize = 0
+before = #sentTo(Peer.id, "D1|")
+newChat()
+SlashCmdList.GLASSCHAT("settings send layout")
+check(chatHas("can't send this copy"), "a font size of 0 in the saved layout: refused here")
+eq(#sentTo(Peer.id, "D1|"), before, "  and nothing sent")
+
+-- A kind arriving on another kind's tag is ignored (#132 F4): the tags exist
+-- so the lists and the settings never share a replay floor.
+db.timestamps = true
+local appliedBefore = db.settingsApplied[Peer.guid]
+Peer.send("ST\nST1\nV\tcore\ttimestamps\tb\t0", "1760000009001", "GlassChat")
+eq(db.timestamps, true, "settings on the lists' tag: not applied")
+eq(db.settingsApplied[Peer.guid], appliedBefore, "  and no stream id kept")
+Peer.send("ST\nST1\nV\tcore\ttimestamps\tb\t0", "1760000009002", "GlassChatST")
+eq(db.timestamps, false, "on their own tag: applied")
+db.timestamps = nil
 
 -- With layout, when none is saved: said, and the settings go alone.
 db.layout = nil

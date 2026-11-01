@@ -82,10 +82,28 @@ function Chat.Scan()
 end
 
 -- Scrollback. SetMaxLines keeps the lines already there (CircularBuffer.lua:29).
+-- Never shrunk onto a window holding as many lines as the new size or more
+-- (#132 F3b): SetMaxNumElements then keeps exactly the new maximum and
+-- ReplaceElements sets the head to it instead of 0 (CircularBuffer.lua:29-40,
+-- 180-187, 70532), so the next PushFront writes a slot no index reaches and
+-- the window's newest line is lost. Source-derived; the probe reproduces it.
+-- That window keeps its size until a scan finds it holding fewer lines.
 Chat.MIN_LINES, Chat.MAX_LINES = 128, 5000
+local shrinkSaid = false
 Chat.OnEachFrame("lines", function(f)
-    local want = GC.db.lines
-    if f:GetMaxLines() ~= want then f:SetMaxLines(want) end
+    local want, have = GC.db.lines, f:GetMaxLines()
+    if have == want then return end
+    if want < have then
+        local n = f:GetNumMessages()
+        if API.IsSecret(n) or type(n) ~= "number" or n >= want then
+            if not shrinkSaid then
+                shrinkSaid = true
+                API.Print("a chat window holding more than " .. want .. " lines keeps its size until your next login")
+            end
+            return
+        end
+    end
+    f:SetMaxLines(want)
 end)
 
 -- Timestamps (owner: "off by default, but I want it", "between [ ] like
@@ -182,6 +200,10 @@ end
 -- pass for both, so the line is found as it was added. Returns the new text.
 Chat.Linkify = nil
 local function decorateLine(f, msg, r, g, b, id, accessID, typeID, event)
+    -- The combat log adds every entry this way, with no event (Blizzard_CombatLog
+    -- .lua:1695-1701, 70532), and stamps it itself when its own Timestamp option
+    -- is on (Blizzard_CombatLogProcessor.lua:1410-1412): never walked (#132 F1).
+    if f == rawget(_G, "COMBATLOG") then return end
     if API.IsSecret(event) or event ~= nil then return end   -- Blizzard stamps chat-event lines itself
     if API.IsSecret(msg) or type(msg) ~= "string" or msg == "" then return end
     local text = msg

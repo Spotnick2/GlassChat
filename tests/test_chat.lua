@@ -391,6 +391,31 @@ check(walks(ChatFrame1) <= 2, "a stamped line walks the window at most twice")
 check(last():find("^%[%d%d:%d%d:%d%d%] %[pet%] stable slot 5"), "and is stamped")
 ChatFrame1:AddMessage("[1. General] [Bob]: hi", 1, 1, 1, 1, nil, 1, "CHAT_MSG_CHANNEL")
 eq(walks(ChatFrame1), 0, "a chat-event line (Blizzard stamps it) walks nothing")
+-- The combat log: every entry is a plain AddMessage with no event, and it
+-- stamps its own lines (#132 F1): never walked, never rewritten.
+rawset(_G, "COMBATLOG", ChatFrame2)
+ChatFrame2._lines, ChatFrame2._rot = {}, 0
+walks(ChatFrame2)
+ChatFrame2:AddMessage("Your Fireball hits Kobold Miner for 42.", 1, 1, 1)
+eq(walks(ChatFrame2), 0, "a combat-log line walks nothing")
+eq(ChatFrame2._lines[#ChatFrame2._lines].m, "Your Fireball hits Kobold Miner for 42.", "  and keeps its text")
+rawset(_G, "COMBATLOG", nil)
+ChatFrame2._lines = {}
+
+-- Scrollback is never shrunk onto a window that holds as many lines (#132
+-- F3b): Blizzard's buffer would then lose the next line. Its size waits.
+ChatFrame1._lines, ChatFrame2._lines = {}, {}
+for i = 1, 200 do ChatFrame1._lines[i] = { m = "line " .. i } end
+ChatFrame1._maxLines, ChatFrame2._maxLines = 1000, 1000
+newChat()
+SlashCmdList.GLASSCHAT("lines 150")
+eq(ChatFrame1:GetMaxLines(), 1000, "a window holding 200 lines keeps its size under 150")
+eq(ChatFrame2:GetMaxLines(), 150, "an emptier one takes the new size")
+check(chatHas("keeps its size until your next login"), "and the player is told")
+ChatFrame1._lines = {}
+SlashCmdList.GLASSCHAT("lines 1000")
+eq(ChatFrame1:GetMaxLines(), 1000, "growing is never held back")
+eq(ChatFrame2:GetMaxLines(), 1000, "  for any window")
 
 -- The Blizzard setting: given back, but never over a newer choice (Codex, #22).
 SlashCmdList.GLASSCHAT("stamps off")

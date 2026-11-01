@@ -44,6 +44,26 @@ check(GC.Tabs.Loading(), "smart tabs stay quiet while the game loads")
 WoW.flushTimers(GC.Tabs.LOAD_QUIET)
 check(not GC.Tabs.Loading(), "and wake LOAD_QUIET s after the loading screen")
 local Tabs = GC.Tabs
+
+-- A line is removed only when it is the window's newest (#132 F3b): a pass
+-- that removes nothing still rebuilds Blizzard's buffer.
+do
+    local removeNewest, passes = Tabs._test.removeNewest, 0
+    local real = WoW.Methods.RemoveMessagesByPredicate
+    WoW.Methods.RemoveMessagesByPredicate = function(...) passes = passes + 1; return real(...) end
+    local f = ChatFrame3
+    f._lines = { { m = "a" }, { m = "b" } }
+    eq(removeNewest(f, "a"), false, "an older line is never removed")
+    eq(passes, 0, "  and the buffer is never rebuilt for it")
+    eq(removeNewest(f, "b"), true, "the newest is")
+    eq(passes, 1, "  in one pass")
+    eq(#f._lines, 1, "  and only it")
+    f._lines = { { m = WoW.Secret("newest") } }
+    eq(removeNewest(f, "b"), false, "a secret newest line: nothing removed")
+    eq(passes, 1, "  and no pass")
+    f._lines = {}
+    WoW.Methods.RemoveMessagesByPredicate = real
+end
 local main = ChatFrame1
 
 local function emit(stack, text, f, ...)

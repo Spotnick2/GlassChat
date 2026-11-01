@@ -48,11 +48,13 @@ function API.RegisterEvents(frame, events)
     end
 end
 
--- The one place failures are recorded (first error per key), read by
--- /gchat failures and the tests.
+-- The one place failures are recorded: the first error per key, and how many
+-- times it happened (#132 F2), read by /gchat failures and the tests.
 GC.failures = GC.failures or {}
+GC.failureCounts = GC.failureCounts or {}
 function API.Fail(key, err)
     if GC.failures[key] == nil then GC.failures[key] = tostring(err) end
+    GC.failureCounts[key] = (GC.failureCounts[key] or 0) + 1
 end
 
 -- Class colour from the documented API (RAID_CLASS_COLORS is a FrameXML

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Fixes from a review before release:**
+  - The combat log is no longer touched by Glass Chat's timestamps: it has its own (its window's
+    Timestamp option), and each line cost Glass Chat a pass over the whole window.
+  - Lowering `/gchat lines` no longer loses a line in a window that's already full: that window
+    keeps its size until your next login.
+  - `/gchat failures` counts how often each failure happened, and lists any action the game
+    refused for Glass Chat (said once in chat when it happens).
+  - A chat layout received from another account with sizes or places the game can't save (a font
+    of size 0, a window off the screen) is refused whole, as other bad copies are.
+  - Settings and lists from your other accounts are only taken on their own channel.
+  - Saved alert words, kept chat times and the spam tuning lines are checked when they load.
+
 - **An options page:** Esc > Options > AddOns > Glass Chat, or `/gchat options`. Everything you
   could only set with `/gchat` is there:
   - the chat itself;

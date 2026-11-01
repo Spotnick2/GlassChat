@@ -71,4 +71,28 @@ check(v[1] and v[1]:find("99999", 1, true), "/gchat version still shows the clie
 WoW.addonVersion = "dev"
 GetBuildInfo = realBuild
 
+-- A protected call the client refused and blamed on us (#132 F2): counted,
+-- said once, shown by /gchat failures. Another addon's, or a secret, isn't.
+newChat()
+WoW.fire("ADDON_ACTION_BLOCKED", "GlassChat", "SetPoint")
+WoW.fire("ADDON_ACTION_BLOCKED", "GlassChat", "SetPoint")
+WoW.fire("ADDON_ACTION_FORBIDDEN", "GlassChatSpamIgnore", "UNKNOWN()")
+WoW.fire("ADDON_ACTION_BLOCKED", "SomeoneElse", "CastSpellByName")
+WoW.fire("ADDON_ACTION_BLOCKED", "GlassChat", WoW.Secret("fn"))
+WoW.fire("ADDON_ACTION_BLOCKED", WoW.Secret("addon"), "SetPoint")
+eq(GC.failures["blocked SetPoint"], "refused by the client", "a block is a failure")
+eq(GC.failureCounts["blocked SetPoint"], 2, "  counted")
+eq(GC.failureCounts["forbidden UNKNOWN()"], 1, "the plugin's too, forbidden apart")
+check(GC.failures["forbidden UNKNOWN()"]:find("GlassChatSpamIgnore", 1, true), "  naming the plugin")
+eq(GC.failures["blocked CastSpellByName"], nil, "another addon's block isn't ours")
+local said = 0
+for _, l in ipairs(newChat()) do if l:find("the game refused SetPoint", 1, true) then said = said + 1 end end
+eq(said, 1, "said once a session per function")
+SlashCmdList.GLASSCHAT("failures")
+check(chatHas("blocked SetPoint: refused by the client %(2 times%)"), "/gchat failures shows it with its count")
+GC.API.Fail("test key", "first")
+GC.API.Fail("test key", "second")
+eq(GC.failures["test key"], "first", "a failure keeps its first message")
+eq(GC.failureCounts["test key"], 2, "  and counts the rest")
+
 done("test_boot")
