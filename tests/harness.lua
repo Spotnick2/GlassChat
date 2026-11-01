@@ -163,6 +163,27 @@ function loadAddon(opts)
     return GlassChat
 end
 
+-- Buffer walks: how many times TransformMessages ran on each window since the
+-- last walks(f) read of it (#132 H3). The stub's method is wrapped once, after
+-- the stub is loaded; Blizzard's TransformIf visits every line of the window
+-- with secure calls (CircularBuffer.lua:99-114, 70532), so a walk costs the
+-- window's size: this pins how often the AddMessage hook pays it.
+local walkCounts = setmetatable({}, { __mode = "k" })
+local walkWrapped = false
+function walks(f)
+    if not walkWrapped then
+        walkWrapped = true
+        local real = WoW.Methods.TransformMessages
+        WoW.Methods.TransformMessages = function(frame, ...)
+            walkCounts[frame] = (walkCounts[frame] or 0) + 1
+            return real(frame, ...)
+        end
+    end
+    local n = walkCounts[f] or 0
+    walkCounts[f] = 0
+    return n
+end
+
 -- Chat lines printed since the last call.
 local seenChat = 0
 function newChat()

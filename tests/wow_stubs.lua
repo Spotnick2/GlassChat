@@ -41,8 +41,9 @@ function issecretvalue(v) return secrets[v] ~= nil end
 
 -- Mark an existing value secret for issecretvalue. The client's secrets keep
 -- their type (a secret string is still type "string"), which a proxy can't
--- model; use this to reach `type(x) == "string"` branches.
-function WoW.MarkSecret(v, label) secrets[v] = label or "marked" end
+-- model; use this to reach `type(x) == "string"` branches. Returns v, so it
+-- can be passed inline (test_alerts once passed its nil return instead).
+function WoW.MarkSecret(v, label) secrets[v] = label or "marked"; return v end
 
 --------------------------------------------------------------------------------
 -- Known events (from the dump when present, else the checked-in fixture)
@@ -96,7 +97,8 @@ end
 -- Widgets
 --------------------------------------------------------------------------------
 
-local Methods = {}   -- shared implementations, by method name
+local Methods = {}   -- shared implementations, by method name, looked up at call time
+WoW.Methods = Methods   -- so a test helper can wrap one (harness.lua's walks)
 
 local function record(w, name)
     WoW.methodsCalled[w._type .. ":" .. name] = true

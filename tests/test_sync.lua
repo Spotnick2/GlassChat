@@ -231,6 +231,36 @@ local before = db.ignore
 Peer.send("ZZ" .. string.char(10) .. "SI1" .. string.char(10) .. "I" .. string.char(9) .. "Player-1-00000FFF" .. string.char(9) .. "Other Kind", "1760000000301")
 check(db.ignore == before, "an unknown kind is ignored")
 
+-- Every other shape check, with its reason (#132 H5).
+local function parseWhy(lines) return select(2, Sync.Parse(table.concat(lines, "\n"))) end
+local G = "Player-1-00000AAA"
+eq(parseWhy({ "SI1", "T\tsoon" }), "bad time", "a T that isn't a number")
+eq(parseWhy({ "SI1", "T\t1\t2" }), "bad time", "a T with a field too many")
+eq(parseWhy({ "SI1", "O\tnot-a-guid\tName Here" }), "bad O line", "an own character with a malformed GUID")
+eq(parseWhy({ "SI1", "O\t" .. G }), "bad O line", "an own character with its name missing")
+eq(parseWhy({ "SI1", "I\t" .. G }), "bad I line", "an ignore with its name missing")
+eq(parseWhy({ "SI1", "I\t" .. G .. "\tA Name\textra" }), "bad I line", "an ignore with a field too many")
+eq(parseWhy({ "SI1", "I\t" .. G .. "\tA|cffff0000Name" }), "bad I line", "a name with a pipe")
+eq(parseWhy({ "SI1", "I\t" .. G .. "\tA" .. string.char(1) .. "Name" }), "bad I line", "a name with a control character")
+eq(parseWhy({ "SI1", "I\tPlayer-1-" .. string.rep("A", 56) .. "\tLong Guid" }), "bad I line", "a GUID over 64 bytes")
+eq(parseWhy({ "SI1", "P\tA Name\textra" }), "bad P line", "a pending name with a field too many")
+eq(parseWhy({ "SI1", "M\t0" }), "bad M line", "a mute with its phrase missing")
+eq(parseWhy({ "SI1", "M\t0\t" .. string.rep("x", Spam.MUTE_MAX + 1) }), "bad M line", "a mute over MUTE_MAX")
+local ignores = { "SI1" }
+for i = 1, Sync.CAPS.I + 1 do ignores[#ignores + 1] = string.format("I\tPlayer-1-%08X\tName %d", i, i) end
+eq(parseWhy(ignores), "too many I lines", "over the ignore cap")
+local owns = { "SI1" }
+for i = 1, Sync.CAPS.O + 1 do owns[#owns + 1] = string.format("O\tPlayer-1-%08X\tName %d", i, i) end
+eq(parseWhy(owns), "too many O lines", "over the own-character cap")
+-- A sender the library can't name, or a stream id that isn't one: nothing at all.
+newChat()
+local unchanged = db.ignore
+Sync.Receive("SI1\nI\tPlayer-1-00000FFF\tNo One", { guid = "not-a-guid", name = "X" }, "1760000000900")
+Sync.Receive("SI1\nI\tPlayer-1-00000FFF\tNo One", { guid = "Player-1-0000000C", name = "X" }, "soon")
+Sync.Receive("SI1\nI\tPlayer-1-00000FFF\tNo One", "Player-1-0000000C", "1760000000901")
+eq(#newChat(), 0, "a bad sender or stream id: not a word")
+check(db.ignore == unchanged and Spam.db.syncApplied["Player-1-0000000C"] == nil, "and nothing changes")
+
 -- Parse is all-or-nothing on its own too.
 check(Sync.Parse("SI1\nI\tPlayer-1-00000AAA\tA Name"), "a good body parses")
 check(not Sync.Parse(WoW.Secret("x")), "a secret body is never read")
