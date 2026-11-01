@@ -17,7 +17,8 @@
 --   15.7  settings and layout from another account, applied (optional).
 --   15.8  GlassChat's failures and blocked actions over the session.
 -- It never logs what anyone said: counts, types, times and its own lines only.
--- The owner's settings it changes are saved first and put back at the end
+-- The owner's settings it changes, and their saved tab rule for the probe,
+-- are saved first and put back at the end
 -- (/fp chat auditrestore after a stopped run).
 
 local _, NS = ...
@@ -40,11 +41,29 @@ end
 -- The owner's values: kept once, put back at the end
 --------------------------------------------------------------------------------
 
+-- The probe's own tab (15.6) is named after it, as smart tabs name one.
+local TAB = "ChatProbe"
+
+-- The owner's saved rule for the probe's lines: Always, Never or none. The
+-- tab step's Tabs.SetRule(TAB, "session") clears both saved rules
+-- (Tabs.lua's SetRule), so it is kept here and put back (Codex on #135).
+local function savedRoute(G)
+    local always, never = rawget(G.db, "routes"), rawget(G.db, "routeNever")
+    if type(never) == "table" and never[TAB] then return "never" end
+    if type(always) == "table" and always[TAB] then return "always" end
+    return "none"
+end
+
 local function keepOwn()
     local G, a = glassChat(), store()
     if not G or type(a.saved) == "table" then return end
     a.saved = { lines = rawget(G.db, "lines"), timestamps = rawget(G.db, "timestamps"), keep = rawget(G.db, "keep"),
-        icon = G.Spam and G.Spam.db and G.Spam.db.icon, failures = #S.failureKeys() }
+        icon = G.Spam and G.Spam.db and G.Spam.db.icon, failures = #S.failureKeys(), route = savedRoute(G) }
+end
+
+-- Back to the owner's rule; with none, the run's session route ends ("main").
+local function restoreRoute(G, route)
+    if route == "never" or route == "always" then G.Tabs.SetRule(TAB, route) else G.Tabs.SetRule(TAB, "main") end
 end
 
 local function restoreOwn()
@@ -58,6 +77,7 @@ local function restoreOwn()
     if (s.keep or false) ~= (G.db.keep or false) then G.Settings.SetKeep(s.keep or false) end
     G.db.keep = s.keep
     if s.icon ~= nil and G.SpamUI and G.SpamUI.Set then G.SpamUI.Set.icon(s.icon) end
+    restoreRoute(G, s.route)
     a.saved = nil
     say("15 your values are back (a window grown to more lines keeps that size until your next login)")
     return true
@@ -242,8 +262,6 @@ end
 -- 15.4, 15.6 After a logout
 --------------------------------------------------------------------------------
 
-local TAB = "ChatProbe"
-
 local function probeWindow()
     for i = 1, (S.maxWindows and S.maxWindows() or 10) do
         local ok, name, _, _, _, _, _, shown, _, docked = pcall(GetChatWindowInfo, i)
@@ -304,7 +322,7 @@ end
 
 Probe:Steps("audit", {
     title = "GlassChat: the release audit's in-game checks (#132)",
-    rev = 1,
+    rev = 2,
     { text = "Reading GlassChat, and saving the settings this run changes, to put back at the end.", auto = true,
       run = function()
           fought = {}

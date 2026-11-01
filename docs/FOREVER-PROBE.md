@@ -77,8 +77,8 @@ puts them back at the end (`/fp chat pearlrestore` after a stopped run).
 
 `/fp steps chat audit` (`Tools/ChatProbe/Audit.lua`), the release audit's in-game questions as one
 procedure. Desk findings rest on Blizzard's UI source for **1.60.1.70532**; each item below says
-what it decides. The procedure saves the owner's scrollback, timestamps, kept chat and spam icon
-first, and puts them back at the end (`/fp chat auditrestore` after a stopped run). It logs counts,
+what it decides. The procedure saves the owner's scrollback, timestamps, kept chat, spam icon and
+saved tab rule for ChatProbe (Always or Never) first, and puts them back at the end (`/fp chat auditrestore` after a stopped run). It logs counts,
 types and times, never what anyone said.
 
 | # | Question | Decides | Result |

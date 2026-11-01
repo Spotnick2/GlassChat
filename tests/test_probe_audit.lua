@@ -29,7 +29,8 @@ end
 WoW.guildRoster = { { name = "Guild Mate", level = 42, guid = "Player-1-0000000C" } }
 
 -- The owner's own settings, which the procedure must put back.
-local GC = loadAddon({ db = { lines = 2000 } })
+-- They chose Never for the probe's lines (Codex on #135: the tab step clears it).
+local GC = loadAddon({ db = { lines = 2000, routeNever = { ChatProbe = true } } })
 GC.Tabs._test.loaded()   -- past the loading quiet, as minutes into a session
 local FP = loadForeverProbe()
 local S = FP.Steps
@@ -57,6 +58,7 @@ eq(ChatProbeDB.audit.saved.lines, 2000, "the owner's scrollback is kept to put b
 eq(ChatProbeDB.audit.saved.timestamps, nil, "  their timestamps (unset)")
 eq(ChatProbeDB.audit.saved.keep, nil, "  their kept chat (unset)")
 eq(ChatProbeDB.audit.saved.icon, false, "  their spam icon")
+eq(ChatProbeDB.audit.saved.route, "never", "  and their Never for the probe's lines")
 
 -- Walk it as the owner would.
 local NO_STUB_ANSWER = { [2] = true }   -- the stub's message frame doesn't model Blizzard's buffer
@@ -135,16 +137,22 @@ eq(rawget(GC.db, "lines"), 2000, "their scrollback")
 eq(rawget(GC.db, "timestamps"), nil, "  timestamps unset again")
 eq(rawget(GC.db, "keep"), nil, "  kept chat unset again")
 eq(GC.Spam.db.icon, false, "  their spam icon")
+eq(GC.db.routeNever.ChatProbe, true, "  their Never for the probe's lines")
+eq(GC.db.routes.ChatProbe, nil, "  and no Always in its place")
+check(not GC.Tabs.IsRouted("ChatProbe"), "  so the probe's lines stay in the main chat")
 eq(ChatProbeDB.audit.saved, nil, "  and the kept values cleared")
 eq(next(GC.failures), nil, "no GlassChat failures along the way")
 
 -- A stopped run: /fp chat auditrestore puts the values back, once.
+GC.Tabs.SetRule("ChatProbe", "always")   -- this time they chose Always
 fp("steps chat audit")
 S.Run(); settle()   -- the buffer step
 fp("steps stop")
 GC.Settings.SetLines(3000)
+GC.Tabs.SetRule("ChatProbe", "session")  -- as the tab step does, had the run got there
 fp("chat auditrestore")
 eq(rawget(GC.db, "lines"), 2000, "/fp chat auditrestore puts a stopped run's scrollback back")
+eq(GC.db.routes.ChatProbe, true, "  and their Always for the probe's lines")
 fp("chat auditrestore")
 check(logHas("15 nothing to put back"), "  a second restore has nothing to do")
 
