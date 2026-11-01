@@ -756,6 +756,10 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
 - **`Tools/ChatProbe/`**: the throwaway measurement addon, a **ForeverProbe module**
   (`## Dependencies: ForeverProbe`; see `C:\Projects\WoW\References\Docs\PROBES.md` and
   `..\ForeverProbe\docs\GUIDE.md`). Commands are `/fp chat <item>`.
+  - Procedures: `/fp steps chat pearl` (the Pearl look) and `/fp steps chat audit` (#132's in-game
+    checks, `Audit.lua`, which loads after `ChatProbe.lua` and takes its helpers from
+    `NS.shared`; results go in `docs/FOREVER-PROBE.md` section 15). `tests/test_probe_audit.lua`
+    walks it end to end.
   - Its lines go to the ForeverProbe console (`/fp`) and to `ChatProbeDB.log`, **never to chat**.
     The exception is the chat test stimuli it writes there on purpose: item 4's link and item 8's
     routed line.

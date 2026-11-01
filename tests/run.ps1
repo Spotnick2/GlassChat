@@ -24,7 +24,7 @@ try {
         Write-Host "luac -p SKIPPED: no luac.exe beside $Lua - syntax was NOT checked" -ForegroundColor Yellow
     } else {
         $pluginFiles = Get-ChildItem -Path "Plugins" -Recurse -Filter "*.lua" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
-        & $luac -p @tocFiles @pluginFiles "Tools\ChatProbe\ChatProbe.lua"
+        & $luac -p @tocFiles @pluginFiles "Tools\ChatProbe\ChatProbe.lua" "Tools\ChatProbe\Audit.lua"
         if ($LASTEXITCODE -ne 0) { Write-Host "luac -p FAILED" -ForegroundColor Red; exit 1 }
         Remove-Item -LiteralPath "luac.out" -ErrorAction SilentlyContinue
         Write-Host "luac -p: ok ($($tocFiles.Count) addon files + probe)" -ForegroundColor DarkGray

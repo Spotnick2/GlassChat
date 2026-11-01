@@ -25,6 +25,7 @@
 --  11. sender name shapes; server ignore with surnames              /fp chat ignoretest
 --  12. ignore-list readiness at login; what the server ignore blocks (automatic)
 --  14. the Pearl look's in-game checks, as a procedure              /fp steps chat pearl
+--  15. the release audit's in-game checks (#132), in Audit.lua      /fp steps chat audit
 --
 -- Every client call that may be missing or throw goes through Probe:Try, so
 -- one refusal cannot stop the rest of the probe.
@@ -1097,6 +1098,11 @@ boot:SetScript("OnEvent", function(_, event, name)
     countAt("ADDON_LOADED")
     resumeIdentity()
 end)
+
+-- What Audit.lua (loaded next, the same addon) uses from this file.
+NS.shared = { Probe = Probe, say = say, show = show, stimulus = stimulus, glassChat = glassChat,
+    failureKeys = failureKeys, lightPills = lightPills, spamIcon = spamIcon, watch = watch, report = report, P = P,
+    maxWindows = maxWindows }
 
 -- The test seam lives on the addon namespace, not in _G.
 NS._test = { Probe = Probe, identity = identity, identityFilter = identityFilter, ignoreTest = ignoreTest,
