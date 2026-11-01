@@ -72,3 +72,24 @@ puts them back at the end (`/fp chat pearlrestore` after a stopped run).
 | Copy, focus mode, address box | All three open on Pearl. **The address box draws under the copy window** when both are open (owner): a strata issue, older than Pearl. |
 | Combat | No GlassChat failure, and no blocked or forbidden action. |
 | Failures | `GlassChat.failures` empty for the whole run. |
+
+## Release audit (section 15, #132; pending, from 2026-11-04)
+
+`/fp steps chat audit` (`Tools/ChatProbe/Audit.lua`), the release audit's in-game questions as one
+procedure. Desk findings rest on Blizzard's UI source for **1.60.1.70532**; each item below says
+what it decides. The procedure saves the owner's scrollback, timestamps, kept chat, spam icon and
+saved tab rule for ChatProbe (Always or Never) first, and puts them back at the end (`/fp chat auditrestore` after a stopped run). It logs counts,
+types and times, never what anyone said.
+
+| # | Question | Decides | Result |
+|---|---|---|---|
+| 15.9 | Blizzard's buffer at exactly its maximum, on the probe's own hidden frame: after a shrink to 128 while full, and after a removal that removes nothing, do five new lines land where an index reaches them? A control does nothing. | Whether F3b is real on the client (source says: a stranded line and a count of max + 1). GlassChat's guards avoid the state either way. | *Pending.* |
+| 15.1 | The `AddMessage` hook's cost per line: General filled to its maximum, then 200 plain and 200 stamped lines timed; one buffer walk, on General and on the combat log; `debugstack` attribution. At the owner's scrollback and at 5000. Routing is off for the run. | PR 3: the single-walk fast path and the `debugstack` shortcut are built only if this shows a cost. | *Pending.* |
+| 15.3 | The `!` and the spam icon, lit, while Blizzard shows a toast in the same stack. | Whether our side buttons in `ChatAlertFrame` lay out cleanly and draw no blocked action. | *Pending.* |
+| 15.5 | `GetGuildRosterInfo(1)`'s returns, by type only. | Whether `Levels.lua`'s Retail order (level 4th, GUID 17th) holds here. | *Pending.* |
+| 15.10 | History browsing in combat with an unfinished whisper: `InChatMessagingLockdown()` while browsing, the destination seen, the draft's destination after, a recalled slash command sent. | Whether the attribute writes of the draft restore (`History.lua:77-85`) draw a blocked action or change the destination. | *Pending.* |
+| 15.2 | Chat payload secrecy inside a dungeon, in and out of combat (item 5's watcher), and the lowest frame rate in the fight. | Item 5's open half. | *Pending.* |
+| 15.4 | After a real logout: the Battle.net friend count at `PLAYER_LOGIN` and 5 s later; does the kept Battle.net name open a whisper? | Keep's two unmeasured claims (CLAUDE.md, Keep.lua). | *Pending.* |
+| 15.6 | A tab of the probe's own, after a logout on the same character: does it come back, and does it catch the probe's line? | Item 8's open half, and `tabsCatch`. | *Pending.* |
+| 15.7 | Optional, two accounts: settings and layout sent from the other account, received, applied by the offer's link. | The layout ranges (#132 F3) accept what the client really saves. | *Pending.* |
+| 15.8 | `/gchat failures` over the session: counts, and any `blocked` or `forbidden` key. | #132 F2's record, in game. | *Pending.* |
