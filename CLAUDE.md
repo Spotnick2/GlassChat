@@ -833,8 +833,9 @@ not a newer Lua that may be first on `PATH`.
 
 ```powershell
 & 'C:\Program Files (x86)\Lua\5.1\luac.exe' -p File.lua             # syntax check; silent on success
-pwsh tests\run.ps1                                                   # luac -p on our files + probe + every tests\test_*.lua (needs ..\LibGlass, ..\LibAccountSync and ..\ForeverProbe, or their env vars)
-& 'C:\Program Files (x86)\Lua\5.1\lua.exe' tests\test_boot.lua      # one test, run from the repo root
+pwsh tests\run.ps1                                                   # luac -p on our files + probe + every tests\test_*.lua, through WowTestKit at its pin (needs ..\LibGlass, ..\LibAccountSync and ..\ForeverProbe, or their env vars)
+pwsh tests\run.ps1 -KitDev                                           # the same against the ..\WowTestKit working copy
+& 'C:\Program Files (x86)\Lua\5.1\lua.exe' tests\test_boot.lua      # one test, run from the repo root (after run.ps1 has cached the kit)
 pwsh Tools\deploy.ps1 -Probe                                         # copy the addon (+ ForeverProbe, then ChatProbe) into AddOns
 ```
 
@@ -896,14 +897,19 @@ pwsh Tools\deploy.ps1 -Probe                                         # copy the 
 
 ## Testing
 
-The `tests\` harness follows the siblings': plain Lua 5.1 scripts with no dependencies, a
-`tests\wow_stubs.lua` API mock driven through an exported `WoW` table, `tests\harness.lua`
-(`check` / `eq` / `loadAddon` / `newChat` / `chatHas`), and `tests\run.ps1` to run them all. The
-stub does three more things:
-- It validates event names against the API dump, or against `tests\events-70450.txt` when the
-  dump is absent (CI). `test_toc` fails if the two drift.
-- It models `FontString:SetFormattedText` taking secrets without formatting them in Lua.
-- It records every widget method called. `test_methods.lua` checks each one exists in the dump.
+The `tests\` harness is built on **WowTestKit** (`..\WowTestKit`, Spotnick2/WowTestKit; its
+README is the reference): plain Lua 5.1 scripts with no dependencies. `tests\kit.pin` names the
+kit commit and the build to test against (`70450`, with `MEASURED_ON_BUILD`: a newer build is a
+re-measure first). The kit's core gives `check` / `eq` / `done` (with the stray-`|` check), strict
+globals, secrets, widgets that record every method called, timers and the `WoW` driving table.
+`tests\wow_stubs.lua` loads it, adds the chat's client APIs and replaces a core method where
+GlassChat's tests need their own; `tests\harness.lua` keeps `loadAddon` / `newChat` / `chatHas`.
+Never edit the kit from here: a need goes on a WowTestKit issue, worked around in the stub
+meanwhile (`-- WowTestKit: ...`). The kit:
+- validates event names against the pinned build's list, locally and on CI alike;
+- models `FontString:SetFormattedText` taking secrets without formatting them in Lua;
+- records every widget method called. `test_methods.lua` exercises the addon, then
+  `Kit.checkMethods` checks each `Type:Method` pair exists in the build (it fails, never skips).
 
 `GlassChat.failures` collects the errors that handlers swallow, so a secrets test should assert
 it stays empty. Before trusting a new test, **mutation-test it**: break the behaviour and confirm
@@ -918,8 +924,8 @@ it goes red.
   Lua 5.1 value can make a truth test or `==` throw**, so the stub can't catch `if secret then`
   or `secret == x`. Only in-game testing and review catch those.
 - **Strict globals don't cover methods.** A catch-all `__index` swallows calls to widget methods
-  this client lacks. Run the handler, assert what it produced, and check the method against the
-  dump's widget-method section.
+  this client lacks. Run the handler, assert what it produced, and make `test_methods.lua`'s
+  exercise reach the new call.
 - Offline tests can't cover taint, real secret behaviour, the clipboard or rendering. Those need
   an in-game checklist and `Tools\ChatProbe`.
 
@@ -929,7 +935,7 @@ it goes red.
   the owner). Never commit to `main`.
   Commit or push only when asked. Before committing, `luac -p` must be clean and the tests green.
   **After pushing, check the PR's `package-check` run** (`gh run list`, then `gh run view`). CI
-  has no API dump, so run a new test once with `GLASSCHAT_API_DUMP` pointing at a missing file.
+  fetches WowTestKit at its pin, and has no ForeverProbe (`FOREVERPROBE_OPTIONAL=1`).
 - Review policy: reviews go through the shared `codex-consult` skill (below), launched by the owner.
 - **The owner merges and closes PRs, and launches reviews.** Claude opens the issue, branch and
   PR, runs the tests, and stops there: never `gh pr merge` or close a PR, and never start a Codex
