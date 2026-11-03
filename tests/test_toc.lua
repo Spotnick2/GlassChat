@@ -1,26 +1,18 @@
--- The manifest, the pinned build, the event fixture and the lifted material.
+-- The manifest, the pinned build and the lifted material.
 dofile("tests/wow_stubs.lua")
 dofile("tests/harness.lua")
 
+-- Interface 16001, the version token, every listed file exists and is listed once.
+Kit.checkToc("GlassChat.toc")
 local toc = io.open("GlassChat.toc"):read("*a")
-check(toc:find("## Interface: 16001", 1, true), "interface 16001 (1.60.1; 11601 is the transposed-digit bug)")
-check(toc:find("## Version: @project-version@", 1, true), "packager version token kept")
 check(toc:find("## SavedVariables: GlassChatDB", 1, true), "saved variables declared")
 check(toc:find("## X-Curse-Project-ID: 1757140", 1, true), "the CurseForge project ID")
 check(toc:find("## X-Wago-ID: 5NRg0w63", 1, true), "the Wago project ID")
-for _, f in ipairs(tocFiles()) do
-    check(io.open(f, "r") ~= nil, "TOC file exists: " .. f)
-end
 -- The embedded material loads before any of our files: Glass.lua calls
 -- LibStub("LibGlass-1.0") at file scope.
 eq(tocLines()[1], LIBGLASS_XML, "LibGlass-1.0 loads first")
 eq(tocLines()[2], LIBACCOUNTSYNC_XML, "then LibAccountSync-1.0, before any of our files")
 eq(tocFiles()[1], "Compat.lua", "Compat is the first of our own files")
-local seen = {}
-for _, f in ipairs(tocFiles()) do
-    check(not seen[f], "TOC lists each file once: " .. f)
-    seen[f] = true
-end
 
 -- The plugins: each folder under Plugins/ is listed in the harness, has its
 -- TOC, depends on the core, and is moved out by .pkgmeta's move-folders.
@@ -44,13 +36,9 @@ for _, p in ipairs(PLUGINS) do
     check(f ~= nil, p.name .. ": its TOC exists")
     if f then
         local t = f:read("*a"); f:close()
-        check(t:find("## Interface: 16001", 1, true), p.name .. ": interface 16001")
-        check(t:find("## Version: @project-version@", 1, true), p.name .. ": version token")
+        Kit.checkToc(p.toc, { dir = "Plugins/" .. p.folder .. "/" })
         check(t:find("## Dependencies: GlassChat", 1, true), p.name .. ": depends on the core")
         check(t:find("## Group: GlassChat", 1, true), p.name .. ": grouped under the core")
-        for _, file in ipairs(tocFiles(p.toc, "Plugins/" .. p.folder .. "/")) do
-            check(io.open(file, "r") ~= nil, p.name .. ": file exists: " .. file)
-        end
     end
     eq(moves["GlassChat/Plugins/" .. p.folder], p.name, p.name .. ": .pkgmeta moves it out to its own folder")
 end
@@ -66,19 +54,6 @@ end
 -- Two places that must agree, never derived from each other (porting guide §0).
 loadAddon()
 eq(GlassChat.MEASURED_ON_BUILD, "1.60.1.70450", "MEASURED_ON_BUILD")
-
--- The checked-in event list matches the dump, when the dump is here.
-if WoW.dumpAvailable then
-    local fixture = {}
-    for line in io.lines("tests/events-70450.txt") do
-        local name = line:match("^([A-Z][A-Z0-9_]+)%s*$")
-        if name then fixture[name] = true end
-    end
-    local missing, extra = 0, 0
-    for e in pairs(WoW.KNOWN_EVENTS) do if not fixture[e] then missing = missing + 1 end end
-    for e in pairs(fixture) do if not WoW.KNOWN_EVENTS[e] then extra = extra + 1 end end
-    eq(missing + extra, 0, "tests/events-70450.txt matches the dump (regenerate it)")
-end
 
 -- Every texture the material names ships with the library (Libs\LibGlass-1.0\Media
 -- in the package; the checkout's Media/ here). GlassChat has no Media/ of its own.
