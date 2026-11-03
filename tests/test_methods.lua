@@ -21,9 +21,5 @@ for _, page in ipairs({ O._test.main, O._test.about, unpack(O._test.pages) }) do
 -- A click on a web address opens its box.
 WoW.callbacks.SetItemRef(nil, "addon:GlassChat:url:https://wowhead.com")
 
--- WowTestKit: the dump lists the Alpha animation's own methods only as
--- documented functions of SimpleAnimAlphaAPI, which the kit's data leaves out,
--- so they are allowed here with where the dump has them.
-local ALPHA = "documented in SimpleAnimAlphaAPI (forever-api-1.60.1.70450.md:5944, 6248)"
-Kit.checkMethods({ allow = { ["Alpha:SetFromAlpha"] = ALPHA, ["Alpha:SetToAlpha"] = ALPHA } })
+Kit.checkMethods()
 done("test_methods")
