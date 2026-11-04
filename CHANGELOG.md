@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v1.0.0-beta1
+
+The first beta. It has everything since v0.1.0-beta: what v0.2.0-alpha1 tried out, and the fixes from a review since.
 
 - **Fixes from a review before release:**
   - The combat log is no longer touched by Glass Chat's timestamps: it has its own (its window's
@@ -13,8 +15,6 @@
     of size 0, a window off the screen) is refused whole, as other bad copies are.
   - Settings and lists from your other accounts are only taken on their own channel.
   - Saved alert words, kept chat times and the spam tuning lines are checked when they load.
-
-## v0.2.0-alpha1
 
 - **An options page:** Esc > Options > AddOns > Glass Chat, or `/gchat options`. Everything you
   could only set with `/gchat` is there:
