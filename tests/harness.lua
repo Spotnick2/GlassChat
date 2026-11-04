@@ -1,47 +1,12 @@
--- harness.lua: assertions and the addon loader. dofile it after wow_stubs.lua.
-
-local passed, failed = 0, 0
-
-function check(cond, msg)
-    if cond then passed = passed + 1 else
-        failed = failed + 1
-        io.write("  FAIL: " .. tostring(msg) .. "\n")
-    end
-end
-
-function eq(actual, expected, msg)
-    check(actual == expected, string.format("%s: expected %s, got %s", msg, tostring(expected), tostring(actual)))
-end
-
-function done(name)
-    -- A stray "|" in any line printed during the test (wow_stubs' print).
-    local strays = WoW and WoW.strays or {}
-    eq(#strays, 0, "no stray | in any printed line" .. (strays[1] and (": " .. strays[1]) or ""))
-    io.write(string.format("%s: %d passed, %d failed\n", name, passed, failed))
-    os.exit(failed == 0 and 0 or 1)
-end
+-- harness.lua: the addon loader and GlassChat's test helpers. dofile it after
+-- wow_stubs.lua. check / eq / done are WowTestKit's (tests/kit.lua).
 
 -- Every file line of the core TOC, in load order (our .lua files and the
 -- embedded library's .xml).
-function tocLines()
-    local lines = {}
-    for line in io.lines("GlassChat.toc") do
-        line = line:gsub("\r", "")
-        if line ~= "" and not line:match("^#") then lines[#lines + 1] = line end
-    end
-    return lines
-end
+function tocLines() return Kit.tocLines("GlassChat.toc") end
 
 -- Lua files listed in a TOC, in load order (dir: where the TOC lives).
-function tocFiles(toc, dir)
-    toc, dir = toc or "GlassChat.toc", dir or ""
-    local files = {}
-    for line in io.lines(dir .. toc) do
-        line = line:gsub("\r", "")
-        if line:match("%.lua$") and not line:match("^#") then files[#files + 1] = dir .. line end
-    end
-    return files
-end
+function tocFiles(toc, dir) return Kit.tocFiles(toc or "GlassChat.toc", dir) end
 
 -- The plugins, by folder and TOC (a list, not a directory listing: CI runs on
 -- Linux). test_toc checks every Plugins/<Name> is listed here.

@@ -70,7 +70,14 @@ jobs:
           echo "checking $count files"
           find . -name '*.lua' -not -path './.git/*' -not -path './Libs/*' -print0 | xargs -0 luac5.1 -p
 
-      # Without the API dump (local only), test_methods skips the method check.
+      # The shared test kit at the commit tests/kit.pin names, checked to BE
+      # that commit, outside the tree (the syntax check above never sees it).
+      # Its build data replaces the API dump, so test_methods runs here too.
+      - name: Fetch WowTestKit at its pin
+        run: |
+          bash tests/fetch_kit.sh "$RUNNER_TEMP/WowTestKit"
+          echo "WOWTESTKIT=$RUNNER_TEMP/WowTestKit" >> "$GITHUB_ENV"
+
       # ChatProbe is a ForeverProbe module, and ForeverProbe is private and
       # local (..\ForeverProbe): test_probe skips here and runs locally.
       - name: Unit tests
