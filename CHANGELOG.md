@@ -14,6 +14,8 @@
   - Settings and lists from your other accounts are only taken on their own channel.
   - Saved alert words, kept chat times and the spam tuning lines are checked when they load.
 
+## v0.2.0-alpha1
+
 - **An options page:** Esc > Options > AddOns > Glass Chat, or `/gchat options`. Everything you
   could only set with `/gchat` is there:
   - the chat itself;
