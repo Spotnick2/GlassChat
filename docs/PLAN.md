@@ -26,7 +26,8 @@ Research notes on `C:\Projects\WoW\References\Addons\ChatCommunication\Prat\Prat
   capture the formatted line, then calls the real `AddMessage`. On top of that it RawHooks
   `ItemRefTooltip:SetHyperlink`, `ChatEdit_HandleChatType` and `FCF_Close`, and reads the private
   `historyBuffer` / `visibleLines`. On a modern client, **every one of those taints chat**.
-- **Prat already runs on Forever.** `Prat-3.0_Camelot.toc` is `## Interface: 16001`, and the code
+- **Prat already runs on Forever.** `Prat-3.0.toc` (3.9.117 merged its per-flavour TOCs into one) lists 16001 among its
+  interfaces, and the code
   switches on `Prat.IsForever` at runtime. "Trim Prat" could mean running Prat with most modules
   off. We write our own because we want the glass look, no Ace3 stack, and no taint-prone
   pipeline replacement.

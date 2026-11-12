@@ -4,7 +4,7 @@ Status: **revised after Codex's adversarial review** (2026-10-03). It found no P
 all taken; see "Review" at the end. Nothing is built yet.
 
 Sources:
-- `C:\Projects\WoW\References\Addons\ChatCommunication\BadBoy` and `GlobalIgnoreList_12.0.0` (GIL);
+- `C:\Projects\WoW\References\Addons\ChatCommunication\BadBoy\BadBoy` (v12.1.0) and `C:\Projects\WoW\References\Addons\ChatCommunication\GlobalIgnoreList\GlobalIgnoreList` (GIL, 12.1.7.4);
 - AltStable's and GlassPanel's plugin patterns;
 - Forever's FrameXML and the 70205 API dump.
 
@@ -37,7 +37,7 @@ Sources:
   - it toggles the `chatBubbles` and `spamFilter` CVars;
   - ~300 unordered `gsub` passes per line;
   - dated lists;
-  - reporting is disabled in 12.0.3, and `C_ReportSystem.SendReport` is `HasRestrictions` here.
+  - reporting is disabled (read on BadBoy v12.0.3), and `C_ReportSystem.SendReport` is `HasRestrictions` here.
 - **GIL's good ideas:**
   - an account-wide list enforced by **its own chat filter**, so it isn't limited by the server
     cap;

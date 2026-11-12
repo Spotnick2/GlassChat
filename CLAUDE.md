@@ -511,7 +511,7 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     player stays silent.
     - **Why:** Blizzard plays the tell sound only after 300 s without a whisper in that window,
       and every whisper restarts the timer (ChatFrameOverrides.lua:684-687). Prat played it every
-      time by accident: its proxy frame drops `tellTimer` (Prat addon.lua:532-556). The owner was
+      time by accident: its proxy frame drops `tellTimer` (Prat `Prat-3.0\addon\addon.lua`: `fieldBlacklist` 541-552, `CreateProxy` 555, `RestoreProxy` 568). The owner was
       used to that.
     - **On the first whisper after 300 quiet seconds, Blizzard's plays too**, at the same moment.
       Its per-window timer can't be mirrored: `FCFManager_ShouldSuppressMessage` runs after the
@@ -808,7 +808,7 @@ exists here.
 ## Reference addon
 
 **`C:\Projects\WoW\References\Addons\ChatCommunication\Prat\Prat-3.0` is the design reference** for *what* a chat addon does. It is
-Forever-aware (`Prat-3.0_Camelot.toc`, `Prat.IsForever`), but its *mechanism* (above) is the one
+Forever-aware (`Prat-3.0.toc` lists 16001 among its interfaces, and there is `Prat.IsForever`), but its *mechanism* (above) is the one
 we don't use. Worth reading:
 - `modules\UrlCopy.lua`: URL patterns and the TLD list;
 - `modules\CopyChat.lua`: the `GetMessageInfo` loop, secret lines → `<SECRET>`, and
