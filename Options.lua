@@ -337,7 +337,8 @@ end)
 -- Alerts
 --------------------------------------------------------------------------------
 
-Options.NAMES = { { "first", "First name" }, { "full", "First Surname" }, { "off", "Off" } }
+Options.NAMES = { { "either", "Either name" }, { "first", "First name" }, { "full", "First Surname" },
+    { "off", "Off" } }
 Options.SOUNDS = { { "lfg", "LFG" }, { "raid", "Raid warning" }, { "ready", "Ready check" }, { "tell", "Whisper" },
     { "off", "Off" } }
 

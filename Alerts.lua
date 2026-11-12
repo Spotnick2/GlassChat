@@ -32,7 +32,7 @@ Alerts.WHISPERS = { "CHAT_MSG_WHISPER", "CHAT_MSG_BN_WHISPER" }   -- incoming on
 -- no SOUNDKIT name for it), the default: owner's pick after hearing all four.
 Alerts.SOUNDS = { raid = 8959, ready = 8960, tell = 3081, lfg = 1210 }   -- RAID_WARNING, READY_CHECK, TELL_MESSAGE
 Alerts.SOUND_NAMES = { "raid", "ready", "tell", "lfg", "off" }
-Alerts.NAME_MODES = { "first", "full", "off" }
+Alerts.NAME_MODES = { "either", "first", "full", "off" }
 Alerts.EVERY = 5                         -- seconds between two alerts; a match inside is dropped
 Alerts.MAX_WORDS, Alerts.MAX_WORD = 20, 40   -- words kept, bytes per word
 
@@ -44,15 +44,23 @@ local function say(msg) API.Print(msg) end
 --------------------------------------------------------------------------------
 
 -- Your names, lower-cased, read at login and never saved: each character
--- watches its own. With no surname, first and full are the same.
+-- watches its own. With no surname, every mode but off is the first name.
 local me
 function Alerts.ReadNames()
     local full = API.PlayerFullName()
     if not full then me = nil; return end
-    full = full:lower():gsub("%s+", " ")
+    full = full:lower():gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")
     local realm = GetNormalizedRealmName and GetNormalizedRealmName()
     if not plain(realm) or type(realm) ~= "string" then realm = nil end
-    me = { full = full, first = full:match("^(%S+)"), realm = realm and realm:lower() }
+    me = { full = full, first = full:match("^(%S+)"), last = full:match(" (%S+)$"), realm = realm and realm:lower() }
+end
+
+-- The names a mode watches, each matched alone at word edges.
+local function namesFor(mode)
+    if mode == "first" then return { me.first } end
+    if mode == "full" then return { me.full } end
+    if mode == "either" then return { me.first, me.last } end   -- me.last is nil without a surname
+    return {}
 end
 
 -- Is a player link's name (its first field, "First Surname" as Blizzard
@@ -132,9 +140,14 @@ end
 -- Does this message mention you or one of your words? Plain strings only.
 function Alerts.Matches(msg)
     if not me then Alerts.ReadNames() end
-    local mode = GC.db.alertName
-    if me and (mode == "first" or mode == "full") then
-        if Alerts.HasPhrase(visible(msg, true), mode == "first" and me.first or me.full) then return true end
+    if me then
+        local names = namesFor(GC.db.alertName)
+        if #names > 0 then
+            local text = visible(msg, true)
+            for _, n in ipairs(names) do
+                if Alerts.HasPhrase(text, n) then return true end
+            end
+        end
     end
     local list = words()
     if #list == 0 then return false end
@@ -308,7 +321,7 @@ function Alerts.Command(arg)
         local list = words()
         say(#list > 0 and ("your words: " .. table.concat(list, ", ")) or "no words of your own yet")
         say("/gchat alert on/off - a sound when public, guild or group chat mentions you (not whispers)")
-        say("/gchat alert name first/full/off - your first name alone, or First Surname")
+        say("/gchat alert name either/first/full/off - your first name or surname, your first name alone, or First Surname")
         say("/gchat alert add/remove <words> - your own words, on all your characters (not sent by settings send)")
         say("/gchat alert sound raid/ready/tell/lfg/off - which sound, plays a sample (lfg: the LFG notification sound)")
         say("/gchat alert flash on/off - blink the game in the taskbar")

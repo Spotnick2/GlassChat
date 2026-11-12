@@ -487,8 +487,8 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     (added at the plugin's `ADDON_LOADED`). A hiding filter stops the loop, so hidden spam never
     alerts.
   - **Your names**, read at login and never saved (`API.PlayerFullName`):
-    - `db.alertName` is `first` (default: the first name as a whole word), `full` ("First
-      Surname") or `off`.
+    - `db.alertName` is `either` (default, owner: the first name or the surname, each alone as a
+      whole word), `first` (the first name only), `full` ("First Surname") or `off`.
     - First names aren't unique, so **a player link naming someone else becomes a space** before
       the name is matched. It's you only for your full name, alone or with `-` and your own realm
       (`GetNormalizedRealmName`).
