@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.0-beta2
 
 - **Alerts on your surname too:** chat that mentions your first name or your surname now alerts,
   each on its own. `/gchat alert name first` goes back to the first name only (handy if many
