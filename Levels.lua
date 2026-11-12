@@ -1,5 +1,5 @@
 -- Levels.lua (#71): a player's level before their name in chat, "[60:Name]",
--- as Prat's PlayerNames module does (modules\PlayerNames.lua:718).
+-- as Prat's PlayerNames module does (modules\PlayerNames.lua:719).
 --
 -- A chat event doesn't carry the sender's level, so we keep a session cache,
 -- keyed by GUID, filled from every place the client gives one: you, your
@@ -122,7 +122,7 @@ function Levels.Decorate(name, level)
 end
 
 -- Emotes show the name unbracketed; a Battle.net line names the account, not
--- a character (Prat treats it apart, PlayerNames.lua:741-749).
+-- a character (Prat treats it apart, PlayerNames.lua:745-758).
 local function skipped(event)
     return event == "CHAT_MSG_EMOTE" or event == "CHAT_MSG_TEXT_EMOTE"
         or event:sub(1, 12) == "CHAT_MSG_BN_"
