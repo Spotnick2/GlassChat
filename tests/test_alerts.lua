@@ -1,4 +1,4 @@
--- #83 alerts: your name (first, or First Surname) and your words in public
+-- #83 alerts: your name (either name, first, or First Surname) and your words in public
 -- and group chat, a sound and a taskbar flash, at most once per line and per
 -- EVERY seconds; the log behind the button beside the chat.
 dofile("tests/wow_stubs.lua")
@@ -39,12 +39,16 @@ local SAY, CH, GUILD = "CHAT_MSG_SAY", "CHAT_MSG_CHANNEL", "CHAT_MSG_GUILD"
 local function sounds() return #WoW.sounds end
 local function fresh() Alerts._test.reset(); WoW.now = WoW.now + 60 end
 
--- The first name, whole word, any case.
+-- The default is either name: the first name or the surname, each alone.
+eq(GC.db.alertName, "either", "either name by default (owner)")
 for _, t in ipairs({ "karuzo, can you help?", "@Karuzo hi", "KARUZO!", "hey Karuzo Elegia", "is that karuzo's?",
     "“Karuzo”", "Karuzo—please", "ok…karuzo" }) do
     eq(Alerts.Matches(t), true, "your first name: " .. t)
 end
-for _, t in ipairs({ "Karuzos are cool", "akaruzo", "karuzo2", "Karuzoé", "nothing here" }) do
+for _, t in ipairs({ "elegia, can you help?", "ELEGIA!", "ask the elegia family", "is that elegia's?" }) do
+    eq(Alerts.Matches(t), true, "your surname: " .. t)
+end
+for _, t in ipairs({ "Karuzos are cool", "akaruzo", "karuzo2", "Karuzoé", "elegias", "xelegia", "nothing here" }) do
     eq(Alerts.Matches(t), false, "not your name: " .. t)
 end
 -- Player links: another "Karuzo" isn't you; a link to you is.
@@ -55,6 +59,12 @@ eq(Alerts.Matches("ask " .. plink("Karuzo Elegia-Doomhowl") .. " now"), true, "w
 eq(Alerts.Matches("ask " .. plink("Karuzo Elegia-Otherrealm") .. " now"), false, "your name on another realm isn't you")
 eq(Alerts.Matches("kar" .. plink("Bob Smith") .. "uzo"), false, "a dropped link leaves a space: nothing joins")
 eq(Alerts.Matches("||Hplayer:Bob Smith|h[karuzo]|h"), true, "an escaped pipe isn't a link: the text is read as typed")
+eq(Alerts.Matches("ask " .. plink("Bob Elegia") .. " about it"), false, "another Elegia's link isn't you")
+
+-- First name mode: the surname alone no longer counts.
+GC.Settings.SetAlertName("first")
+eq(Alerts.Matches("elegia, help"), false, "first: the surname alone isn't enough")
+eq(Alerts.Matches("karuzo, help"), true, "first: the first name still is")
 
 -- Full name mode.
 GC.Settings.SetAlertName("full")
@@ -64,7 +74,7 @@ GC.Settings.SetAlertName("off")
 eq(Alerts.Matches("karuzo elegia"), false, "off: no name")
 GC.Settings.SetAlertName("bogus")
 eq(GC.db.alertName, "off", "a bad choice is refused by the setter")
-GC.Settings.SetAlertName("first")
+GC.Settings.SetAlertName("either")
 
 -- Your words.
 SlashCmdList.GLASSCHAT("alert add   Onyxia   Hide ")

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Alerts on your surname too:** chat that mentions your first name or your surname now alerts,
+  each on its own. `/gchat alert name first` goes back to the first name only (handy if many
+  players share your surname), and `full` still waits for both together. The choice is also on
+  the options page's Alerts tab.
+
 ## v1.0.0-beta1
 
 The first beta. It has everything since v0.1.0-beta: what v0.2.0-alpha1 tried out, and the fixes from a review since.
