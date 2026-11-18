@@ -13,7 +13,7 @@
 
 GlassChat = GlassChat or {}
 -- r11 supplies the shared Pearl recipe. Guard the preset for a dev install
--- still loading an older embedded copy; the packaged dependency is r11.
+-- still loading an older embedded copy; the packaged dependency is r13.
 local lib, minor = LibStub:GetLibrary("LibGlass-1.0")
 GlassChat.Glass = lib:New(minor >= 11 and { preset = "pearl" } or nil)
 -- What was built, for Glass UI's page (Suite.lua's report).

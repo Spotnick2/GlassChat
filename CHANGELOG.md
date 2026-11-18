@@ -6,6 +6,10 @@
   each on its own. `/gchat alert name first` goes back to the first name only (handy if many
   players share your surname), and `full` still waits for both together. The choice is also on
   the options page's Alerts tab.
+- **Russian, Korean and Chinese text in Glass Chat's own windows:** the window titles, the status
+  lines of the copy and focus windows (a search you typed, for one) and the counts beside the
+  chat now use your game language's font, instead of empty boxes. The glass library is updated
+  to its newest version for this.
 
 ## v1.0.0-beta1
 
