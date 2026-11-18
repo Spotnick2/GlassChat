@@ -1,17 +1,20 @@
 # Changelog
 
-## v1.0.0-beta2
+## v1.0.0-beta3
 
-- **Alerts on your surname too:** chat that mentions your first name or your surname now alerts,
-  each on its own. `/gchat alert name first` goes back to the first name only (handy if many
-  players share your surname), and `full` still waits for both together. The choice is also on
-  the options page's Alerts tab.
 - **Russian, Korean and Chinese text in Glass Chat's own windows:** the window titles, the status
   lines of the copy and focus windows (a search you typed, for one) and the counts beside the
   chat now use your game language's font, instead of empty boxes. The glass library is updated
   to its newest version for this.
 - The account-sync library is updated to its newest version too, the one AltStable already
   ships: every copy from your other accounts is now checked against its signature.
+
+## v1.0.0-beta2
+
+- **Alerts on your surname too:** chat that mentions your first name or your surname now alerts,
+  each on its own. `/gchat alert name first` goes back to the first name only (handy if many
+  players share your surname), and `full` still waits for both together. The choice is also on
+  the options page's Alerts tab.
 
 ## v1.0.0-beta1
 
