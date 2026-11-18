@@ -36,7 +36,7 @@ Research notes on `C:\Projects\WoW\References\Addons\ChatCommunication\Prat\Prat
 
   | Feature | Prat's way | The stock hook we can use instead |
   |---|---|---|
-  | Class colours | its own copy of `GetDecoratedSenderName` + a name cache | Built in: CVar `chatClassColorOverride` / `ChatTypeInfo[t].colorNameByClass` (`ChatFrameUtil.ShouldColorChatByClass`, ChatFrameUtil.lua:880). Fallback: `ChatFrameUtil.AddSenderNameFilter`. |
+  | Class colours | its own copy of `GetDecoratedSenderName` + a name cache | Built in: CVar `chatClassColorOverride` / `ChatTypeInfo[t].colorNameByClass` (`ChatFrameUtil.ShouldColorChatByClass`, ChatFrameUtil.lua:895). Fallback: `ChatFrameUtil.AddSenderNameFilter`. |
   | Clickable URLs | pattern swap to `|Hurl:` + RawHook `SetHyperlink` | `ChatFrameUtil.AddMessageEventFilter` to wrap URLs in `|Haddon:GlassChat:…|h`. The click arrives on `EventRegistry "SetItemRef"` (ItemRefHandlersShared.lua:279-282) with no hook. |
   | Copy a link | n/a (URLs only) | `EventRegistry "ChatFrame.OnHyperlinkClick"` (ChatFrame.lua:19-33) sees every link click; a modifier-click copies its text. |
   | Copy any text | a dialog of `GetMessageInfo` lines | `ScrollingMessageFrame:SetTextCopyable(true)`: native drag-select, straight to `CopyToClipboard` (ScrollingMessageFrame.lua:383-420). Not on by default for chat frames. |

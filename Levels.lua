@@ -8,7 +8,7 @@
 -- they're throttled, and their answers carry no GUID.
 --
 -- The display goes through ChatFrameUtil.AddSenderNameFilter: the filters run
--- last in GetDecoratedSenderName (ChatFrameUtil.lua:1112) with
+-- last in GetDecoratedSenderName (ChatFrameUtil.lua:1127) with
 -- (event, decoratedName, arg1..arg14), arg12 being the sender's GUID. The
 -- name we return goes inside the player link's brackets
 -- (ChatFrameOverrides.lua:576-585); the link itself (arg2) is never

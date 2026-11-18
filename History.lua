@@ -7,7 +7,7 @@
 -- (Editbox.lua:291-323). We do the same with GlassChatCharDB.sent.
 --
 -- Lines are recorded from a hooksecurefunc on each edit box's AddHistoryLine
--- (Blizzard calls it on send, ChatFrameEditBox.lua:248-276). They are also
+-- (Blizzard calls it on send, ChatFrameEditBox.lua:252-280). They are also
 -- replayed into the native history, so Alt+Up/Down (arrows option off)
 -- knows them too.
 
@@ -60,7 +60,7 @@ local function suggesting(edit)
 end
 
 -- The draft is its text AND its destination. SetText re-parses the box
--- (OnTextChanged -> ParseText, ChatFrameEditBox.lua:473-474), so recalling
+-- (OnTextChanged -> ParseText, ChatFrameEditBox.lua:482-483), so recalling
 -- "/s ..." switches it to SAY; restoring only the text would then send an
 -- unfinished whisper publicly (Codex review of #4). The destination lives in
 -- these attributes (ChatFrameEditBox.lua:14-50).
