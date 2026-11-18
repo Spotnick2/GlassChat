@@ -973,7 +973,14 @@ it goes red.
 - **Every tag needs a `CHANGELOG.md` entry committed first**, written for players, headed exactly
   `## vX.Y.Z` (the tag name; rename `## Unreleased`). Tags are `v`-prefixed. The tag name sets
   the channel: `alpha` / `beta` (any case) → pre-release on GitHub, alpha / beta on CurseForge;
-  anything else → Release.
+  anything else → Release. **The top `## vX.Y.Z` heading may already be released**: check
+  `git tag` before adding a line under it (#149 and #151 wrote under v1.0.0-beta2, out since a
+  week; #152 moved them).
+- **A release tag (`vX.Y.Z`, not an alpha or beta) updates both READMEs** in its prep PR
+  (RELEASING.md §3, #140): `README.md` and the untracked `README.curseforge.md` describe what
+  this release does (features, commands, options, limits, screenshots) and nothing it no longer
+  does. Say in the PR whether `README.curseforge.md` changed: the owner pastes it into CurseForge
+  and Wago's Description tab after the release.
 - `.pkgmeta` ignores `.github`, `.claude`, `docs`, `tests`, `Tools`, `CLAUDE.md`, `README.md` and
   `CHANGELOG.md`.
 
