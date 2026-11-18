@@ -65,7 +65,6 @@ function Methods.CreateTexture(w, name, layer, template, sublevel)
     table.insert(w._created, t)
     return t
 end
-function Methods.CreateFontString(w) return newWidget("FontString", w) end
 -- Replaces the core's, which also clears _atlas.
 function Methods.SetTexture(t, file) t._file = file; t._color = nil; return true end
 function Methods.SetTextureSliceMargins(t, l, tp, r, b) t._slice = { l, tp, r, b } end

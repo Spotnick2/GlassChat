@@ -12,10 +12,10 @@ local P = GC.Skin._test.panels
 local f = ChatFrame1
 local p, e = P[f], P[ChatFrame1EditBox]
 local function reading() return p.g.tint._color[4] end
--- Time passes in rendered frames of 0.1 s.
+-- Time passes in rendered frames of 0.1 s (WoW.tick moves the clock, as the
+-- client's frame does: kit API 2).
 local function run(secs)
     for _ = 1, math.floor(secs * 10 + 0.5) do
-        WoW.now = WoW.now + 0.1
         WoW.tick(0.1)
     end
 end
