@@ -43,7 +43,7 @@ eq(GC.db.body, "class", "  and changes nothing")
 
 -- Idle fades Glass UI's fills to idleAlpha of themselves.
 GC.Settings.SetBody("clear")
-for _ = 1, 1500 do WoW.now = WoW.now + 0.1; WoW.tick(0.1) end
+for _ = 1, 1500 do WoW.tick(0.1) end   -- 150 s: WoW.tick moves the clock (kit API 2)
 check(near(p.body.backing._color[4], B.backing * GC.db.idleAlpha), "idle: the backing at idleAlpha of clear's")
 
 GC.Settings.SetBody("chat")
