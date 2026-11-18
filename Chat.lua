@@ -108,7 +108,7 @@ end)
 
 -- Timestamps (owner: "off by default, but I want it", "between [ ] like
 -- Prat"). Blizzard stamps chat lines itself from the showTimestamps setting
--- (ChatFrameUtil.lua:845, ChatFrameOverrides.lua:424, 661), a plain
+-- (ChatFrameUtil.lua:860, ChatFrameOverrides.lua:424, 661), a plain
 -- BetterDate(format, time()) prefix; GlassChat sets it to STAMP_FORMAT.
 -- Lines with no chat event (addon output, like probe logs, and Blizzard's
 -- system lines) get no stamp from Blizzard: GlassChat adds the same prefix

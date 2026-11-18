@@ -435,7 +435,7 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
     `Keep.MAX_AGE` (24 h) old.
   - **Each restored line passes back its id and event** (focus mode still sorts it), with
     `accessID` / `typeID` / `eventArgs` nil: those are this session's (FloatingChatFrame.lua:933,
-    ChatFrameUtil.lua:854). **Its saved time is an 11th value** (`Copy.Entry`'s `kept`), so it keeps
+    ChatFrameUtil.lua:869). **Its saved time is an 11th value** (`Copy.Entry`'s `kept`), so it keeps
     its age over several sessions.
   - **Battle.net names** are per-session `|K` tokens. At the save, each `BNplayer` link becomes
     its BattleTag (`C_BattleNet.GetAccountInfoByID`, a plain string), between ``/`` markers.
@@ -786,7 +786,7 @@ exists here.
   notes, measured on the live client. Treat them as fact; don't re-derive them. Other sessions
   edit this file, so write new addon-agnostic findings there (it has no chat section yet; the
   probe results belong in one), not into a copy in this repo.
-- `C:\Projects\WoW\References\Forever\api\forever-api-1.60.1.70450.md` is the full API dump for the current
+- `C:\Projects\WoW\References\Forever\api\forever-api-1.60.1.70959.md` is the full API dump for the current
   build. It lists documented functions and events, enums, **widget methods** (the only list of
   those) and the `_G` walk. FrameXML tables such as `ChatTypeInfo` aren't in it. It proves a name
   exists, not that it works. **Presence is not a contract.**
@@ -799,8 +799,8 @@ exists here.
     `SetMaxLines(128)`;
   - `Blizzard_ChatFrameBase/Shared/ChatFrameFilters.lua`: filters run through
     `securecallfunction`, and **only while `canaccessvalue(...)`**;
-  - `Blizzard_ChatFrameBase/Shared/ChatFrameUtil.lua`: `ShouldColorChatByClass` at 880 and
-    `GetDecoratedSenderName` at 1061;
+  - `Blizzard_ChatFrameBase/Shared/ChatFrameUtil.lua`: `ShouldColorChatByClass` at 895 and
+    `GetDecoratedSenderName` at 1076;
   - `Blizzard_SharedXML/ScrollingMessageFrame.lua`: `SetTextCopyable` and drag-select →
     `CopyToClipboard`;
   - `Blizzard_UIPanels_Game/Shared/ItemRefHandlersShared.lua`: the `addon` link type →
@@ -823,7 +823,7 @@ we don't use. Worth reading:
 Prat is **GPL-3.0** and this repo is **MIT**, so lifting Prat code would make that file GPL: take ideas only, unless the owner agrees. Attribution would go in the file
 header. Prefer our own code anyway: Prat's is written for its Ace3 pipeline.
 
-Keep a `MEASURED_ON_BUILD` constant in the source, matching the dump's build (`1.60.1.70450`),
+Keep a `MEASURED_ON_BUILD` constant in the source, matching the dump's build (`1.60.1.70959`),
 and warn at login when `GetBuildInfo()` differs, in a dev build only (owner: a player can't act on
 it; `/gchat version` shows both). Bump it only after re-measuring in game.
 
@@ -901,7 +901,7 @@ pwsh Tools\deploy.ps1 -Probe                                         # copy the 
 
 The `tests\` harness is built on **WowTestKit** (`..\WowTestKit`, Spotnick2/WowTestKit; its
 README is the reference): plain Lua 5.1 scripts with no dependencies. `tests\kit.pin` names the
-kit commit and the build to test against (`70450`, with `MEASURED_ON_BUILD`: a newer build is a
+kit commit and the build to test against (`70959`, with `MEASURED_ON_BUILD`: a newer build is a
 re-measure first). The kit's core gives `check` / `eq` / `done` (with the stray-`|` check), strict
 globals, secrets, widgets that record every method called, timers and the `WoW` driving table.
 `tests\wow_stubs.lua` loads it, adds the chat's client APIs and replaces a core method where

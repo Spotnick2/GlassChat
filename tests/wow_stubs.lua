@@ -220,7 +220,7 @@ end
 WoW.tabAlphas = {}
 WoW.messageFilters = {}
 WoW.nameFilters = {}
--- GetDecoratedSenderName's last step (ChatFrameUtil.lua:1112): each filter
+-- GetDecoratedSenderName's last step (ChatFrameUtil.lua:1127): each filter
 -- gets (event, name, arg1..arg14); a nil return keeps the name
 -- (ChatFrameFilters.lua:59-66). guid goes in arg12.
 function WoW.decorateName(event, name, guid)
@@ -231,12 +231,12 @@ function WoW.decorateName(event, name, guid)
     return name
 end
 ChatFrameUtil = {
-    -- The edit box being typed in, else nil (ChatFrameUtil.lua:496).
+    -- The edit box being typed in, else nil (ChatFrameUtil.lua:511).
     GetActiveWindow = function() return WoW.activeBox end,
-    -- The edit box Enter opens (ChatFrameUtil.lua:500, 570).
+    -- The edit box Enter opens (ChatFrameUtil.lua:515, 585).
     GetLastActiveWindow = function() return WoW.lastActive end,
     SetLastActiveWindow = function(editBox) WoW.lastActive = editBox end,
-    -- ChatFrameUtil.lua:845: the showTimestamps setting, nil for "none".
+    -- ChatFrameUtil.lua:860: the showTimestamps setting, nil for "none".
     GetTimestampFormat = function()
         local v = WoW.cvars.showTimestamps
         if v ~= nil and v ~= "none" then return v end
@@ -637,7 +637,7 @@ C_ClassColor = { GetClassColor = function(classFile)
     if c then return { r = c[1], g = c[2], b = c[3] } end
 end }
 
-function GetBuildInfo() return "1.60.1", "70450", "Oct 15 2026", 16001 end
+function GetBuildInfo() return "1.60.1", "70959", "Nov 13 2026", 16001 end
 
 -- Whatever the stub recorded while it was built is not the addon's.
 WoW.reset()

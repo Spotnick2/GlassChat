@@ -53,7 +53,7 @@ end
 
 -- Two places that must agree, never derived from each other (porting guide §0).
 loadAddon()
-eq(GlassChat.MEASURED_ON_BUILD, "1.60.1.70450", "MEASURED_ON_BUILD")
+eq(GlassChat.MEASURED_ON_BUILD, "1.60.1.70959", "MEASURED_ON_BUILD")
 
 -- Every texture the material names ships with the library (Libs\LibGlass-1.0\Media
 -- in the package; the checkout's Media/ here). GlassChat has no Media/ of its own.
