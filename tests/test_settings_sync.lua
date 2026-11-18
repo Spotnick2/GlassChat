@@ -70,7 +70,7 @@ function Peer.ourNonce()
 end
 function Peer.deliver(text) WoW.fire("BN_CHAT_MSG_ADDON", "LibAcctSync", text, "WHISPER", Peer.id) end
 function Peer.hello()
-    Peer.deliver(table.concat({ "H1", "1", Peer.name, Peer.guid, Peer.faction, Peer.realm, "", Peer.nonce, "" }, "|"))
+    Peer.deliver(table.concat({ "H1", "1", Peer.name, Peer.guid, Peer.faction, Peer.realm, Peer.key, Peer.nonce, "" }, "|"))
 end
 -- tag: the instance's, "GlassChatST" for settings, "GlassChat" for lists.
 function Peer.send(payload, sid, tag)

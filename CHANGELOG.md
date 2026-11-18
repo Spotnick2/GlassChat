@@ -10,6 +10,8 @@
   lines of the copy and focus windows (a search you typed, for one) and the counts beside the
   chat now use your game language's font, instead of empty boxes. The glass library is updated
   to its newest version for this.
+- The account-sync library is updated to its newest version too, the one AltStable already
+  ships: every copy from your other accounts is now checked against its signature.
 
 ## v1.0.0-beta1
 

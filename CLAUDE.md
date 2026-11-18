@@ -587,8 +587,10 @@ holds the contract. The migration notes are `C:\Projects\WoW\References\Docs\LIB
   - Library reports: `error` goes to `API.Fail` and chat; `info` is kept for
     `/gchat ignore sync` and printed only in developer mode.
   - **Embedding** follows LibGlass's pattern:
-    - `.pkgmeta` external at `tag: r5` (r2 passed GlassChat's two-account check, r3 the
-      library's own; r4's `SendTo` and r5's messages mode are unused);
+    - `.pkgmeta` external at `tag: r8` (r2 passed GlassChat's two-account check, r3 the
+      library's own; r4's `SendTo` and r5's messages mode are unused). From r7 **every**
+      delivery needs its MAC, so the tests' fake peer sends its key in its hello, as a
+      real one that Battle.net verifies does (#150);
     - the TOC's XML line;
     - `tests/fetch_external.sh`, `$env:LIBACCOUNTSYNC` (default `..\LibAccountSync`), and the
       deploy calling the library's own deploy;
