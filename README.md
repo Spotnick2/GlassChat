@@ -5,7 +5,7 @@ see-through glass panel, with class-coloured names, a focus mode to search and c
 click-to-copy web addresses, and a tab of their own for addons that flood chat. Small and
 streamlined on purpose.
 
-> **Alpha.** It is in daily use, but young: expect rough edges, and please report them.
+![Glass Chat's window: guild chat with levels before the names, timestamps, the tab strip with the search and copy icons, and the alerts button above the buttons beside the chat](https://raw.githubusercontent.com/Spotnick2/GlassChat/main/docs/screenshots/chat.png)
 
 It extends the stock chat and never replaces it: frames, tabs, docking, Edit Mode and the edit
 box stay Blizzard's.
@@ -34,6 +34,8 @@ copy it, or export the view to SavedVariables so a file can be read directly. Cl
 `[Name]` in chat to see only its lines. It works on the window's newest 1000 messages, a
 snapshot rather than a session log.
 
+![Focus mode: a frozen window with its search box, source and kind filters, and the Export, Select all and Close buttons](https://raw.githubusercontent.com/Spotnick2/GlassChat/main/docs/screenshots/focus-mode.png)
+
 **Copy.** A Copy button on each tab strip (or `/gchat copy`) opens the window's text without
 colours or link codes, already selected, so Ctrl+C copies it. The game doesn't let addons write
 the clipboard for you.
@@ -56,8 +58,9 @@ back what players said after a `/reload` or the next login, above a "previous se
 to 200 lines per window, a day old at most, never addon or system lines. It is off by default.
 
 **Alerts.** A sound and a flashing taskbar icon when public, guild, party or raid chat mentions
-your first name or words you add; every whisper plays the tell sound, not only the first after a
-quiet spell. A green `!` beside the chat lists what you missed (`/gchat alert`).
+your first name or your surname (`/gchat alert name` to change that) or words you add; every
+whisper plays the tell sound, not only the first after a quiet spell. A green `!` beside the chat
+lists what you missed (`/gchat alert`).
 
 **One layout for every character.** `/gchat layout save` records this character's chat windows;
 your other characters get a clickable offer to apply it. The main window's place and size stay
@@ -65,7 +68,8 @@ with Edit Mode.
 
 **Spam & Ignore** (a plugin, installed with it). An ignore list by character, not by name, that
 covers all player chat; mutes and a spam score for public chat only, which never touch you, your
-friends, guild, group or your own characters. It can share its lists, and Glass Chat's settings,
+friends, guild, group or your own characters. The spam score starts by only watching: it lists
+what it would hide (`/gchat spam score`) until you turn hiding on. It can share its lists, and Glass Chat's settings,
 with your other WoW accounts through `/gchat ignore send` and `/gchat settings send`.
 
 ## Commands
@@ -76,6 +80,7 @@ with your other WoW accounts through `/gchat ignore send` and `/gchat settings s
 - `/gchat glass on|off` - the glass panels
 - `/gchat body chat|clear|smoked|class`, `/gchat accent ice|gold` - the look
 - `/gchat alpha 0-1|reset`, `/gchat shellalpha 0-1`, `/gchat idle 0-1` - darkness
+- `/gchat tabsize N` - the tab names' size
 - `/gchat focus [text]`, `/gchat focus from <Addon>`, `/gchat copy`
 - `/gchat tabs` - addons with their own tab
 - `/gchat keep on|off`, `/gchat lines N`, `/gchat history N`, `/gchat arrows on|off`
@@ -84,6 +89,13 @@ with your other WoW accounts through `/gchat ignore send` and `/gchat settings s
 - `/gchat layout` - the saved chat layout
 - `/gchat tune` - the panel's edge, shadow and sheen
 - `/gchat failures`, `/gchat version` - for bug reports
+
+With Spam & Ignore:
+- `/gchat ignore First Surname`, `/gchat unignore`, `/gchat ignores`, `/gchat ignore import`
+- `/gchat mute <phrase>`, `/gchat unmute`, `/gchat mutes`, `/gchat allow First Surname`
+- `/gchat spam` - the log, the icon, CJK posts, the spam score
+- `/gchat ignore send`, `/gchat ignore sync` - your lists on your other accounts
+- `/gchat settings send [layout]`, `/gchat settings undo` - your settings there too
 
 ## Good to know
 
@@ -97,6 +109,9 @@ with your other WoW accounts through `/gchat ignore send` and `/gchat settings s
 - **Some parts are tested offline only.** The kept chat's Battle.net names, the guild level
   roster and the side buttons' stacking inside Blizzard's alert frame are not yet checked in
   game. Reports welcome.
+- **Other game languages.** Glass Chat never relies on English names, and its own windows use
+  your game language's font (Russian, Korean and Chinese included). Alert words ignore case for
+  Latin letters only.
 - **Small on purpose.** No module zoo, no Ace3 and no profiles.
 
 ## Bugs and ideas
