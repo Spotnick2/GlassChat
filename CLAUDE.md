@@ -50,7 +50,7 @@ this client each one taints chat. The research behind this is in `docs/PLAN.md`.
 smart tabs), plus timestamps and the Spam & Ignore plugin.** The probe results are in
 `docs/FOREVER-PROBE.md`; the plan is `docs/PLAN.md`. M0-M5 are built; what's left is in the
 plan's "Later" and the Spam & Ignore S3/S4. Work goes through
-GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (private), one issue per milestone.
+GitHub issues and PRs at `github.com/Spotnick2/GlassChat` (public), one issue per milestone.
 
 ## Layout
 

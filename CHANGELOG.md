@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.0.0
+
+The first stable release: v1.0.0-beta3 out of beta, with nothing changed since. If you're new
+to it, Glass Chat gives you:
+
+- Blizzard's own chat windows on a see-through glass panel, with readable tabs, that fades to a
+  faint veil when there's nothing left to read.
+- **Focus mode** (`/gchat focus`, or the magnifier on the tab strip): freeze a window to search
+  it, filter it by kind, addon and time, copy it or export it. Click an addon's `[Name]` in chat
+  to see only its lines.
+- **Copy** (the Copy button, or `/gchat copy`), and web addresses you click to copy.
+- **Smart tabs:** an addon that floods the chat is offered a tab of its own.
+- Class colours, players' levels, short channel names and optional timestamps on chat lines.
+- Up and Down recall what you sent, 1000 lines per window, and optionally (`/gchat keep on`)
+  what players said kept across reloads and logins.
+- **Alerts** when chat mentions your name or your words, and the whisper sound on every whisper.
+- One chat layout for all your characters (`/gchat layout save`).
+- **Spam & Ignore** (included): one ignore list for all your characters, muted phrases, a spam
+  score, and your lists and settings shared with your other WoW accounts.
+
+Every setting is under Esc > Options > AddOns > Glass Chat, or `/gchat options`.
+
 ## v1.0.0-beta3
 
 - **Russian, Korean and Chinese text in Glass Chat's own windows:** the window titles, the status
